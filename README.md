@@ -1,4 +1,22 @@
-﻿# Cosmic
+﻿# cosmic-navi
+
+A Cosmic (GMS v83) private server with AI companion bots, extended with Navi: personal agent tools you reach by whispering one of your bots in game. See [tools/navi](tools/navi/README.md) and the Navi section of [README_SERVER_BOTS.md](README_SERVER_BOTS.md).
+
+## My work in this repo
+
+- **Navi owner tools:** whisper a bot `navi email` for a private, read only summary of your Gmail inbox. A host service outside the game server holds the credentials, answers only allowlisted owners, and never logs mailbox contents.
+- **Persistent owner roster:** owner bot career plans and roster roles that survive restarts, with inactive storage characters kept offline.
+
+## Credits
+
+- [P0nk/Cosmic](https://github.com/P0nk/Cosmic): the server emulator, by Ponk and contributors.
+- [nutnnut/Cosmic](https://github.com/nutnnut/Cosmic): the AI companion bot system this repo builds on.
+
+The full commit history of both is preserved here. Licensed under the GNU AGPL v3, like the projects it builds on; see [LICENSE](LICENSE).
+
+---
+
+# Cosmic
 Cosmic is a server emulator for Global MapleStory (GMS) version 83.
 
 ## This fork's custom features (check config.yaml)
