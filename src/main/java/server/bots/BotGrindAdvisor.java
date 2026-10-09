@@ -80,8 +80,10 @@ final class BotGrindAdvisor {
     /** Ignore "upgrades" below this offense-score gain — rounding noise, not progression. */
     private static final double MIN_GEAR_GAIN_SCORE = 0.5;
     /** Level-gated gear (drop or bagged) still counts this many levels ahead, decayed per
-     *  level to go — wearable-now beats wearable-later, smoothly. */
-    private static final int GEAR_LEVEL_HORIZON = 10;
+     *  level to go — wearable-now beats wearable-later, smoothly. At 10 levels, weak bots
+     *  (low exp/hr, so any gear scores well against grinding) spent lv25-29 hunting lv35 Maple
+     *  weapons and fell to ~30-50% of their class's leveling rate; 5 starts those hunts ~lv30. */
+    private static final int GEAR_LEVEL_HORIZON = 5;
     private static final double LEVEL_WAIT_DECAY = 0.9;
     /** Monte Carlo drop rolls per item per pass (~microseconds each; runs on DECIDE_POOL). */
     private static final int ROLL_SAMPLES = 32;
