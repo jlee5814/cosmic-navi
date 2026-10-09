@@ -57,6 +57,9 @@ public final class SituationBuilder {
         }
         sb.append('\n');
 
+        // Without it, "how many mesos do you have" got an invented number (bot_eval: 0/20 -> 20/20).
+        sb.append("Mesos: ").append(String.format(java.util.Locale.ROOT, "%,d", bot.getMeso())).append('\n');
+
         String mobs = describeMobs(map);
         if (!mobs.isEmpty()) sb.append("Mobs around: ").append(mobs).append('\n');
 

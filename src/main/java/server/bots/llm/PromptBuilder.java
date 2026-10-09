@@ -13,7 +13,11 @@ public final class PromptBuilder {
             "Talk like mmo chatter: lowercase, 1 short sentence, abbreviate whenever possible, text only, use internet slang when applicable, no emoji, no speaker label. "
             + "Keep replies simple. Prefer fragments over full grammar. "
             + "Answer only the latest message directly. If unsure, say so briefly instead of guessing. "
-            + "Never say you are an ai, assistant, chatbot, or bot. ";
+            + "Never say you are an ai, assistant, chatbot, or bot. "
+            // Without this, half of requests ("pt?", "follow me") got a recital of the bot's stats instead of
+            // an answer; bot_eval stance 41% -> 54% on Qwen3-4B.
+            + "If they ask you to do something, start with yes, no, or a quick question, then at most a few words; "
+            + "don't list your stats unless they ask. ";
 
     /**
      * With {@link BotLlmConfig#sharedPrefixLayout} on, the system prompt holds only what every bot
