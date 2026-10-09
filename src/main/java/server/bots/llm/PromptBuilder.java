@@ -3,6 +3,7 @@ package server.bots.llm;
 import client.Character;
 import server.bots.BotEntry;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public final class PromptBuilder {
@@ -69,5 +70,42 @@ public final class PromptBuilder {
         sb.append(senderName).append(": ").append(newMessage).append('\n');
         sb.append(entry.getBot() != null ? entry.getBot().getName() : "bot").append(':');
         return sb.toString();
+    }
+
+    /**
+     * The same conversation as {@link #buildSystem} plus {@link #buildPrompt}, but as chat messages
+     * for OpenAI compatible servers: earlier exchanges become real user and assistant turns, and the
+     * newest line is a user message. A small model then knows which lines it said and answers, instead
+     * of continuing a pasted transcript (which made it echo the sender or speak for them).
+     *
+     * The live game state rides in the newest turn, after the history: placed before it, a wrong
+     * earlier reply ("7% left") outweighed the state in tests, even with an instruction to trust the
+     * state; placed after it, Qwen3-1.7B read the state correctly 8 times out of 8. The shared rules
+     * still open the system prompt, so the server's prefix cache keeps reusing them.
+     */
+    public static List<ChatMessage> buildChat(BotEntry entry, SenderRelation relation, String senderName,
+                                              String newMessage, String summary,
+                                              List<BotMemoryStore.Turn> recent) {
+        StringBuilder sys = new StringBuilder(768);
+        sys.append(buildSystem(entry, relation, senderName));
+        sys.append("\n\n").append(identity(entry).trim());
+        if (summary != null && !summary.isBlank()) {
+            sys.append("\nWhat you remember: ").append(summary.trim());
+        }
+
+        List<ChatMessage> messages = new ArrayList<>();
+        messages.add(new ChatMessage("system", sys.toString()));
+        if (recent != null) {
+            for (BotMemoryStore.Turn t : recent) {
+                if (t.msg() == null || t.reply() == null || t.msg().isBlank() || t.reply().isBlank()) continue;
+                messages.add(new ChatMessage("user", t.msg()));
+                messages.add(new ChatMessage("assistant", t.reply()));
+            }
+        }
+        String situation = SituationBuilder.build(entry).trim();
+        messages.add(new ChatMessage("user", situation.isEmpty()
+                ? newMessage
+                : "[your game state right now]\n" + situation + "\n\n" + newMessage));
+        return messages;
     }
 }

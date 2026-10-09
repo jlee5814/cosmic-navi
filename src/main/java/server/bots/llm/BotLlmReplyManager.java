@@ -109,23 +109,31 @@ public final class BotLlmReplyManager {
         String system = PromptBuilder.buildSystem(entry, relation, senderName);
         String prompt = PromptBuilder.buildPrompt(entry, senderName, message, summary, recent);
 
+        List<ChatMessage> chat = BotLlmConfig.isOpenAi()
+                ? PromptBuilder.buildChat(entry, relation, senderName, message, summary, recent)
+                : null;
+
         long t0 = System.currentTimeMillis();
         if (BotLlmConfig.debugLog) {
             log.info("llm[{}] <- {}: {}", botName, senderName, message);
-            log.info("llm[{}] system: {}", botName, system);
-            log.info("llm[{}] prompt ({} chars, {} recent turns, num_ctx={}, num_predict={}):\n{}",
-                    botName, prompt.length(), recent.size(),
-                    BotLlmConfig.numCtx, BotLlmConfig.maxPredictTokens, prompt);
+            if (chat != null) {
+                for (ChatMessage m : chat) log.info("llm[{}] {}: {}", botName, m.role(), m.content());
+            } else {
+                log.info("llm[{}] system: {}", botName, system);
+                log.info("llm[{}] prompt ({} chars, {} recent turns, num_ctx={}, num_predict={}):\n{}",
+                        botName, prompt.length(), recent.size(),
+                        BotLlmConfig.numCtx, BotLlmConfig.maxPredictTokens, prompt);
+            }
         }
 
-        Optional<String> raw = LlmClient.generate(prompt, system);
+        Optional<String> raw = chat != null ? LlmClient.chat(chat) : LlmClient.generate(prompt, system);
         long elapsed = System.currentTimeMillis() - t0;
 
         if (raw.isEmpty()) {
             if (BotLlmConfig.debugLog) log.info("llm[{}] no reply ({} ms)", botName, elapsed);
             return;
         }
-        String reply = sanitize(raw.get());
+        String reply = stripSpeakerLabel(sanitize(raw.get()), botName, senderName);
         if (BotLlmConfig.debugLog) {
             log.info("llm[{}] raw ({} ms, {} chars): {}", botName, elapsed, raw.get().length(), raw.get());
             log.info("llm[{}] sanitized ({} chars): {}", botName, reply.length(), reply);
@@ -138,6 +146,11 @@ public final class BotLlmReplyManager {
 //            reply = fallback;
 //        }
         if (reply.isEmpty()) return;
+        if (isEchoOf(message, reply)) {
+            // A small model sometimes repeats the sender's line instead of answering; silence beats a parrot.
+            if (BotLlmConfig.debugLog) log.info("llm[{}] dropped echo of the sender's line: {}", botName, reply);
+            return;
+        }
 
         List<String> parts = splitForChat(reply, BotLlmConfig.maxReplyMessages,
                 BotLlmConfig.maxReplyCharsPerMessage);
@@ -289,6 +302,54 @@ public final class BotLlmReplyManager {
             s = s.substring(0, cap).trim();
         }
         return s;
+    }
+
+    /** Drops a leading "Name:" speaker label for the bot or the sender (sanitize already lowercased). */
+    static String stripSpeakerLabel(String reply, String botName, String senderName) {
+        if (reply == null) return "";
+        String s = reply;
+        for (String name : new String[] {botName, senderName}) {
+            if (name == null || name.isBlank()) continue;
+            String label = name.toLowerCase(Locale.ROOT);
+            if (s.startsWith(label) && s.substring(label.length()).stripLeading().startsWith(":")) {
+                s = s.substring(label.length()).stripLeading().substring(1).trim();
+            }
+        }
+        return s;
+    }
+
+    /**
+     * True when the reply is essentially the sender's own line (12+ characters): it contains the whole
+     * line, or the two differ by at most a fifth of their characters once case and punctuation are ignored.
+     */
+    static boolean isEchoOf(String message, String reply) {
+        String m = normalizeForEcho(message);
+        String r = normalizeForEcho(reply);
+        // Short lines are left alone: "hi" back to "hi" is a greeting, not a parrot.
+        if (m.length() < 12 || r.isEmpty()) return false;
+        if (r.contains(m)) return true;
+        int longer = Math.max(m.length(), r.length());
+        return editDistance(m, r) <= longer / 5;
+    }
+
+    private static String normalizeForEcho(String s) {
+        if (s == null) return "";
+        return s.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9 ]", " ").replaceAll("\\s+", " ").trim();
+    }
+
+    private static int editDistance(String a, String b) {
+        int[] prev = new int[b.length() + 1];
+        int[] cur = new int[b.length() + 1];
+        for (int j = 0; j <= b.length(); j++) prev[j] = j;
+        for (int i = 1; i <= a.length(); i++) {
+            cur[0] = i;
+            for (int j = 1; j <= b.length(); j++) {
+                int sub = prev[j - 1] + (a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1);
+                cur[j] = Math.min(sub, Math.min(prev[j] + 1, cur[j - 1] + 1));
+            }
+            int[] t = prev; prev = cur; cur = t;
+        }
+        return prev[b.length()];
     }
 
     private static boolean looksLowQuality(String message, String reply) {

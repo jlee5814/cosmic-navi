@@ -17,6 +17,29 @@ public final class LlmClient {
         return send(prompt, system, numPredict, timeoutMs);
     }
 
+    /**
+     * A chat request as role-tagged messages. OpenAI compatible servers get the messages as they are;
+     * Ollama's /api/generate takes one prompt, so the turns are flattened into the system prompt and
+     * the newest user message.
+     */
+    public static Optional<String> chat(java.util.List<ChatMessage> messages) {
+        if (BotLlmConfig.isOpenAi()) {
+            return OpenAiChatClient.sendChat(messages, BotLlmConfig.maxPredictTokens, BotLlmConfig.requestTimeoutMs);
+        }
+        StringBuilder system = new StringBuilder();
+        String last = "";
+        for (int i = 0; i < messages.size(); i++) {
+            ChatMessage m = messages.get(i);
+            if (i == messages.size() - 1 && "user".equals(m.role())) {
+                last = m.content();
+            } else {
+                if (system.length() > 0) system.append('\n');
+                system.append("system".equals(m.role()) ? "" : m.role() + ": ").append(m.content());
+            }
+        }
+        return send(last, system.toString(), BotLlmConfig.maxPredictTokens, BotLlmConfig.requestTimeoutMs);
+    }
+
     private static Optional<String> send(String prompt, String system, int maxTokens, int timeoutMs) {
         return BotLlmConfig.isOpenAi()
                 ? OpenAiChatClient.send(prompt, system, maxTokens, timeoutMs)

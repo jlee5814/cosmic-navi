@@ -25,12 +25,19 @@ public final class OpenAiChatClient {
     private OpenAiChatClient() {}
 
     static Optional<String> send(String prompt, String system, int maxTokens, int timeoutMs) {
+        java.util.List<ChatMessage> messages = new java.util.ArrayList<>(2);
+        if (system != null && !system.isEmpty()) messages.add(new ChatMessage("system", system));
+        messages.add(new ChatMessage("user", prompt));
+        return sendChat(messages, maxTokens, timeoutMs);
+    }
+
+    static Optional<String> sendChat(java.util.List<ChatMessage> messages, int maxTokens, int timeoutMs) {
         HttpRequest req;
         try {
             req = HttpRequest.newBuilder(URI.create(BotLlmConfig.endpoint + "/v1/chat/completions"))
                     .timeout(Duration.ofMillis(timeoutMs))
                     .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(buildBody(prompt, system, maxTokens)))
+                    .POST(HttpRequest.BodyPublishers.ofString(buildBody(messages, maxTokens)))
                     .build();
         } catch (Exception e) {
             log.warn("openai: request build failed: {}", e.toString());
@@ -55,13 +62,23 @@ public final class OpenAiChatClient {
     }
 
     static String buildBody(String prompt, String system, int maxTokens) {
+        java.util.List<ChatMessage> messages = new java.util.ArrayList<>(2);
+        if (system != null && !system.isEmpty()) messages.add(new ChatMessage("system", system));
+        messages.add(new ChatMessage("user", prompt));
+        return buildBody(messages, maxTokens);
+    }
+
+    static String buildBody(java.util.List<ChatMessage> messages, int maxTokens) {
         StringBuilder sb = new StringBuilder(512);
         sb.append("{\"model\":\"").append(OllamaClient.jsonEscape(BotLlmConfig.model)).append("\",");
         sb.append("\"stream\":false,\"messages\":[");
-        if (system != null && !system.isEmpty()) {
-            sb.append("{\"role\":\"system\",\"content\":\"").append(OllamaClient.jsonEscape(system)).append("\"},");
+        for (int i = 0; i < messages.size(); i++) {
+            ChatMessage m = messages.get(i);
+            if (i > 0) sb.append(',');
+            sb.append("{\"role\":\"").append(OllamaClient.jsonEscape(m.role()))
+                    .append("\",\"content\":\"").append(OllamaClient.jsonEscape(m.content())).append("\"}");
         }
-        sb.append("{\"role\":\"user\",\"content\":\"").append(OllamaClient.jsonEscape(prompt)).append("\"}],");
+        sb.append("],");
         sb.append("\"max_tokens\":").append(maxTokens)
                 .append(",\"temperature\":").append(BotLlmConfig.temperature)
                 .append(",\"top_p\":").append(BotLlmConfig.topP)
