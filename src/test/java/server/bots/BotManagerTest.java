@@ -334,6 +334,25 @@ class BotManagerTest {
     }
 
     @Test
+    void shouldRecoverSelfOwnedBotFallingBelowTheMapFloor() throws Exception {
+        MapleMap map = createEmptyTestMap(999221001);
+        map.setMapLineBoundings(-500, 500, -500, 500);
+        map.getFootholds().insert(new Foothold(new Point(0, 100), new Point(200, 100), 1));
+        Character bot = mockMovingBot(new Point(450, 1300), map);
+        // Self-owned: the owner IS the bot, so owner-distance OOB recovery can never fire.
+        BotEntry entry = new BotEntry(bot, bot, null);
+        entry.inAir = true;
+        entry.moveTarget = new Point(100, 90);
+
+        Method watchdog = BotManager.class.getDeclaredMethod("tickFrozenAirborneWatchdog", BotEntry.class);
+        watchdog.setAccessible(true);
+        watchdog.invoke(null, entry);
+
+        assertEquals(new Point(100, 100), bot.getPosition());
+        assertFalse(entry.inAir);
+    }
+
+    @Test
     void shouldRespawnDeadBotEvenWhenOwnerIsUnavailable() throws Exception {
         MapleMap map = createEmptyTestMap(910000053);
         Character bot = mockMovingBot(new Point(100, 100), map);
