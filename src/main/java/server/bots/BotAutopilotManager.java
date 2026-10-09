@@ -772,6 +772,11 @@ final class BotAutopilotManager {
                 entry.autopilotReturningFromErrand = false;
                 reply.accept(entry, BotManager.randomReply(BACK_REPLIES));
             }
+            // A worthwhile weapon upgrade sits in a reachable shop: detour for it mid grind, as the
+            // reactive pot errand does. The shop search is cached per bot, so the check is cheap.
+            if (!operatorPinned && BotShopManager.wantsWeaponUpgrade(entry, bot)) {
+                requestResupplyErrand(entry, bot);
+            }
             announceArrival(entry);
             maybeRedecide(entry, bot);
             return false; // on site: normal grind flow runs this tick
@@ -796,7 +801,8 @@ final class BotAutopilotManager {
         boolean ammoStranded = BotShopManager.isOutOfUsableAmmo(bot) && BotShopManager.canRecoverAmmo(entry, bot);
         boolean needsPreferredWeapon = BotShopManager.needsPreferredWeaponForCurrentJob(bot);
         if (!operatorPinned && entry.autopilotErrandMapId == -1 && !entry.autopilotReturningFromErrand
-                && (lowAndCanBuy || ammoStranded || needsPreferredWeapon || bagFull.bagFull(entry, bot))) {
+                && (lowAndCanBuy || ammoStranded || needsPreferredWeapon || bagFull.bagFull(entry, bot)
+                    || BotShopManager.wantsWeaponUpgrade(entry, bot))) {
             requestResupplyErrand(entry, bot);
             if (entry.autopilotErrandMapId != -1) {
                 destination = entry.autopilotErrandMapId; // head to town this tick, not the grind map
@@ -995,6 +1001,9 @@ final class BotAutopilotManager {
         try {
             if (BotShopManager.needsPreferredWeaponForCurrentJob(bot)) {
                 reasons.add("need a " + BotShopManager.preferredWeaponName(bot));
+            } else if (BotShopManager.wantsWeaponUpgrade(entry, bot)) {
+                String weapon = BotShopManager.preferredWeaponName(bot);
+                reasons.add("going for a better " + ("preferred weapon".equals(weapon) ? "weapon" : weapon));
             }
         } catch (RuntimeException ignored) {
             // Gear-readiness text is diagnostic only; keep the errand alive.

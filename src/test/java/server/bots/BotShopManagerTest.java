@@ -345,6 +345,18 @@ class BotShopManagerTest {
 
     // Stub the ItemInformationProvider-backed seam: star 2070018 is the strongest, all stacks
     // are well under slot-max so any partial stack counts as refillable. Restored on close.
+    @Test
+    void weaponUpgradeNeedsAClearGainOverTheWornWeapon() {
+        // Field Dagger to Cass is a big step; a sliver of gain is not worth a shop trip.
+        assertTrue(BotShopManager.isWorthwhileWeaponUpgrade(30.0, 45.0));
+        assertTrue(BotShopManager.isWorthwhileWeaponUpgrade(30.0, 30.0 * (1.0 + BotShopManager.WEAPON_UPGRADE_MIN_GAIN)));
+        assertFalse(BotShopManager.isWorthwhileWeaponUpgrade(30.0, 32.0));
+        assertFalse(BotShopManager.isWorthwhileWeaponUpgrade(30.0, 30.0));
+        assertFalse(BotShopManager.isWorthwhileWeaponUpgrade(45.0, 30.0));
+        // A worthless worn weapon: any real value is an upgrade.
+        assertTrue(BotShopManager.isWorthwhileWeaponUpgrade(0.0, 5.0));
+    }
+
     private static Seam withStarStats() {
         IntUnaryOperator prevWatk = BotShopManager.projectileWatk;
         BotShopManager.SlotMaxLookup prevSlot = BotShopManager.ammoSlotMax;

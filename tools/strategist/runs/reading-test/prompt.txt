@@ -1,0 +1,20 @@
+You plan for one MapleStory (v83) bot. Use only the facts below, not memory.
+
+Bot: SipsBuddy46, level 39 bandit (thief class), 3,130,342 mesos.
+Equipped weapon: Field Dagger (required level 15, weapon attack 30).
+Main attack: Savage Blow level 13 (5 hits, 64% damage each).
+Now: grinding Pig (level 7, 75 HP, 15 EXP) at map 100030000.
+
+Maps it can reach:
+- 100030000 The Forest East of Henesys: Pig (level 7, 75 HP, defense 5, 15 EXP)
+- 103000200 Kerning Subway Line 2 Area 1: Jr. Wraith (level 35, 1,200 HP, defense 90, 70 EXP)
+
+Kerning City weapon store (map 103000003) sells these daggers a bandit can use:
+- Triangular Zamadar: level 12, attack 27, 4,000 mesos
+- Field Dagger: level 15, attack 30, 7,000 mesos
+- Stinger: level 22, attack 37, 15,000 mesos
+- Iron Dagger: level 25, attack 40, 22,000 mesos
+- Forked Dagger: level 27, attack 42, 38,000 mesos
+- Cass: level 30, attack 45, 42,000 mesos
+
+Answer with one action: keep, move <map id>, or buy <item name>. Then give one sentence why.

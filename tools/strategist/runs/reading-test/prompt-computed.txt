@@ -1,0 +1,15 @@
+You plan for one MapleStory (v83) bot. Use only the facts below, not memory.
+
+Bot: SipsBuddy46, level 39 bandit (thief class), 3,130,342 mesos.
+Equipped weapon: Field Dagger (required level 15, weapon attack 30).
+Now: grinding Pig at map 100030000.
+
+The options below were computed with the server's damage formulas
+(Savage Blow level 13, mob defense applied per hit, 0.72 s per attack, about 1 s walking per kill):
+
+- Option A: keep grinding Pig with the Field Dagger. 1 attack per kill, about 8.7 EXP per second. Cost: none.
+- Option B: buy Cass (attack 45) at the Kerning City weapon store, then grind Jr. Wraith at map 103000200. 3 attacks per kill, about 22.2 EXP per second. Cost: 42,000 mesos and one short shop stop next to the subway.
+- Option C: move to Jr. Wraith at map 103000200 with the Field Dagger. 6 attacks per kill, about 13.2 EXP per second. Cost: none.
+- Option D: buy Cass, then keep grinding Pig. 1 attack per kill, about 8.7 EXP per second. Cost: 42,000 mesos.
+
+Answer with one option letter, then one sentence why.
