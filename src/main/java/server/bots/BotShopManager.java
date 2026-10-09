@@ -134,7 +134,13 @@ final class BotShopManager {
         clearShopState(entry);
 
         boolean wantsSellTrash = shouldAutoSellTrash(entry, bot);
-        NpcShopMatch match = findBestShop(entry, bot, wantsSellTrash);
+        // A map can hold several shop NPCs, and the purchase runs at one of them: visit the one selling
+        // the weapon upgrade, else the first that has anything needed. (SipsBuddy32 walked to New Leaf
+        // City for a better spear and bought pants from the first NPC that matched.)
+        NpcShopMatch match = findBestShop(bot.getMap(), shop -> findWeaponUpgradeItem(bot, shop) != null);
+        if (match == null) {
+            match = findBestShop(entry, bot, wantsSellTrash);
+        }
         if (match == null) {
             return;
         }
@@ -146,7 +152,8 @@ final class BotShopManager {
         int potTrigger = BotManager.cfg.POT_LOW_WARN * POT_TRIGGER_THRESHOLD;
         boolean needsHpPots = pots[0] < potTrigger && findPotionItem(match.shop, bot, true) != null;
         boolean needsMpPots = pots[1] < potTrigger && findPotionItem(match.shop, bot, false) != null;
-        boolean needsPreferredWeapon = findNeededPreferredWeaponItem(bot, match.shop) != null;
+        boolean needsPreferredWeapon = findNeededPreferredWeaponItem(bot, match.shop) != null
+                || findWeaponUpgradeItem(bot, match.shop) != null;
         if (!needsRecharge && !needsAmmoForShop && !needsHpPots && !needsMpPots
                 && !needsPreferredWeapon && !wantsSellTrash) {
             return;
@@ -416,6 +423,16 @@ final class BotShopManager {
         if (needsPreferredWeapon) {
             return findNearestUncachedShopMap(bot, shop -> shopHasAnythingNeeded(entry, bot, shop));
         }
+        // A worthwhile weapon upgrade outranks a routine restock: the bot still has pots and ammo to
+        // grind on and restocks on the next errand. Only an urgent shortage goes to a supply shop first.
+        // (A potion shop rarely sells weapons, so a supply first rule meant the weapon never came:
+        // SipsBuddy34 announced a better spear, then bought pots in Ludibrium and flew back to Victoria.)
+        if (entry != null && !suppliesUrgent(bot)) {
+            Integer upgradeMap = weaponUpgradeShopMap(entry, bot);
+            if (upgradeMap != null) {
+                return upgradeMap;
+            }
+        }
         // Sell-trash trip => any shop; supply run => a potion-stocking shop (also carries ammo).
         Map<Integer, Integer> cache = allowAnyShop ? nearestAnyShopMapCache : nearestPotionShopMapCache;
         Integer cached = cache.get(from);
@@ -566,7 +583,7 @@ final class BotShopManager {
      *  recharge/buy, or a potion type it's low on that the shop sells)? Bag-state-aware, unlike the
      *  potion-only errand-destination filter. */
     private static boolean shopHasAnythingNeeded(BotEntry entry, Character bot, Shop shop) {
-        if (findNeededPreferredWeaponItem(bot, shop) != null) {
+        if (findNeededPreferredWeaponItem(bot, shop) != null || findWeaponUpgradeItem(bot, shop) != null) {
             return true;
         }
         WeaponType wt = BotAttackExecutionProvider.getEquippedWeaponType(bot);
@@ -1145,6 +1162,10 @@ final class BotShopManager {
         if (afterPreferredWeapon != sequence) {
             return afterPreferredWeapon;
         }
+        PurchaseSequence afterWeaponUpgrade = evaluateAndBuyWeaponUpgrade(sequence, shop);
+        if (afterWeaponUpgrade != sequence) {
+            return afterWeaponUpgrade;
+        }
         // Surplus only: reserve the pot/ammo resupply floor, then cap the gear spend.
         long budget = Math.min((long) EQUIP_BUY_MAX_MESO, (long) bot.getMeso() - BotManager.cfg.AMMO_RESERVE_MESO);
         if (budget <= 0) {
@@ -1171,6 +1192,11 @@ final class BotShopManager {
             }
             if (!(ii.getEquipById(id) instanceof Equip cand) || !ii.canWearEquipment(bot, cand, slot)) {
                 continue; // fixed stats -> must be wearable right now (no future/stat-blocked projection)
+            }
+            // autoEquip never wields an off type weapon, so buying one only feeds the trash seller: a
+            // spearman bought a 47,500 meso Blue Axe on each New Leaf City visit and sold it again.
+            if (slot == (short) -11 && !BotEquipManager.isPreferredWeapon(bot, ii.getWeaponType(id), cand)) {
+                continue;
             }
             Equip worn = BotScrollManager.wornInSlot(bot, ii, slot);
             double wornValue = worn == null ? 0.0 : BotScrollManager.potentialValue(bot, ii, worn);
@@ -1281,6 +1307,120 @@ final class BotShopManager {
             }
         }
         return best;
+    }
+
+    /** Minimum value gain, as a fraction of the worn weapon's {@link BotScrollManager#potentialValue},
+     *  that justifies a dedicated shop trip for a weapon. Smaller gains still get the generic equip buy
+     *  when the bot happens to visit a shop that sells them. */
+    static final double WEAPON_UPGRADE_MIN_GAIN = 0.15;
+    /** How often a bot reruns its weapon upgrade shop search, which scans maps across several hops. */
+    static final long WEAPON_UPGRADE_RECHECK_MS = 10 * 60_000L;
+
+    static boolean isWorthwhileWeaponUpgrade(double wornValue, double candidateValue) {
+        return candidateValue > wornValue && candidateValue >= wornValue * (1.0 + WEAPON_UPGRADE_MIN_GAIN);
+    }
+
+    /** Best weapon this shop sells that the bot can wear now, of its preferred type, within the weapon
+     *  budget, and worth a trip over the worn weapon ({@link #isWorthwhileWeaponUpgrade}). Null when the
+     *  bot has no weapon (the preferred weapon path owns that case) or nothing qualifies. Valued with the
+     *  same {@link BotScrollManager#potentialValue} SSOT as every other gear decision. */
+    private static ShopSlotItem findWeaponUpgradeItem(Character bot, Shop shop) {
+        if (bot == null || shop == null) {
+            return null;
+        }
+        long budget = preferredWeaponBudget(bot);
+        if (budget <= 0) {
+            return null;
+        }
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
+        Equip worn = BotScrollManager.wornInSlot(bot, ii, (short) -11);
+        if (worn == null) {
+            return null;
+        }
+        double wornValue = BotScrollManager.potentialValue(bot, ii, worn);
+        ShopSlotItem best = null;
+        double bestValue = Double.NEGATIVE_INFINITY;
+        List<ShopItem> items = shop.getItems();
+        for (int i = 0; i < items.size(); i++) {
+            ShopItem si = items.get(i);
+            int id = si.getItemId();
+            int price = si.getPrice();
+            if (price <= 0 || price > budget || !ItemConstants.isEquipment(id) || ii.isCash(id)) {
+                continue;
+            }
+            Short slot = BotScrollManager.primarySlot(ii, id);
+            if (slot == null || slot != (short) -11) {
+                continue;
+            }
+            if (!(ii.getEquipById(id) instanceof Equip cand)
+                    || !BotEquipManager.isPreferredWeapon(bot, ii.getWeaponType(id), cand)
+                    || !ii.canWearEquipment(bot, cand, slot)) {
+                continue;
+            }
+            double value = BotScrollManager.potentialValue(bot, ii, cand);
+            if (isWorthwhileWeaponUpgrade(wornValue, value)
+                    && (best == null || value > bestValue || (value == bestValue && price < best.shopItem.getPrice()))) {
+                best = new ShopSlotItem((short) i, si);
+                bestValue = value;
+            }
+        }
+        return best;
+    }
+
+    private static PurchaseSequence evaluateAndBuyWeaponUpgrade(PurchaseSequence sequence, Shop shop) {
+        Character bot = sequence.bot();
+        ShopSlotItem upgrade = findWeaponUpgradeItem(bot, shop);
+        if (upgrade == null) {
+            return sequence;
+        }
+        if (shop.buyDirect(bot, upgrade.slot(), upgrade.shopItem.getItemId(), (short) 1) == Shop.TransactionResult.SUCCESS) {
+            sequence.bought().add(resolveItemName(upgrade.shopItem.getItemId(), "weapon"));
+            BotEquipManager.autoEquip(bot, sequence.entry().owner, null, true);
+            sequence.entry().weaponUpgradeCheckAtMs = 0L; // search again from the new weapon
+            return sequence;
+        }
+        return sequence.withFirstShortfall(new BuyReport(upgrade.shopItem.getItemId(), 0, 1, ShortfallReason.NO_MESO));
+    }
+
+    /** Seam over the weapon upgrade shop search, which loads maps and reads ItemInformationProvider. */
+    static java.util.function.BiFunction<BotEntry, Character, Integer> weaponUpgradeShopMapSeam =
+            BotShopManager::computeWeaponUpgradeShopMap;
+
+    /** Nearest reachable map, other than the current one, whose shop sells a worthwhile weapon upgrade;
+     *  null when none. Each bot runs the search at most once per {@link #WEAPON_UPGRADE_RECHECK_MS} and
+     *  reuses the answer in between; a purchase resets the clock. */
+    static Integer weaponUpgradeShopMap(BotEntry entry, Character bot) {
+        return weaponUpgradeShopMapSeam.apply(entry, bot);
+    }
+
+    /** Out of usable ammo, or below the pot count where grinding stops: restock before anything else. */
+    private static boolean suppliesUrgent(Character bot) {
+        try {
+            int[] pots = BotPotionManager.countPotions(bot);
+            return pots[0] < BotManager.cfg.POT_STOP || pots[1] < BotManager.cfg.POT_STOP || isOutOfUsableAmmo(bot);
+        } catch (RuntimeException ex) {
+            return true; // unreadable inventory: the safe answer is the supply run
+        }
+    }
+
+    /** True when {@link #weaponUpgradeShopMap} has somewhere to go: the errand gates ask this. */
+    static boolean wantsWeaponUpgrade(BotEntry entry, Character bot) {
+        return weaponUpgradeShopMap(entry, bot) != null;
+    }
+
+    private static Integer computeWeaponUpgradeShopMap(BotEntry entry, Character bot) {
+        if (entry == null || bot == null || bot.getMap() == null || bot.getClient() == null) {
+            return null;
+        }
+        long now = System.currentTimeMillis();
+        if (now >= entry.weaponUpgradeCheckAtMs) {
+            entry.weaponUpgradeCheckAtMs = now + WEAPON_UPGRADE_RECHECK_MS;
+            Integer found = preferredWeaponBudget(bot) <= 0 ? null
+                    : findNearestUncachedShopMap(bot, shop -> findWeaponUpgradeItem(bot, shop) != null);
+            entry.weaponUpgradeShopMapId = found == null ? -1 : found;
+        }
+        int cached = entry.weaponUpgradeShopMapId;
+        return cached == -1 || cached == bot.getMapId() ? null : cached;
     }
 
     private static ShopSlotItem findPotionItem(Shop shop, Character bot, boolean forHp) {
