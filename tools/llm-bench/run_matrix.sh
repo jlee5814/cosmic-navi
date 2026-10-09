@@ -1,9 +1,10 @@
 #!/bin/sh
 # One fresh SGLang server per (layout, concurrency) wave, with a memory guard that stops the
 # server if the scheduler's physical footprint passes GUARD_GB. Results: <outdir>/wave-*.json
-# and <outdir>/memory.log. Usage: run_matrix.sh <outdir>
+# and <outdir>/memory.log, plus MLX counters per wave in <outdir>/memlog-<wave>/ (mlx_memlog hook;
+# MLX_PATCH_* env knobs pass through to the server). Usage: run_matrix.sh <outdir>
 set -u
-OUT="$1"
+mkdir -p "$1"; OUT="$(cd "$1" && pwd)"
 SGLANG_DIR="${SGLANG_DIR:-$HOME/Projects/inference/sglang}"
 VENV="${VENV:-my-venv}"
 GUARD_GB="${GUARD_GB:-10}"
@@ -20,9 +21,9 @@ footprint_gb() {
 for LAYOUT in current shared_first; do
   for CONC in 1 8 16 50; do
     TAG="$LAYOUT-c$CONC"
-    (cd "$SGLANG_DIR" && HF_HUB_OFFLINE=1 SGLANG_USE_MLX=1 "$VENV/bin/python" -m sglang.launch_server \
+    (cd "$SGLANG_DIR" && PYTHONPATH="$HERE/mlx_memlog" MLX_MEMLOG_DIR="$OUT/memlog-$TAG" HF_HUB_OFFLINE=1 SGLANG_USE_MLX=1 "$VENV/bin/python" -m sglang.launch_server \
       --model-path mlx-community/Qwen3-0.6B-4bit --disable-cuda-graph --host 127.0.0.1 --port 30000 \
-      --mem-fraction-static 0.25 --enable-cache-report > "$OUT/server-$TAG.log" 2>&1) &
+      --mem-fraction-static "${MEM_FRACTION:-0.25}" --enable-cache-report > "$OUT/server-$TAG.log" 2>&1) &
     until curl -s -o /dev/null --max-time 2 http://127.0.0.1:30000/health; do sleep 2; done
     SCHED=$(pgrep -f 'sglang::scheduler' | head -1)
 
