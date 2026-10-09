@@ -8,7 +8,9 @@ import server.bots.BotEntry;
 import server.life.Monster;
 import server.maps.MapleMap;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 
 /**
  * Builds a short "current situation" snapshot inlined into the LLM prompt so
@@ -155,5 +157,97 @@ public final class SituationBuilder {
         long h = m / 60;
         if (h < 24) return h + "h";
         return (h / 24) + "d";
+    }
+
+    // ─── On-demand sections: only when the question asks, so everyday chat stays short ────────────
+
+    private static final java.util.regex.Pattern GEAR_WORDS = java.util.regex.Pattern.compile(
+            "\\b(equip\\w*|gear|eq|wear\\w*|weapon|staff|wand|claw|sword|axe|bow|crossbow|gun|knuckle|dagger|"
+                    + "spear|polearm|shield|armor|hat|helm\\w*|glove\\w*|shoe\\w*|boots?|overall|top|bottom|cape|earring\\w*|items?)\\b",
+            java.util.regex.Pattern.CASE_INSENSITIVE);
+    private static final java.util.regex.Pattern SKILL_WORDS = java.util.regex.Pattern.compile(
+            "\\b(skills?|sp|max(ed)?|spells?|build|attacks?|spam\\w*|buffs?)\\b",
+            java.util.regex.Pattern.CASE_INSENSITIVE);
+    private static final java.util.concurrent.ConcurrentHashMap<Integer, String> SKILL_NAMES =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Extra state lines for a question that asks about gear or skills: what the bot actually wears and
+     * which skills it has, so the model stops inventing an "iced mage set". Empty for other questions.
+     */
+    public static String buildForQuestion(BotEntry entry, String question) {
+        if (entry == null || entry.getBot() == null || question == null) return "";
+        StringBuilder sb = new StringBuilder();
+        if (asksAboutGear(question)) {
+            String gear = describeGear(entry.getBot());
+            if (!gear.isEmpty()) sb.append("Equipped: ").append(gear).append('\n');
+        }
+        if (asksAboutSkills(question) || mentionsOwnSkill(entry.getBot(), question)) {
+            String skills = describeSkills(entry.getBot());
+            if (!skills.isEmpty()) sb.append("Skills (level/max): ").append(skills).append('\n');
+        }
+        return sb.toString();
+    }
+
+    static boolean asksAboutGear(String question) {
+        return question != null && GEAR_WORDS.matcher(question).find();
+    }
+
+    static boolean asksAboutSkills(String question) {
+        return question != null && SKILL_WORDS.matcher(question).find();
+    }
+
+    static String describeGear(Character bot) {
+        try {
+            client.inventory.Inventory eq = bot.getInventory(client.inventory.InventoryType.EQUIPPED);
+            if (eq == null) return "";
+            server.ItemInformationProvider ii = server.ItemInformationProvider.getInstance();
+            List<String> names = new ArrayList<>();
+            for (client.inventory.Item item : eq.list()) {
+                if (item.getPosition() <= -100) continue; // cash cosmetics
+                String name = ii.getName(item.getItemId());
+                if (name != null && !name.isBlank()) names.add(name);
+            }
+            return String.join(", ", names);
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
+    static String describeSkills(Character bot) {
+        try {
+            List<String> parts = new ArrayList<>();
+            bot.getSkills().entrySet().stream()
+                    .filter(e -> e.getValue().skillevel > 0 && !e.getKey().isBeginnerSkill())
+                    .sorted((a, b) -> b.getValue().skillevel - a.getValue().skillevel)
+                    .limit(8)
+                    .forEach(e -> {
+                        int max = e.getKey().isFourthJob() ? e.getValue().masterlevel : e.getKey().getMaxLevel();
+                        parts.add(skillName(e.getKey().getId()) + " " + e.getValue().skillevel + "/" + max);
+                    });
+            return String.join(", ", parts);
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
+    private static boolean mentionsOwnSkill(Character bot, String question) {
+        try {
+            String q = question.toLowerCase(java.util.Locale.ROOT);
+            for (client.Skill skill : bot.getSkills().keySet()) {
+                for (String word : skillName(skill.getId()).toLowerCase(java.util.Locale.ROOT).split("\\W+")) {
+                    if (word.length() >= 4 && q.contains(word)) return true;
+                }
+            }
+        } catch (RuntimeException ignored) {
+        }
+        return false;
+    }
+
+    private static String skillName(int skillId) {
+        return SKILL_NAMES.computeIfAbsent(skillId, id -> {
+            String n = client.SkillFactory.getSkillName(id);
+            return n == null || n.isBlank() ? "skill " + id : n;
+        });
     }
 }

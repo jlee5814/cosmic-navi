@@ -121,7 +121,7 @@ public final class PromptBuilder {
                 messages.add(new ChatMessage("assistant", t.reply()));
             }
         }
-        String situation = SituationBuilder.build(entry).trim();
+        String situation = (SituationBuilder.build(entry) + SituationBuilder.buildForQuestion(entry, newMessage)).trim();
         messages.add(new ChatMessage("user", situation.isEmpty()
                 ? newMessage
                 : "[your game state right now]\n" + situation + "\n\n" + newMessage));
