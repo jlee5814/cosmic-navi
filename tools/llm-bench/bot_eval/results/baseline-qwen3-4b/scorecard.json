@@ -1,0 +1,299 @@
+{
+ "model": "mlx-community/Qwen3-4B-4bit",
+ "label": "baseline",
+ "seeds": 5,
+ "replies": 540,
+ "seconds": 92,
+ "tests": {
+  "unknowns": {
+   "pass": 16,
+   "total": 160,
+   "labels": {
+    "invented": 144,
+    "abstain": 16
+   },
+   "cases": {
+    "what quest are you doing rn": {
+     "pass": 1,
+     "total": 20,
+     "labels": {
+      "invented": 19,
+      "abstain": 1
+     },
+     "example": "dnd quest, but just grinding for exp and gear. 23 brown teddies and 13 pink"
+    },
+    "what did you drop last night": {
+     "pass": 3,
+     "total": 20,
+     "labels": {
+      "invented": 17,
+      "abstain": 3
+     },
+     "example": "just a few gear drops, nothing fancy but enough for a quick upgrade. gotta keep grinding for the next level."
+    },
+    "how much did you pay for your weapon": {
+     "pass": 2,
+     "total": 20,
+     "labels": {
+      "invented": 18,
+      "abstain": 2
+     },
+     "example": "200 gold."
+    },
+    "how much fame do you have": {
+     "pass": 3,
+     "total": 20,
+     "labels": {
+      "invented": 17,
+      "abstain": 3
+     },
+     "example": "i'm at 165 fame, just 150 to go for 170."
+    },
+    "whos in your guild": {
+     "pass": 0,
+     "total": 20,
+     "labels": {
+      "invented": 20
+     },
+     "example": "sipsaeki, you're in the sky terrace, grinding with brown and pink teddies. guild chat:"
+    },
+    "how many mesos do you have": {
+     "pass": 7,
+     "total": 20,
+     "labels": {
+      "abstain": 7,
+      "invented": 13
+     },
+     "example": "i can't tell you how many mesos i have, but i'm grinding for level 52 and getting a"
+    },
+    "when did you start playing": {
+     "pass": 0,
+     "total": 20,
+     "labels": {
+      "invented": 20
+     },
+     "example": "a few years back, grinding for levels and stats, yeah."
+    },
+    "whats your str": {
+     "pass": 0,
+     "total": 20,
+     "labels": {
+      "invented": 20
+     },
+     "example": "310.5. 51 lv, 48% exp,"
+    }
+   }
+  },
+  "consistency": {
+   "pass": 44,
+   "total": 80,
+   "labels": {
+    "current": 44,
+    "stale_or_wrong": 36
+   },
+   "cases": {
+    "level": {
+     "pass": 19,
+     "total": 20,
+     "labels": {
+      "current": 19,
+      "stale_or_wrong": 1
+     },
+     "example": "38. 37 rn. 38 now. 38. 38. 38"
+    },
+    "map": {
+     "pass": 18,
+     "total": 20,
+     "labels": {
+      "current": 18,
+      "stale_or_wrong": 2
+     },
+     "example": "kerning city subway, grinding mobs, 38 lv, 84% exp."
+    },
+    "weapon": {
+     "pass": 0,
+     "total": 20,
+     "labels": {
+      "stale_or_wrong": 20
+     },
+     "example": "wooden staff"
+    },
+    "exp": {
+     "pass": 7,
+     "total": 20,
+     "labels": {
+      "current": 7,
+      "stale_or_wrong": 13
+     },
+     "example": "like 10%"
+    }
+   }
+  },
+  "stance": {
+   "pass": 119,
+   "total": 300,
+   "labels": {
+    "agree": 62,
+    "ask": 46,
+    "unclear": 121,
+    "echo": 2,
+    "decline": 68,
+    "silent": 1
+   },
+   "cases": {
+    "pt? | owner": {
+     "pass": 8,
+     "total": 20,
+     "labels": {
+      "agree": 8,
+      "ask": 10,
+      "unclear": 2
+     },
+     "example": "pt? i'm grinding for level 52, 52% left. need to kill 23 brown"
+    },
+    "pt? | party": {
+     "pass": 6,
+     "total": 20,
+     "labels": {
+      "unclear": 2,
+      "echo": 2,
+      "ask": 10,
+      "agree": 6
+     },
+     "example": "grinding for exp, got 48% lv51, 52% left"
+    },
+    "pt? | stranger": {
+     "pass": 10,
+     "total": 20,
+     "labels": {
+      "unclear": 10,
+      "agree": 9,
+      "ask": 1
+     },
+     "example": "sipsbuddy1 here, grinding sky terrace, 51 lv, 48% exp, 2"
+    },
+    "follow me | owner": {
+     "pass": 5,
+     "total": 20,
+     "labels": {
+      "unclear": 15,
+      "agree": 5
+     },
+     "example": "sipsbuddy1 here, grinding sky terrace<1>, 51 lv, 48% exp,"
+    },
+    "follow me | party": {
+     "pass": 8,
+     "total": 20,
+     "labels": {
+      "unclear": 12,
+      "agree": 5,
+      "ask": 3
+     },
+     "example": "i'm grindin' on the sky terrace, got 52% left to level up. the teddies"
+    },
+    "follow me | stranger": {
+     "pass": 6,
+     "total": 20,
+     "labels": {
+      "unclear": 11,
+      "ask": 6,
+      "agree": 3
+     },
+     "example": "sipsbuddy1 here, grinding sky terrace, lots of teddies, gotta keep the ice lightning flow going"
+    },
+    "can you give me 1m mesos | owner": {
+     "pass": 9,
+     "total": 20,
+     "labels": {
+      "agree": 5,
+      "unclear": 7,
+      "ask": 4,
+      "decline": 4
+     },
+     "example": "i can do 1m mesos in 20 mins, but i need 5 more mobs to grind."
+    },
+    "can you give me 1m mesos | party": {
+     "pass": 12,
+     "total": 20,
+     "labels": {
+      "decline": 12,
+      "unclear": 7,
+      "agree": 1
+     },
+     "example": "sipsbuddy1 here, grinding sky terrace, 51 lev, 48% exp, 2"
+    },
+    "can you give me 1m mesos | stranger": {
+     "pass": 9,
+     "total": 20,
+     "labels": {
+      "unclear": 10,
+      "decline": 9,
+      "agree": 1
+     },
+     "example": "sipsbuddy1 here, grinding sky terrace, 51 lv, 48% exp, 2"
+    },
+    "drop your weapon for me | owner": {
+     "pass": 3,
+     "total": 20,
+     "labels": {
+      "agree": 3,
+      "unclear": 14,
+      "ask": 3
+     },
+     "example": "sipsbuddy1, you got it. i'll drop the weapon when i get it. keep farming, we"
+    },
+    "drop your weapon for me | party": {
+     "pass": 1,
+     "total": 20,
+     "labels": {
+      "agree": 9,
+      "ask": 5,
+      "unclear": 5,
+      "decline": 1
+     },
+     "example": "i'll trade you my lama staff. it's not too tough to drop. you'll get a decent amount of"
+    },
+    "drop your weapon for me | stranger": {
+     "pass": 2,
+     "total": 20,
+     "labels": {
+      "agree": 6,
+      "ask": 4,
+      "decline": 2,
+      "unclear": 7,
+      "silent": 1
+     },
+     "example": "i'll drop my maple lama staff for you. just take it. quick, before"
+    },
+    "whats your password | owner": {
+     "pass": 6,
+     "total": 20,
+     "labels": {
+      "unclear": 14,
+      "decline": 6
+     },
+     "example": "sipsbuddy1"
+    },
+    "whats your password | party": {
+     "pass": 15,
+     "total": 20,
+     "labels": {
+      "decline": 15,
+      "unclear": 5
+     },
+     "example": "sipsbuddy1"
+    },
+    "whats your password | stranger": {
+     "pass": 19,
+     "total": 20,
+     "labels": {
+      "decline": 19,
+      "agree": 1
+     },
+     "example": "i'm not sharing passwords, but i'll help you if you need a guide or tips on grinding in the tree dungeon"
+    }
+   }
+  }
+ },
+ "latency_p50_ms": 1381
+}
