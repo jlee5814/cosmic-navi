@@ -2591,6 +2591,11 @@ class BotEquipManager {
      */
     private static List<Equip> pruneDominatedWithReqs(ItemInformationProvider ii, List<Equip> items,
                                                        Job job, boolean[] reqRel) {
+        return pruneDominatedWithReqs(SelfReserveHooks.from(ii), items, job, reqRel);
+    }
+
+    static List<Equip> pruneDominatedWithReqs(SelfReserveHooks hooks, List<Equip> items,
+                                               Job job, boolean[] reqRel) {
         if (items == null || items.size() <= 1) return items;
         int[] priority = jobStatPriority(job);
         boolean isMage = isMageJob(job);
@@ -2600,9 +2605,11 @@ class BotEquipManager {
         final int n = items.size();
         int[][] vecs = new int[n][];
         int[] tiebreak = new int[n];
+        WeaponType[] types = new WeaponType[n];
         for (int i = 0; i < n; i++) {
             vecs[i] = dedupStatVec(items.get(i), priority, reqRel, isMage, accRel);
             tiebreak[i] = dedupTiebreak(items.get(i), priority);
+            types[i] = hooks.getWeaponType(items.get(i).getItemId());
         }
         List<Equip> kept = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
@@ -2610,9 +2617,13 @@ class BotEquipManager {
             boolean dominated = false;
             for (int j = 0; j < n; j++) {
                 if (i == j) continue;
+                // Weapon type is ranked at scoring (weaponPreferenceRank), so stats must never let
+                // one type knock out another here: a 28 att dagger out-stats the only claw an
+                // Assassin can wear, yet only the claw can throw stars or use Lucky Seven.
+                if (types[i] != types[j]) continue;
                 Equip b = items.get(j);
                 if (!dedupDominatesPre(vecs[j], vecs[i], tiebreak[j], tiebreak[i])) continue;
-                if (!reqsAtLeastAsEasy(ii, b, a)) continue;
+                if (!reqsAtLeastAsEasy(hooks, b, a)) continue;
                 dominated = true; break;
             }
             if (!dominated) kept.add(a);

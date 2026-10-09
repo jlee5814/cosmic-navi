@@ -49,16 +49,16 @@ SipsBuddy47,warrior/thief quests,Quest farmer C10,Bandit,420,400,420,35,35,True
 SipsBuddy48,warrior/thief quests,Quest farmer C11,Bandit,420,400,420,35,35,True
 SipsBuddy49,warrior/thief quests,Quest farmer C12,Bandit,420,400,420,35,35,True
 SipsBuddy50,warrior/thief quests,Quest farmer C13,Bandit,420,400,420,35,35,True
-SipsBuddy51,market/logistics,Primary FM merchant,Beginner,0,0,0,30,30,True
-SipsBuddy52,market/logistics,Secondary FM merchant,Beginner,0,0,0,30,30,True
-SipsBuddy53,market/logistics,Equipment sales,Beginner,0,0,0,30,30,True
-SipsBuddy54,market/logistics,Scroll sales,Beginner,0,0,0,30,30,True
-SipsBuddy55,market/logistics,Bulk materials sales,Beginner,0,0,0,30,30,True
-SipsBuddy56,market/logistics,El Nath materials,Beginner,0,0,0,30,30,True
-SipsBuddy57,market/logistics,Ludibrium materials,Beginner,0,0,0,30,30,True
-SipsBuddy58,market/logistics,Orbis supply mule,Beginner,0,0,0,30,30,True
-SipsBuddy59,market/logistics,Perion / Ellinia supply mule,Beginner,0,0,0,30,30,True
-SipsBuddy60,market/logistics,Transfer and emergency reserves,Beginner,0,0,0,30,30,True
+SipsBuddy51,market/logistics,Primary FM merchant,Beginner,0,0,0,30,30,False
+SipsBuddy52,market/logistics,Secondary FM merchant,Beginner,0,0,0,30,30,False
+SipsBuddy53,market/logistics,Equipment sales,Beginner,0,0,0,30,30,False
+SipsBuddy54,market/logistics,Scroll sales,Beginner,0,0,0,30,30,False
+SipsBuddy55,market/logistics,Bulk materials sales,Beginner,0,0,0,30,30,False
+SipsBuddy56,market/logistics,El Nath materials,Beginner,0,0,0,30,30,False
+SipsBuddy57,market/logistics,Ludibrium materials,Beginner,0,0,0,30,30,False
+SipsBuddy58,market/logistics,Orbis supply mule,Beginner,0,0,0,30,30,False
+SipsBuddy59,market/logistics,Perion / Ellinia supply mule,Beginner,0,0,0,30,30,False
+SipsBuddy60,market/logistics,Transfer and emergency reserves,Beginner,0,0,0,30,30,False
 SipsBuddy61,storage,Warrior weapons,Beginner,0,0,0,10,10,False
 SipsBuddy62,storage,Mage weapons,Beginner,0,0,0,10,10,False
 SipsBuddy63,storage,Thief weapons,Beginner,0,0,0,10,10,False
