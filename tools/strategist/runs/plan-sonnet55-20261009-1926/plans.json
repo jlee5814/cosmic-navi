@@ -1,0 +1,389 @@
+{
+ "plans": {
+  "SipsBuddy1": {
+   "action": "keep",
+   "target_map": 220011000,
+   "partner": null,
+   "item": null,
+   "reason": "Uncapped main farmer is resupplied and returning to its map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy2": {
+   "action": "keep",
+   "target_map": 220010400,
+   "partner": null,
+   "item": null,
+   "reason": "Uncapped support is travelling to a Pink Teddy map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy3": {
+   "action": "keep",
+   "target_map": 220010700,
+   "partner": null,
+   "item": null,
+   "reason": "Training to cap 81 on a working map.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy6": {
+   "action": "keep",
+   "target_map": 220010200,
+   "partner": null,
+   "item": null,
+   "reason": "Working Pink Teddy map, no better option listed.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy7": {
+   "action": "keep",
+   "target_map": 220010100,
+   "partner": null,
+   "item": null,
+   "reason": "Working map with a gear drop chase.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy8": {
+   "action": "keep",
+   "target_map": 220010300,
+   "partner": null,
+   "item": null,
+   "reason": "Mid travel to a Pink Teddy map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy10": {
+   "action": "keep",
+   "target_map": 600010300,
+   "partner": null,
+   "item": null,
+   "reason": "Mid travel to a Boomer map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy11": {
+   "action": "keep",
+   "target_map": 220010600,
+   "partner": null,
+   "item": null,
+   "reason": "Working map, no better option listed.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy12": {
+   "action": "keep",
+   "target_map": 100000000,
+   "partner": null,
+   "item": null,
+   "reason": "Cap 43 reached, idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy16": {
+   "action": "keep",
+   "target_map": 682010201,
+   "partner": null,
+   "item": null,
+   "reason": "Mid travel to Rotting Skeleton, a reasonable level match.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy25": {
+   "action": "move",
+   "target_map": 105040200,
+   "partner": null,
+   "item": null,
+   "reason": "Same Nakamaki earns 40.7 EXP/s on Curse Eye versus 10.5 on Dark Stump.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy26": {
+   "action": "buy",
+   "target_map": 682010201,
+   "partner": null,
+   "item": "Two-Handed Axe",
+   "reason": "22,000 mesos is affordable and the axe earns 30.3 EXP/s versus 10.5 now.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy28": {
+   "action": "keep",
+   "target_map": 220010500,
+   "partner": null,
+   "item": null,
+   "reason": "Mid travel on a drop chase, and 682010201 is already getting crowded.",
+   "confidence": "low",
+   "problem": null
+  },
+  "SipsBuddy29": {
+   "action": "buy",
+   "target_map": 103000200,
+   "partner": null,
+   "item": "Zeco",
+   "reason": "Fish Spear is 22 levels under the bot; Zeco costs 225,000 of 4.7M mesos and lifts EXP from 24.4 to 40.7.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy30": {
+   "action": "buy",
+   "target_map": 105040200,
+   "partner": null,
+   "item": "Zeco",
+   "reason": "Weapon gap with 8.2M mesos; Zeco earns 40.7 EXP/s on its current destination.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy31": {
+   "action": "buy",
+   "target_map": 600020200,
+   "partner": null,
+   "item": "Nakamaki",
+   "reason": "175,000 of 647,686 mesos lifts EXP from 15.1 to 34.9 on Killa Bee.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy32": {
+   "action": "keep",
+   "target_map": 600020200,
+   "partner": null,
+   "item": null,
+   "reason": "Mid travel to Killa Bee, a good option with no gain from buying.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy33": {
+   "action": "buy",
+   "target_map": 682010201,
+   "partner": null,
+   "item": "Nakamaki",
+   "reason": "Affordable at 1.27M mesos and earns 43.0 EXP/s on Rotting Skeleton versus 34.9 on Killa Bee with the Fish Spear.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy34": {
+   "action": "buy",
+   "target_map": 103000200,
+   "partner": null,
+   "item": "Zeco",
+   "reason": "Weapon gap with 3.2M mesos; Zeco earns 40.7 EXP/s on Jr. Wraith, which has 83 mobs and room.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy35": {
+   "action": "keep",
+   "target_map": 101020008,
+   "partner": null,
+   "item": null,
+   "reason": "No listed option beats its current plan by a clear margin.",
+   "confidence": "low",
+   "problem": null
+  },
+  "SipsBuddy36": {
+   "action": "buy",
+   "target_map": 600010300,
+   "partner": null,
+   "item": "Forked Spear",
+   "reason": "60,000 mesos lifts EXP to 32.0 on Boomer versus 15.1 on Green Mushroom.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy37": {
+   "action": "keep",
+   "target_map": 101030001,
+   "partner": null,
+   "item": null,
+   "reason": "Cap 43 reached, idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy38": {
+   "action": "keep",
+   "target_map": 103000200,
+   "partner": null,
+   "item": null,
+   "reason": "Mid travel to Jr. Wraith, which has 83 mobs.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy39": {
+   "action": "keep",
+   "target_map": 105070200,
+   "partner": null,
+   "item": null,
+   "reason": "Mid travel to a map with 41 Evil Eye and a listed 28.2 EXP/s option.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy41": {
+   "action": "move",
+   "target_map": 600020200,
+   "partner": null,
+   "item": null,
+   "reason": "Dead Scarecrow is lv50 against a lv42 bot with attack 19 and is not among its options; Killa Bee gives 24.6.",
+   "confidence": "low",
+   "problem": null
+  },
+  "SipsBuddy42": {
+   "action": "keep",
+   "target_map": 220010300,
+   "partner": null,
+   "item": null,
+   "reason": "Cap 43 reached, idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy44": {
+   "action": "keep",
+   "target_map": 220010800,
+   "partner": null,
+   "item": null,
+   "reason": "Cap 43 reached, idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy45": {
+   "action": "keep",
+   "target_map": 220010800,
+   "partner": null,
+   "item": null,
+   "reason": "Cap 43 reached, idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy46": {
+   "action": "move",
+   "target_map": 103000200,
+   "partner": null,
+   "item": null,
+   "reason": "Jr. Necki gives 22.1 EXP/s versus 8.7 on Cynical Orange Mushroom.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy47": {
+   "action": "move",
+   "target_map": 105030000,
+   "partner": null,
+   "item": null,
+   "reason": "Already on Deep Forest at 20.3 EXP/s; cancel the trip to the 8.7 EXP/s map.",
+   "confidence": "high",
+   "problem": "move to the map it is already on or heading to"
+  },
+  "SipsBuddy48": {
+   "action": "move",
+   "target_map": 600020200,
+   "partner": null,
+   "item": null,
+   "reason": "Killa Bee gives 19.0 EXP/s versus 8.7 on Pig and Ribbon Pig maps.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy49": {
+   "action": "keep",
+   "target_map": 600010100,
+   "partner": null,
+   "item": null,
+   "reason": "Mid travel to Urban Fungus at 21.5 EXP/s.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy50": {
+   "action": "move",
+   "target_map": 105030000,
+   "partner": null,
+   "item": null,
+   "reason": "Zombie Mushroom gives 17.2 EXP/s versus 8.7 on Pig.",
+   "confidence": "high",
+   "problem": null
+  }
+ },
+ "notes": [
+  {
+   "bots": [
+    "SipsBuddy29",
+    "SipsBuddy30",
+    "SipsBuddy34"
+   ],
+   "note": "Three spearmen share the Zeco buy (225,000 mesos); split them across 103000200 and 105040200 to avoid crowding."
+  },
+  {
+   "bots": [
+    "SipsBuddy16",
+    "SipsBuddy26",
+    "SipsBuddy33"
+   ],
+   "note": "682010201 gets three bots on 31 Rotting Skeletons; Killa Bee 600020200 takes the overflow."
+  },
+  {
+   "bots": [
+    "SipsBuddy12",
+    "SipsBuddy37",
+    "SipsBuddy42",
+    "SipsBuddy44",
+    "SipsBuddy45"
+   ],
+   "note": "Five bots reached cap 43 and stay idle by design."
+  },
+  {
+   "bots": [
+    "SipsBuddy44",
+    "SipsBuddy45",
+    "SipsBuddy42"
+   ],
+   "note": "Idle capped thieves sit on Ludibrium maps 220010800 and 220010300 that active bots also use."
+  },
+  {
+   "bots": [
+    "SipsBuddy48",
+    "SipsBuddy50",
+    "SipsBuddy46"
+   ],
+   "note": "These bandits farmed at 8.7 EXP/s for drops or travel while 17 to 22 EXP/s maps were listed."
+  }
+ ],
+ "findings": [
+  {
+   "pattern": "Bots flagged weapon_gap hold mesos for an affordable, wearable weapon but have not bought it.",
+   "bots": [
+    "SipsBuddy29",
+    "SipsBuddy30",
+    "SipsBuddy34"
+   ],
+   "evidence": "Fish Spear lv20 is 20 to 22 levels below the bots. Zeco costs 225,000 mesos; they hold 4.77M, 8.25M and 3.21M. Options show 40.7 to 43.0 EXP/s with Zeco versus 24.4 now.",
+   "proposed_check": "For each bot with weapon_gap, if a buy option exists, price is under mesos and level is met, and the bot is not shopping, queue the purchase."
+  },
+  {
+   "pattern": "Bandits are locked out of the best dagger by DEX and nothing in the stat plan fixes it.",
+   "bots": [
+    "SipsBuddy46",
+    "SipsBuddy47",
+    "SipsBuddy48",
+    "SipsBuddy49",
+    "SipsBuddy50"
+   ],
+   "evidence": "Gephart (attack 50, 375,000 mesos) needs DEX 70; the bots have 25 to 30 DEX. All five hold 1.7M to 3.3M mesos, wear lv12 to 15 daggers, and carry weapon_gap.",
+   "proposed_check": "If best affordable weapon it cannot wear is set and the stat gap exceeds 20, flag for an AP or weapon plan review."
+  },
+  {
+   "pattern": "Bots sit on maps where the snapshot lists much higher EXP per second options.",
+   "bots": [
+    "SipsBuddy25",
+    "SipsBuddy26",
+    "SipsBuddy46",
+    "SipsBuddy48",
+    "SipsBuddy50"
+   ],
+   "evidence": "Current map EXP is 8.7 to 10.5 (Dark Stump, Cynical Orange Mushroom, Pig) versus options of 19 to 40.7 EXP/s with the same weapon.",
+   "proposed_check": "If the current map option EXP is under half the best option EXP and the bot is not on a drop quest target, recommend a move."
+  }
+ ],
+ "usage": {
+  "total_cost_usd": 1.7153168,
+  "duration_ms": 71588,
+  "num_turns": 3,
+  "models": [
+   "claude-sonnet-5-5"
+  ]
+ }
+}
