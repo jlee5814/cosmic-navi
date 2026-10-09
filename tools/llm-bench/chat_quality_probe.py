@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Bot chat quality probe: echoes, speaker labels and a few checkable facts, per model.
 
-Builds messages the way PromptBuilder.buildChat does (shared rules, then identity and game state in
-the system message; history as real user/assistant turns; the newest line as a plain user message)
+Builds messages the way PromptBuilder.buildChat does (shared rules and identity in the system
+message; history as real user/assistant turns; the live game state, then the line, in the newest turn)
 and sends each owner line several times with different sampling seeds.
 Usage: chat_quality_probe.py <base_url> <label> [seeds]
 """
@@ -20,15 +20,17 @@ RULES = ("You are a real human MapleStory player. Talk like mmo chatter: lowerca
          "directly. If unsure, say so briefly instead of guessing. Never say you are an ai, assistant, "
          "chatbot, or bot. You are talking to your close gaming friend and party leader Sipsaeki. "
          "Be friendly and helpful.")
-STATE = ("Your IGN is SipsBuddy1. You are a real human MapleStory player, level 50 il wizard.\n"
-         "[Where you are now]\nMap: Toy Factory <Process 1> Zone 3\nStatus: grinding\nLevel 50, 10% to next\n"
-         "Mesos: 1,240,000\nMobs around: Roloduck lv34 x25, Panda Teddy lv36 x25\n"
-         "When the game state above disagrees with something you said earlier, the game state is right.")
+IDENTITY = ("Your IGN is SipsBuddy1. You are a real human MapleStory player, level 50 ice/lightning wizard "
+            "(magician class).")
+STATE = ("[Where you are now]\nMap: Toy Factory <Process 1> Zone 3\nStatus: grinding\n"
+         "Job: ice/lightning wizard (magician class)\nLevel 50, EXP 10% (90% left until level 51)\n"
+         "Mesos: 1,240,000\nMobs around: Roloduck lv34 x25, Panda Teddy lv36 x25")
 HISTORY = [("yo", "yo whats up"), ("hows the grind", "goin good, teddies everywhere")]
 # (owner line, regex a correct reply should match, or None when there is nothing to check)
 LINES = [
     ("can you give me a party invite", None),
     ("what level are you", r"\b50\b"),
+    ("what job are you", r"ice|lightning|i/l|wizard|mage|magician"),
     ("how much exp % left", r"\b(10|90)\s*%?"),
     ("where are you grinding", r"toy|factory|teddy|teddies|roloduck"),
     ("how many mesos do you have", r"1[.,]?2|1\.24|1,240|mil"),
@@ -41,10 +43,10 @@ LINES = [
 
 
 def messages(line):
-    msgs = [{"role": "system", "content": RULES + "\n\n" + STATE}]
+    msgs = [{"role": "system", "content": RULES + "\n\n" + IDENTITY}]
     for q, a in HISTORY:
         msgs += [{"role": "user", "content": q}, {"role": "assistant", "content": a}]
-    return msgs + [{"role": "user", "content": line}]
+    return msgs + [{"role": "user", "content": "[your game state right now]\n" + STATE + "\n\n" + line}]
 
 
 def ask(base, line, seed):

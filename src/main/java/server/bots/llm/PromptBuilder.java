@@ -35,10 +35,29 @@ public final class PromptBuilder {
     static String identity(BotEntry entry) {
         Character bot = entry.getBot();
         String botName = bot != null ? bot.getName() : "bot";
-        String job = bot != null ? bot.getJob().toString().toLowerCase().replace('_', ' ') : "adventurer";
+        String job = bot != null ? jobLabel(bot.getJob()) : "adventurer";
         int lvl = bot != null ? bot.getLevel() : 1;
         return "Your IGN is " + botName + ". "
                 + "You are a real human MapleStory player, level " + lvl + " " + job + ". ";
+    }
+
+    /**
+     * A job name a model can read: "IL_WIZARD" becomes "ice/lightning wizard (magician class)". The raw
+     * enum ("il wizard") meant nothing to Qwen3-1.7B, which answered "warrior" when asked its job.
+     */
+    static String jobLabel(client.Job job) {
+        if (job == null) return "adventurer";
+        String name = job.name().toLowerCase(java.util.Locale.ROOT).replaceAll("[0-9]", "").replace('_', ' ').trim();
+        name = name.replaceFirst("^fp ", "fire/poison ").replaceFirst("^il ", "ice/lightning ");
+        String family = switch ((job.getId() / 100) % 10) {
+            case 1 -> "warrior";
+            case 2 -> "magician";
+            case 3 -> "bowman";
+            case 4 -> "thief";
+            case 5 -> "pirate";
+            default -> null;
+        };
+        return family == null || name.contains(family) ? name : name + " (" + family + " class)";
     }
 
     public static String buildPrompt(BotEntry entry, String senderName, String newMessage,

@@ -11,7 +11,7 @@ set -eu
 LABEL="local.sglang.botchat"
 SGLANG_SRC="${SGLANG_SRC:-$HOME/Projects/inference/sglang-botchat}"
 SGLANG_PY="${SGLANG_PY:-$HOME/Projects/inference/sglang-kvfix/.venv-mps/bin/python}"
-MODEL="${BOT_LLM_SERVE_MODEL:-mlx-community/Qwen3-1.7B-4bit}"
+MODEL="${BOT_LLM_SERVE_MODEL:-mlx-community/Qwen3-4B-4bit}"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOG="$HOME/Library/Logs/sglang-botchat.log"
 
@@ -34,7 +34,7 @@ cat > "$PLIST" <<EOF
     <string>$SGLANG_PY</string><string>-m</string><string>sglang.launch_server</string>
     <string>--model-path</string><string>$MODEL</string>
     <string>--host</string><string>127.0.0.1</string><string>--port</string><string>30000</string>
-    <string>--mem-fraction-static</string><string>0.15</string>
+    <string>--mem-fraction-static</string><string>0.2</string>
     <string>--mlx-enable-sampling</string>
     <string>--max-running-requests</string><string>8</string>
   </array>

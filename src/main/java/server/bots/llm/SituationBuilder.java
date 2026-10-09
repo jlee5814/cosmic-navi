@@ -43,8 +43,16 @@ public final class SituationBuilder {
 
         int lvl = bot.getLevel();
         int pct = expPercent(bot, lvl);
+        // A labeled "Job:" line: folded into the level line, small models missed it ("what job are you"
+        // got "warrior" or "shaman"); Qwen3-4B answered correctly 8/8 with this line.
+        sb.append("Job: ").append(PromptBuilder.jobLabel(bot.getJob())).append('\n');
         sb.append("Level ").append(lvl);
-        if (pct >= 0) sb.append(", ").append(pct).append("% to next");
+        // Spelled out both ways: "66% to next" read as either progress or remainder, and bots answered
+        // "how much exp left" with the wrong one.
+        if (pct >= 0) {
+            sb.append(", EXP ").append(pct).append("% (").append(100 - pct).append("% left until level ")
+                    .append(lvl + 1).append(')');
+        }
         sb.append('\n');
 
         String mobs = describeMobs(map);

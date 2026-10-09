@@ -44,6 +44,22 @@ class ChatTurnsTest {
     }
 
     @Test
+    void jobNamesAreSpelledOutWithTheirClass() {
+        assertEquals("ice/lightning wizard (magician class)", PromptBuilder.jobLabel(Job.IL_WIZARD));
+        assertEquals("fire/poison archmage (magician class)", PromptBuilder.jobLabel(Job.FP_ARCHMAGE));
+        assertEquals("hermit (thief class)", PromptBuilder.jobLabel(Job.HERMIT));
+        assertEquals("warrior", PromptBuilder.jobLabel(Job.WARRIOR));
+    }
+
+    @Test
+    void theNewestTurnStatesLevelAndJobNextToTheQuestion() {
+        List<ChatMessage> chat = PromptBuilder.buildChat(bot(), SenderRelation.OWNER, "Sipsaeki",
+                "what job are you", "", List.of());
+        assertTrue(chat.get(chat.size() - 1).content().contains("Job: ice/lightning wizard (magician class)"),
+                chat.get(chat.size() - 1).content());
+    }
+
+    @Test
     void bodyCarriesEveryTurnInOrder() {
         String body = OpenAiChatClient.buildBody(List.of(
                 new ChatMessage("system", "rules"),
