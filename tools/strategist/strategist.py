@@ -2,11 +2,13 @@
 """Fleet strategist, read-only: asks a model for a plan per bot and fleet notes, then writes a report
 comparing them with what GrindAdvisor and the roster chose. Nothing is sent to the game.
 
-Usage: strategist.py <snapshot.json> <out dir> [--url http://127.0.0.1:31000] [--model-label 8B]
-Any OpenAI compatible server works (SGLang locally; a hosted model later).
+Usage: strategist.py <snapshot.json> <out dir> [--backend openai|claude] [--url ...] [--model-label 8B]
+  openai  any OpenAI compatible server (SGLang locally): one request per bot plus one for notes
+  claude  the Claude Code CLI (`claude -p`) on the owner's Claude plan: one call for the whole fleet
 """
 import argparse
 import json
+import subprocess
 import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -127,6 +129,48 @@ def plan_fleet(url, snap):
     return plans, notes
 
 
+FLEET_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "plans": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"bot": {"type": "string"}, **PLAN_SCHEMA["properties"]},
+            "required": ["bot"] + PLAN_SCHEMA["required"]}},
+        "notes": NOTES_SCHEMA["properties"]["notes"],
+    },
+    "required": ["plans", "notes"],
+}
+
+
+def plan_fleet_claude(snap, model=None):
+    """One `claude -p` call on the owner's Claude plan (no API key): the whole fleet in, every plan out."""
+    prompt = (fleet_context(snap) + "\n\nWrite a plan for every bot in the fleet list (use its exact name), "
+              "then up to 5 fleet notes. Every note must be checkable against the snapshot above.")
+    cmd = ["claude", "-p", "--output-format", "json", "--json-schema", json.dumps(FLEET_SCHEMA),
+           "--system-prompt", SYSTEM, "--tools", "", "--no-session-persistence"]
+    if model:
+        cmd += ["--model", model]
+    # Run outside the repo so the project's Claude Code settings and trust prompt don't apply.
+    out = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=900, cwd="/tmp")
+    if out.returncode != 0:
+        raise RuntimeError(f"claude -p failed: {out.stderr[-500:]}")
+    env = json.loads(out.stdout)
+    if env.get("is_error"):
+        raise RuntimeError(f"claude -p: {env.get('result')}")
+    data = env.get("structured_output") or json.loads(env["result"])
+    by_name = {b["name"]: b for b in snap["bots"]}
+    plans = {}
+    for p in data["plans"]:
+        if p["bot"] in by_name:
+            p["problem"] = check(p, by_name[p["bot"]], snap)
+            plans[p.pop("bot")] = p
+    for name in by_name.keys() - plans.keys():  # a bot the model skipped
+        plans[name] = {"action": "keep", "target_map": None, "partner": None, "reason": "(no plan returned)",
+                       "confidence": "low", "problem": "model returned no plan"}
+    usage = {k: env.get(k) for k in ("total_cost_usd", "duration_ms", "num_turns") if k in env}
+    return plans, data["notes"], usage
+
+
 def report(snap, plans, notes, label, secs):
     maps = {m["id"]: m["name"] for m in snap["maps"]}
     changes = [n for n, p in plans.items() if p["action"] != "keep"]
@@ -158,13 +202,19 @@ def main():
     ap.add_argument("out")
     ap.add_argument("--url", default="http://127.0.0.1:31000")
     ap.add_argument("--model-label", default="")
+    ap.add_argument("--backend", default="openai", choices=["openai", "claude"])
+    ap.add_argument("--model", default=None, help="claude backend: model alias, e.g. sonnet or opus")
     args = ap.parse_args()
     snap = json.loads(Path(args.snapshot).read_text())
     t0 = time.time()
-    plans, notes = plan_fleet(args.url, snap)
+    usage = {}
+    if args.backend == "claude":
+        plans, notes, usage = plan_fleet_claude(snap, args.model)
+    else:
+        plans, notes = plan_fleet(args.url, snap)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "plans.json").write_text(json.dumps({"plans": plans, "notes": notes}, indent=1))
+    (out / "plans.json").write_text(json.dumps({"plans": plans, "notes": notes, "usage": usage}, indent=1))
     (out / "report.md").write_text(report(snap, plans, notes, args.model_label, time.time() - t0))
     print((out / "report.md").read_text()[:1500])
 
