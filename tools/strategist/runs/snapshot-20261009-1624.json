@@ -1,0 +1,2583 @@
+{
+ "taken_at": "2026-10-09 16:24",
+ "bots": [
+  {
+   "id": 254,
+   "name": "SipsBuddy1",
+   "level": 51,
+   "job": "ice/lightning wizard (magician class)",
+   "planned_job": "IL_ARCHMAGE",
+   "role": "Main farmer, Blizzard, map clearing",
+   "training_cap": null,
+   "cap_reached": false,
+   "exp_pct": 0,
+   "meso": 19222524,
+   "map": 682000000,
+   "heading_to": 682000400,
+   "party": 1000000001,
+   "grinding": true,
+   "advisor_status": "uncapped farming; grinding Nightmare at map 682000400 - at map 682000000, going back to town to resupply",
+   "gear": [
+    "White Bandana",
+    "Sapphire Earrings",
+    "Red-Striped T-Shirt",
+    "Grey / Brown Training Pants",
+    "Leather Sandals",
+    "Maple Shield",
+    "Maple Lama Staff"
+   ],
+   "top_skills": [
+    "Thunder Bolt 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Meditation 20"
+   ]
+  },
+  {
+   "id": 255,
+   "name": "SipsBuddy2",
+   "level": 44,
+   "job": "cleric (magician class)",
+   "planned_job": "BISHOP",
+   "role": "Holy Symbol, Genesis, support",
+   "training_cap": null,
+   "cap_reached": false,
+   "exp_pct": 75,
+   "meso": 7428382,
+   "map": 220010700,
+   "heading_to": 220010900,
+   "party": 1000000002,
+   "grinding": true,
+   "advisor_status": "uncapped farming; im at map 220010700, heading to map 220010900 to grinding Pink Teddy - good exp",
+   "gear": [
+    "Sky Blue Starry Bandana",
+    "Sapphire Earrings",
+    "Undershirt",
+    "Grey / Brown Training Pants",
+    "Blue Rubber Boots",
+    "Stolen Fence",
+    "Maple Lama Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 256,
+   "name": "SipsBuddy3",
+   "level": 48,
+   "job": "cleric (magician class)",
+   "planned_job": "PRIEST",
+   "role": "Second Holy Symbol support character",
+   "training_cap": 81,
+   "cap_reached": false,
+   "exp_pct": 57,
+   "meso": 16184235,
+   "map": 682000100,
+   "heading_to": 682010202,
+   "party": 1000000003,
+   "grinding": true,
+   "advisor_status": "training to lv81; im at map 682000100, heading to map 682010202 to grinding Dead Scarecrow - solid exp for me",
+   "gear": [
+    "White Bandana",
+    "Sapphire Earrings",
+    "Grey / Brown Training Shirt",
+    "Red Miniskirt",
+    "Leather Sandals",
+    "Work Gloves",
+    "Maple Shield",
+    "Maple Lama Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Bless 20"
+   ]
+  },
+  {
+   "id": 257,
+   "name": "SipsBuddy4",
+   "level": 43,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A01",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 0,
+   "meso": 5575209,
+   "map": 103000200,
+   "heading_to": null,
+   "party": 1000000004,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 103000200, idle rn",
+   "gear": [
+    "Red Starry Bandana",
+    "Yellow Square",
+    "Blue One-lined T-Shirt",
+    "Indigo Miniskirt",
+    "Leather Sandals",
+    "Work Gloves",
+    "Maple Shield",
+    "Maple Lama Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 258,
+   "name": "SipsBuddy5",
+   "level": 43,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A02",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 0,
+   "meso": 6263342,
+   "map": 220010200,
+   "heading_to": null,
+   "party": 1000000005,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 220010200, idle rn",
+   "gear": [
+    "White Bandana",
+    "Sapphire Earrings",
+    "Orange Sporty T-Shirt",
+    "Blue Jean Shorts",
+    "Blue Whitebottom Boots",
+    "Work Gloves",
+    "Maple Shield",
+    "Maple Lama Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 259,
+   "name": "SipsBuddy6",
+   "level": 36,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A03",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 87,
+   "meso": 1748575,
+   "map": 221023300,
+   "heading_to": 220011000,
+   "party": 1000000006,
+   "grinding": true,
+   "advisor_status": "training to lv43; im at map 221023300, heading to map 220011000 to grinding Roloduck - fast levels here",
+   "gear": [
+    "Sky Blue Starry Bandana",
+    "Lightning Earrings",
+    "Grey / Brown Training Shirt",
+    "Blue Jean Shorts",
+    "Leather Sandals",
+    "Work Gloves",
+    "Maple Shield",
+    "Maple Staff"
+   ],
+   "top_skills": [
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Heal 19",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 260,
+   "name": "SipsBuddy7",
+   "level": 39,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A04",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 61,
+   "meso": 2195475,
+   "map": 220010000,
+   "heading_to": 220010000,
+   "party": 1000000007,
+   "grinding": true,
+   "advisor_status": "training to lv43; farming Sapphire Earrings from Toy Trojan at map 220010000 - could be a real upgrade for me",
+   "gear": [
+    "White Bandana",
+    "Single Earring",
+    "Yellow T-Shirt",
+    "Blue Jean Shorts",
+    "White Gomushin",
+    "Maple Shield",
+    "Maple Staff"
+   ],
+   "top_skills": [
+    "Heal 28",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 261,
+   "name": "SipsBuddy8",
+   "level": 38,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A05",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 82,
+   "meso": 2740286,
+   "map": 105050300,
+   "heading_to": 105070300,
+   "party": 1000000008,
+   "grinding": true,
+   "advisor_status": "training to lv43; im at map 105050300, heading to map 105070300 to farming Maple Lama Staff from Evil Eye - best gear odds i can reach",
+   "gear": [
+    "Old Wisconsin",
+    "Amethyst Earrings",
+    "Grey / Brown Training Shirt",
+    "Grey / Brown Training Pants",
+    "Leather Sandals",
+    "Maple Shield",
+    "Maple Staff"
+   ],
+   "top_skills": [
+    "Heal 25",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 262,
+   "name": "SipsBuddy9",
+   "level": 43,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A06",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 0,
+   "meso": 5930363,
+   "map": 220010700,
+   "heading_to": null,
+   "party": 1000000009,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 220010700, idle rn",
+   "gear": [
+    "White Bandana",
+    "Weighted Earrings",
+    "Red-Striped T-Shirt",
+    "Grey / Brown Training Pants",
+    "Blue Whitebottom Boots",
+    "Pan Lid",
+    "Maple Lama Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 263,
+   "name": "SipsBuddy10",
+   "level": 31,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A07",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 95,
+   "meso": 424191,
+   "map": 221024200,
+   "heading_to": 220010600,
+   "party": 1000000010,
+   "grinding": true,
+   "advisor_status": "training to lv43; im at map 221024200, heading to map 220010600 to grinding Brown Teddy - good exp",
+   "gear": [
+    "White Bandana",
+    "Amethyst Earrings",
+    "Red-Striped T-Shirt",
+    "Blue Jean Shorts",
+    "Blue Rubber Boots",
+    "Work Gloves",
+    "Maple Shield",
+    "Beginner Magician's wand"
+   ],
+   "top_skills": [
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16",
+    "Improved MaxMP Increase 10"
+   ]
+  },
+  {
+   "id": 264,
+   "name": "SipsBuddy11",
+   "level": 40,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A08",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 7,
+   "meso": 2837642,
+   "map": 221023700,
+   "heading_to": 221023700,
+   "party": 1000000011,
+   "grinding": true,
+   "advisor_status": "training to lv43; grinding Trixter at map 221023700 - solid exp for me",
+   "gear": [
+    "White Bandana",
+    "Sapphire Earrings",
+    "Grey / Brown Training Shirt",
+    "Blue Jean Shorts",
+    "Leather Sandals",
+    "Work Gloves",
+    "Stolen Fence",
+    "Maple Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 265,
+   "name": "SipsBuddy12",
+   "level": 41,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A09",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 78,
+   "meso": 3730387,
+   "map": 100000003,
+   "heading_to": 100000005,
+   "party": 1000000012,
+   "grinding": true,
+   "advisor_status": "training to lv43; farming Maple Lama Staff from Horny Mushroom at map 100000005 - at map 100000003, resupplied and omw back",
+   "gear": [
+    "White Bandana",
+    "Sapphire Earrings",
+    "Grey / Brown Training Shirt",
+    "Red Miniskirt",
+    "Bronze Aroa Boots",
+    "Maple Shield",
+    "Maple Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 266,
+   "name": "SipsBuddy13",
+   "level": 43,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A10",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 0,
+   "meso": 6365575,
+   "map": 220030200,
+   "heading_to": null,
+   "party": 1000000013,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 220030200, idle rn",
+   "gear": [
+    "White Bandana",
+    "Sapphire Earrings",
+    "Grey / Brown Training Shirt",
+    "Grey / Brown Training Pants",
+    "Orange Whitebottom Boots",
+    "Work Gloves",
+    "Maple Shield",
+    "Maple Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 267,
+   "name": "SipsBuddy14",
+   "level": 43,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A11",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 0,
+   "meso": 4871315,
+   "map": 220010500,
+   "heading_to": null,
+   "party": 1000000014,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 220010500, idle rn",
+   "gear": [
+    "Brown Skullcap",
+    "Sapphire Earrings",
+    "Grey / Brown Training Shirt",
+    "Blue Jean Shorts",
+    "Orange Whitebottom Boots",
+    "Maple Shield",
+    "Maple Lama Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 268,
+   "name": "SipsBuddy15",
+   "level": 43,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A12",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 0,
+   "meso": 5227843,
+   "map": 221023800,
+   "heading_to": null,
+   "party": 1000000015,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 221023800, idle rn",
+   "gear": [
+    "White Bandana",
+    "Sapphire Earrings",
+    "Red-Striped T-Shirt",
+    "Brown Cotton Shorts",
+    "Orange Whitebottom Boots",
+    "Maple Shield",
+    "Maple Lama Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 269,
+   "name": "SipsBuddy16",
+   "level": 38,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A13",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 30,
+   "meso": 2512547,
+   "map": 221024400,
+   "heading_to": 221024100,
+   "party": 1000000016,
+   "grinding": true,
+   "advisor_status": "training to lv43; im at map 221024400, heading to map 221024100 to farming Maple Lama Staff from Ratz - best gear odds i can reach",
+   "gear": [
+    "White Bandana",
+    "Lightning Earrings",
+    "Blue One-lined T-Shirt",
+    "Grey Thick Sweat Pants",
+    "Leather Sandals",
+    "Work Gloves",
+    "Maple Shield",
+    "Maple Staff",
+    "Diligent Explorer Medal"
+   ],
+   "top_skills": [
+    "Heal 25",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 270,
+   "name": "SipsBuddy17",
+   "level": 43,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A14",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 1,
+   "meso": 4931154,
+   "map": 103000200,
+   "heading_to": null,
+   "party": 1000000017,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 103000200, idle rn",
+   "gear": [
+    "Brown Skullcap",
+    "Cat's Eye",
+    "Grey / Brown Training Shirt",
+    "Grey / Brown Training Pants",
+    "White Gomushin",
+    "Work Gloves",
+    "Stolen Fence",
+    "Maple Lama Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 271,
+   "name": "SipsBuddy18",
+   "level": 43,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A15",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 0,
+   "meso": 4823815,
+   "map": 220010700,
+   "heading_to": null,
+   "party": 1000000018,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 220010700, idle rn",
+   "gear": [
+    "White Bandana",
+    "Gold Earrings",
+    "White Tubetop",
+    "Blue Jean Shorts",
+    "Red Rubber Boots",
+    "Maple Shield",
+    "Maple Lama Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 272,
+   "name": "SipsBuddy19",
+   "level": 43,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A16",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 0,
+   "meso": 4582833,
+   "map": 103000103,
+   "heading_to": null,
+   "party": 1000000019,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 103000103, idle rn",
+   "gear": [
+    "White Bandana",
+    "Amethyst Earrings",
+    "Grey / Brown Training Shirt",
+    "Grey / Brown Training Pants",
+    "Leather Sandals",
+    "Maple Shield",
+    "Maple Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 273,
+   "name": "SipsBuddy20",
+   "level": 43,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A17",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 0,
+   "meso": 6822025,
+   "map": 220010300,
+   "heading_to": null,
+   "party": 1000000020,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 220010300, idle rn",
+   "gear": [
+    "Sky Blue Starry Bandana",
+    "Sapphire Earrings",
+    "Undershirt",
+    "Blue Jean Shorts",
+    "Orange Whitebottom Boots",
+    "Maple Shield",
+    "Maple Lama Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 274,
+   "name": "SipsBuddy21",
+   "level": 43,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A18",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 0,
+   "meso": 5473258,
+   "map": 220010200,
+   "heading_to": null,
+   "party": 1000000021,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 220010200, idle rn",
+   "gear": [
+    "White Bandana",
+    "Sapphire Earrings",
+    "Green T-Shirt",
+    "Grey / Brown Training Pants",
+    "Leather Sandals",
+    "Maple Shield",
+    "Maple Lama Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 275,
+   "name": "SipsBuddy22",
+   "level": 43,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A19",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 0,
+   "meso": 6294447,
+   "map": 220010700,
+   "heading_to": null,
+   "party": 1000000022,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 220010700, idle rn",
+   "gear": [
+    "Red Starry Bandana",
+    "Sapphire Earrings",
+    "Yellow T-Shirt",
+    "Grey / Brown Training Pants",
+    "Leather Sandals",
+    "Maple Shield",
+    "Maple Lama Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 276,
+   "name": "SipsBuddy23",
+   "level": 43,
+   "job": "cleric (magician class)",
+   "planned_job": "CLERIC",
+   "role": "Quest farmer A20",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 0,
+   "meso": 6540132,
+   "map": 220010600,
+   "heading_to": null,
+   "party": 1000000023,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 220010600, idle rn",
+   "gear": [
+    "White Bandana",
+    "Sapphire Earrings",
+    "Grey / Brown Training Shirt",
+    "Grey Thick Sweat Pants",
+    "Red Rubber Boots",
+    "Work Gloves",
+    "Maple Shield",
+    "Maple Lama Staff"
+   ],
+   "top_skills": [
+    "Heal 30",
+    "Magic Claw 20",
+    "Magic Guard 20",
+    "Improved MP Recovery 16"
+   ]
+  },
+  {
+   "id": 277,
+   "name": "SipsBuddy24",
+   "level": 43,
+   "job": "spearman (warrior class)",
+   "planned_job": "SPEARMAN",
+   "role": "Quest farmer B01",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 0,
+   "meso": 9195513,
+   "map": 101030001,
+   "heading_to": null,
+   "party": 1000000024,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 101030001, idle rn (last decided 51m ago: grind map 101030001 (farm Maple Impaler from Wild Boar))",
+   "gear": [
+    "Bronze Helmet",
+    "Weighted Earrings",
+    "Green Hwarang Shirt",
+    "White Martial Arts Shorts",
+    "Maroon Jangoon Shoes",
+    "Dark Knuckle",
+    "Zeco"
+   ],
+   "top_skills": [
+    "Power Strike 20",
+    "Slash Blast 20",
+    "Spear Mastery 20",
+    "Spear Booster 20"
+   ]
+  },
+  {
+   "id": 278,
+   "name": "SipsBuddy25",
+   "level": 41,
+   "job": "spearman (warrior class)",
+   "planned_job": "SPEARMAN",
+   "role": "Quest farmer B02",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 43,
+   "meso": 7086230,
+   "map": 220010500,
+   "heading_to": 220010500,
+   "party": 1000000025,
+   "grinding": true,
+   "advisor_status": "training to lv43; farming Yellow Briggon from Brown Teddy at map 220010500 - best gear odds i can reach",
+   "gear": [
+    "Great Brown Helmet",
+    "Sapphire Earrings",
+    "Green Hwarang Shirt",
+    "Black Martial Arts Pants",
+    "Mithril Battle Grieves",
+    "Yellow Briggon",
+    "Fish Spear"
+   ],
+   "top_skills": [
+    "Power Strike 20",
+    "Slash Blast 20",
+    "Spear Mastery 20",
+    "Spear Booster 14"
+   ]
+  },
+  {
+   "id": 279,
+   "name": "SipsBuddy26",
+   "level": 28,
+   "job": "warrior",
+   "planned_job": "SPEARMAN",
+   "role": "Quest farmer B03",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 44,
+   "meso": 433412,
+   "map": 103020100,
+   "heading_to": 103020200,
+   "party": 1000000026,
+   "grinding": true,
+   "advisor_status": "training to lv43; im at map 103020100, heading to map 103020200 to grinding Orange Mushroom - solid exp for me",
+   "gear": [
+    "Bronze Helmet",
+    "Single Earring",
+    "Brown Lolico Armor",
+    "Rookie Pants",
+    "Brown High Boots",
+    "Juno",
+    "Iron Axe"
+   ],
+   "top_skills": [
+    "Power Strike 20",
+    "Slash Blast 20",
+    "Improved MaxHP Increase 10",
+    "Improved HP Recovery 5"
+   ]
+  },
+  {
+   "id": 280,
+   "name": "SipsBuddy27",
+   "level": 42,
+   "job": "spearman (warrior class)",
+   "planned_job": "SPEARMAN",
+   "role": "Quest farmer B04",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 99,
+   "meso": 6468828,
+   "map": 101020000,
+   "heading_to": 105040200,
+   "party": 1000000027,
+   "grinding": true,
+   "advisor_status": "training to lv43; im at map 101020000, heading to map 105040200 to grinding Curse Eye - fast levels here",
+   "gear": [
+    "Mithril Nordic Helm",
+    "Amethyst Earrings",
+    "Blood Fitted Mail",
+    "Blood Battle Grieves",
+    "Juno",
+    "Zeco"
+   ],
+   "top_skills": [
+    "Power Strike 20",
+    "Slash Blast 20",
+    "Spear Mastery 20",
+    "Spear Booster 17"
+   ]
+  },
+  {
+   "id": 281,
+   "name": "SipsBuddy28",
+   "level": 36,
+   "job": "spearman (warrior class)",
+   "planned_job": "SPEARMAN",
+   "role": "Quest farmer B05",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 88,
+   "meso": 3467065,
+   "map": 600010300,
+   "heading_to": 600010300,
+   "party": 1000000028,
+   "grinding": true,
+   "advisor_status": "training to lv43; grinding Boomer at map 600010300 - fast levels here",
+   "gear": [
+    "Iron Burgernet Helm",
+    "Gold Earrings",
+    "Green Hwarang Shirt",
+    "Black Martial Arts Pants",
+    "Brown High Boots",
+    "Juno",
+    "Fish Spear"
+   ],
+   "top_skills": [
+    "Power Strike 20",
+    "Slash Blast 20",
+    "Improved HP Recovery 11",
+    "Spear Booster 11"
+   ]
+  },
+  {
+   "id": 282,
+   "name": "SipsBuddy29",
+   "level": 40,
+   "job": "spearman (warrior class)",
+   "planned_job": "SPEARMAN",
+   "role": "Quest farmer B06",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 66,
+   "meso": 4612507,
+   "map": 220020200,
+   "heading_to": 220020200,
+   "party": 1000000029,
+   "grinding": true,
+   "advisor_status": "training to lv43; farming Dark Knuckle from Panda Teddy at map 220020200 - could be a real upgrade for me",
+   "gear": [
+    "Bronze Koif",
+    "Amethyst Earrings",
+    "Yellow T-Shirt",
+    "Black Martial Arts Pants",
+    "Mithril Battle Grieves",
+    "Work Gloves",
+    "Fish Spear"
+   ],
+   "top_skills": [
+    "Power Strike 20",
+    "Slash Blast 20",
+    "Spear Mastery 20",
+    "Improved HP Recovery 11"
+   ]
+  },
+  {
+   "id": 283,
+   "name": "SipsBuddy30",
+   "level": 40,
+   "job": "spearman (warrior class)",
+   "planned_job": "SPEARMAN",
+   "role": "Quest farmer B07",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 54,
+   "meso": 7116014,
+   "map": 101030001,
+   "heading_to": 101030001,
+   "party": 1000000030,
+   "grinding": true,
+   "advisor_status": "training to lv43; farming Maple Impaler from Wild Boar at map 101030001 - best gear odds i can reach",
+   "gear": [
+    "Bronze Helmet",
+    "Sapphire Earrings",
+    "White Tubetop",
+    "Rookie Pants",
+    "Blood Battle Grieves",
+    "Juno",
+    "Fish Spear"
+   ],
+   "top_skills": [
+    "Power Strike 20",
+    "Slash Blast 20",
+    "Spear Mastery 20",
+    "Improved HP Recovery 11"
+   ]
+  },
+  {
+   "id": 284,
+   "name": "SipsBuddy31",
+   "level": 33,
+   "job": "spearman (warrior class)",
+   "planned_job": "SPEARMAN",
+   "role": "Quest farmer B08",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 55,
+   "meso": 416024,
+   "map": 103000101,
+   "heading_to": 103000101,
+   "party": 1000000031,
+   "grinding": true,
+   "advisor_status": "training to lv43; farming Fish Spear from Bubbling at map 103000101 - i really want that drop",
+   "gear": [
+    "White Bandana",
+    "Amethyst Earrings",
+    "White Tubetop",
+    "Rookie Pants",
+    "Bronze Aroa Boots",
+    "Juno",
+    "Fish Spear",
+    "Diligent Explorer Medal"
+   ],
+   "top_skills": [
+    "Power Strike 20",
+    "Slash Blast 20",
+    "Improved HP Recovery 11",
+    "Improved MaxHP Increase 10"
+   ]
+  },
+  {
+   "id": 285,
+   "name": "SipsBuddy32",
+   "level": 32,
+   "job": "spearman (warrior class)",
+   "planned_job": "SPEARMAN",
+   "role": "Quest farmer B09",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 81,
+   "meso": 938156,
+   "map": 600020100,
+   "heading_to": 100040004,
+   "party": 1000000032,
+   "grinding": true,
+   "advisor_status": "training to lv43; im at map 600020100, heading to map 100040004 to farming Fish Spear from Bubbling - i really want that drop",
+   "gear": [
+    "White Bandana",
+    "Amethyst Earrings",
+    "Orange Lolica Armor",
+    "Grey Thick Sweat Pants",
+    "Mithril War Boots",
+    "Juno",
+    "Fish Spear"
+   ],
+   "top_skills": [
+    "Power Strike 20",
+    "Slash Blast 20",
+    "Improved HP Recovery 11",
+    "Improved MaxHP Increase 10"
+   ]
+  },
+  {
+   "id": 286,
+   "name": "SipsBuddy33",
+   "level": 36,
+   "job": "spearman (warrior class)",
+   "planned_job": "SPEARMAN",
+   "role": "Quest farmer B10",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 1,
+   "meso": 1188554,
+   "map": 102020300,
+   "heading_to": 102020300,
+   "party": 1000000033,
+   "grinding": true,
+   "advisor_status": "training to lv43; farming Scroll for Spear for ATT from Zombie Mushroom at map 102020300 - could be a real upgrade for me",
+   "gear": [
+    "Bronze Helmet",
+    "Amethyst Earrings",
+    "Green Hwarang Shirt",
+    "Steel Corporal Pants",
+    "White Gomushin",
+    "Work Gloves",
+    "Fish Spear"
+   ],
+   "top_skills": [
+    "Power Strike 20",
+    "Slash Blast 20",
+    "Improved HP Recovery 11",
+    "Spear Booster 11"
+   ]
+  },
+  {
+   "id": 287,
+   "name": "SipsBuddy34",
+   "level": 38,
+   "job": "spearman (warrior class)",
+   "planned_job": "SPEARMAN",
+   "role": "Quest farmer B11",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 99,
+   "meso": 2598421,
+   "map": 101020000,
+   "heading_to": 101030102,
+   "party": 1000000034,
+   "grinding": true,
+   "advisor_status": "training to lv43; im at map 101020000, heading to map 101030102 to farming Scroll for Spear for Accuracy 60% from Wooden Mask - could be a real upgrade for me",
+   "gear": [
+    "Bronze Helmet",
+    "Amethyst Earrings",
+    "Orange Lolica Armor",
+    "Black Martial Arts Pants",
+    "Blood Battle Grieves",
+    "Orihalcon Missel",
+    "Fish Spear"
+   ],
+   "top_skills": [
+    "Power Strike 20",
+    "Slash Blast 20",
+    "Spear Mastery 14",
+    "Improved HP Recovery 11"
+   ]
+  },
+  {
+   "id": 288,
+   "name": "SipsBuddy35",
+   "level": 32,
+   "job": "spearman (warrior class)",
+   "planned_job": "SPEARMAN",
+   "role": "Quest farmer B12",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 24,
+   "meso": 631849,
+   "map": 101040000,
+   "heading_to": 101040002,
+   "party": 1000000035,
+   "grinding": true,
+   "advisor_status": "training to lv43; grinding Axe Stump at map 101040002 - at map 101040000, going back to town to resupply",
+   "gear": [
+    "Bronze Helmet",
+    "Single Earring",
+    "White Tubetop",
+    "Blue Jean Shorts",
+    "Brown High Boots",
+    "Juno",
+    "Fish Spear"
+   ],
+   "top_skills": [
+    "Power Strike 20",
+    "Slash Blast 20",
+    "Improved HP Recovery 11",
+    "Improved MaxHP Increase 10"
+   ]
+  },
+  {
+   "id": 289,
+   "name": "SipsBuddy36",
+   "level": 32,
+   "job": "spearman (warrior class)",
+   "planned_job": "SPEARMAN",
+   "role": "Quest farmer B13",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 63,
+   "meso": 948964,
+   "map": 600020100,
+   "heading_to": 100040003,
+   "party": 1000000036,
+   "grinding": true,
+   "advisor_status": "training to lv43; im at map 600020100, heading to map 100040003 to grinding Dejected Green Mushroom - solid exp for me",
+   "gear": [
+    "White Bandana",
+    "Single Earring",
+    "Red-Striped T-Shirt",
+    "Ice Jeans",
+    "Bronze Aroa Boots",
+    "Juno",
+    "Fish Spear"
+   ],
+   "top_skills": [
+    "Power Strike 20",
+    "Slash Blast 20",
+    "Improved HP Recovery 11",
+    "Improved MaxHP Increase 10"
+   ]
+  },
+  {
+   "id": 290,
+   "name": "SipsBuddy37",
+   "level": 42,
+   "job": "spearman (warrior class)",
+   "planned_job": "SPEARMAN",
+   "role": "Quest farmer B14",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 55,
+   "meso": 4844707,
+   "map": 101030406,
+   "heading_to": 101030406,
+   "party": 1000000037,
+   "grinding": true,
+   "advisor_status": "training to lv43; farming Maple Impaler from Wild Boar at map 101030406 - could be a real upgrade for me",
+   "gear": [
+    "Great Blue Helmet",
+    "Single Earring",
+    "Black Dragon Robe",
+    "Bronze Aroa Boots",
+    "Yellow Briggon",
+    "Zeco"
+   ],
+   "top_skills": [
+    "Power Strike 20",
+    "Slash Blast 20",
+    "Spear Mastery 20",
+    "Spear Booster 17"
+   ]
+  },
+  {
+   "id": 291,
+   "name": "SipsBuddy38",
+   "level": 38,
+   "job": "assassin (thief class)",
+   "planned_job": "ASSASSIN",
+   "role": "Quest farmer C01",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 87,
+   "meso": 3698192,
+   "map": 220050300,
+   "heading_to": 220030400,
+   "party": 1000000038,
+   "grinding": true,
+   "advisor_status": "training to lv43; farming Maple Kandayo from Robo at map 220030400 - at map 220050300, restocking at the shop",
+   "gear": [
+    "Old Wisconsin",
+    "Amethyst Earrings",
+    "Yellow T-Shirt",
+    "Brown Cotton Shorts",
+    "Bronze Aroa Boots",
+    "Work Gloves",
+    "Maple Claw"
+   ],
+   "top_skills": [
+    "Critical Throw 22",
+    "Lucky Seven 20",
+    "Dark Sight 20",
+    "Nimble Body 10"
+   ]
+  },
+  {
+   "id": 292,
+   "name": "SipsBuddy39",
+   "level": 34,
+   "job": "assassin (thief class)",
+   "planned_job": "ASSASSIN",
+   "role": "Quest farmer C02",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 99,
+   "meso": 2974608,
+   "map": 101020000,
+   "heading_to": 101020005,
+   "party": 1000000039,
+   "grinding": true,
+   "advisor_status": "training to lv43; im at map 101020000, heading to map 101020005 to farming Scroll for Claw for ATT from Green Mushroom - best gear odds i can reach",
+   "gear": [
+    "Old Wisconsin",
+    "Gold Earrings",
+    "Orange Sporty T-Shirt",
+    "Red Cloth Pants",
+    "Blue Rubber Boots",
+    "Work Gloves",
+    "Beginner Thief Wrist Guard"
+   ],
+   "top_skills": [
+    "Lucky Seven 20",
+    "Dark Sight 20",
+    "Nimble Body 10",
+    "Critical Throw 10"
+   ]
+  },
+  {
+   "id": 293,
+   "name": "SipsBuddy40",
+   "level": 42,
+   "job": "assassin (thief class)",
+   "planned_job": "ASSASSIN",
+   "role": "Quest farmer C03",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 96,
+   "meso": 6150014,
+   "map": 220010500,
+   "heading_to": 220010200,
+   "party": 1000000040,
+   "grinding": true,
+   "advisor_status": "training to lv43; farming Red Knucklevest from Pink Teddy at map 220010200 - at map 220010500, resupplied and omw back",
+   "gear": [
+    "Dark Pilfer",
+    "Weighted Earrings",
+    "Blue Avenger",
+    "Iron Chain Boots",
+    "Orihalcon Arbion",
+    "Blood Avarice"
+   ],
+   "top_skills": [
+    "Critical Throw 30",
+    "Lucky Seven 20",
+    "Dark Sight 20",
+    "Nimble Body 10"
+   ]
+  },
+  {
+   "id": 294,
+   "name": "SipsBuddy41",
+   "level": 42,
+   "job": "assassin (thief class)",
+   "planned_job": "ASSASSIN",
+   "role": "Quest farmer C04",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 37,
+   "meso": 7616732,
+   "map": 682000100,
+   "heading_to": 682000600,
+   "party": 1000000041,
+   "grinding": true,
+   "advisor_status": "training to lv43; farming Scroll for Dagger for ATT from Nightmare at map 682000600 - at map 682000100, resupplied and omw back",
+   "gear": [
+    "Old Wisconsin",
+    "Sapphire Earrings",
+    "White Tubetop",
+    "Red Cloth Pants",
+    "Blue Whitebottom Boots",
+    "Work Gloves",
+    "Maple Shield",
+    "Beginner Thief's short sword"
+   ],
+   "top_skills": [
+    "Critical Throw 30",
+    "Lucky Seven 20",
+    "Dark Sight 20",
+    "Nimble Body 10"
+   ]
+  },
+  {
+   "id": 295,
+   "name": "SipsBuddy42",
+   "level": 42,
+   "job": "assassin (thief class)",
+   "planned_job": "ASSASSIN",
+   "role": "Quest farmer C05",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 48,
+   "meso": 5891369,
+   "map": 220010700,
+   "heading_to": 220010700,
+   "party": 1000000042,
+   "grinding": true,
+   "advisor_status": "training to lv43; farming Blood Sneak from Brown Teddy at map 220010700 - best gear odds i can reach",
+   "gear": [
+    "Yellow Starry Bandana",
+    "Amethyst Earrings",
+    "Grey T-Shirt",
+    "Blue Jean Shorts",
+    "Blue Whitebottom Boots",
+    "Work Gloves",
+    "Maple Claw"
+   ],
+   "top_skills": [
+    "Critical Throw 30",
+    "Lucky Seven 20",
+    "Dark Sight 20",
+    "Nimble Body 10"
+   ]
+  },
+  {
+   "id": 296,
+   "name": "SipsBuddy43",
+   "level": 43,
+   "job": "assassin (thief class)",
+   "planned_job": "ASSASSIN",
+   "role": "Quest farmer C06",
+   "training_cap": 43,
+   "cap_reached": true,
+   "exp_pct": 0,
+   "meso": 6462452,
+   "map": 220020500,
+   "heading_to": null,
+   "party": 1000000043,
+   "grinding": false,
+   "advisor_status": "training target reached; im at map 220020500, idle rn",
+   "gear": [
+    "Red Thief Hood",
+    "Gold Earrings",
+    "Black Pao",
+    "Blue Pao Bottom",
+    "Blue Enamel Boots",
+    "Work Gloves",
+    "Maple Kandayo"
+   ],
+   "top_skills": [
+    "Critical Throw 30",
+    "Lucky Seven 20",
+    "Dark Sight 20",
+    "Nimble Body 10"
+   ]
+  },
+  {
+   "id": 297,
+   "name": "SipsBuddy44",
+   "level": 42,
+   "job": "assassin (thief class)",
+   "planned_job": "ASSASSIN",
+   "role": "Quest farmer C07",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 78,
+   "meso": 7175386,
+   "map": 261000000,
+   "heading_to": 220010300,
+   "party": 1000000044,
+   "grinding": true,
+   "advisor_status": "training to lv43; im at map 261000000, heading to map 220010300 to grinding Pink Teddy - solid exp for me",
+   "gear": [
+    "White Bandana",
+    "Gold Earrings",
+    "Pink Qi Pao",
+    "Purple Qi Pao Skirt",
+    "Blue Enamel Boots",
+    "Work Gloves",
+    "Maple Claw"
+   ],
+   "top_skills": [
+    "Critical Throw 30",
+    "Lucky Seven 20",
+    "Dark Sight 20",
+    "Nimble Body 10"
+   ]
+  },
+  {
+   "id": 298,
+   "name": "SipsBuddy45",
+   "level": 39,
+   "job": "assassin (thief class)",
+   "planned_job": "ASSASSIN",
+   "role": "Quest farmer C08",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 86,
+   "meso": 8761745,
+   "map": 220000000,
+   "heading_to": 220010400,
+   "party": 1000000045,
+   "grinding": true,
+   "advisor_status": "training to lv43; grinding Pink Teddy at map 220010400 - at map 220000000, restocking at the shop",
+   "gear": [
+    "Yellow Starry Bandana",
+    "Sapphire Earrings",
+    "Red Nightshift",
+    "Blue Nightshift Pants",
+    "White Gomushin",
+    "Work Gloves",
+    "Stolen Fence",
+    "Beginner Thief's short sword"
+   ],
+   "top_skills": [
+    "Critical Throw 25",
+    "Lucky Seven 20",
+    "Dark Sight 20",
+    "Nimble Body 10"
+   ]
+  },
+  {
+   "id": 299,
+   "name": "SipsBuddy46",
+   "level": 39,
+   "job": "bandit (thief class)",
+   "planned_job": "BANDIT",
+   "role": "Quest farmer C09",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 16,
+   "meso": 3125424,
+   "map": 100050000,
+   "heading_to": 100050000,
+   "party": 1000000046,
+   "grinding": true,
+   "advisor_status": "training to lv43; grinding Stump at map 100050000 - fast levels here",
+   "gear": [
+    "White Bandana",
+    "Amethyst Earrings",
+    "Dark Nightshift",
+    "Dark Nightshift Pants",
+    "White Gomushin",
+    "Brown Duo",
+    "Pan Lid",
+    "Field Dagger"
+   ],
+   "top_skills": [
+    "Nimble Body 20",
+    "Dark Sight 20",
+    "Savage Blow 13",
+    "Dagger Booster 11"
+   ]
+  },
+  {
+   "id": 300,
+   "name": "SipsBuddy47",
+   "level": 38,
+   "job": "bandit (thief class)",
+   "planned_job": "BANDIT",
+   "role": "Quest farmer C10",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 47,
+   "meso": 2337748,
+   "map": 100010000,
+   "heading_to": 100040002,
+   "party": 1000000047,
+   "grinding": true,
+   "advisor_status": "training to lv43; im at map 100010000, heading to map 100040002 to grinding Slime - good exp",
+   "gear": [
+    "White Bandana",
+    "Amethyst Earrings",
+    "Red-Striped T-Shirt",
+    "Blue Jean Shorts",
+    "Bronze Aroa Boots",
+    "Stolen Fence",
+    "Triangular Zamadar"
+   ],
+   "top_skills": [
+    "Nimble Body 20",
+    "Dark Sight 20",
+    "Dagger Booster 11",
+    "Savage Blow 10"
+   ]
+  },
+  {
+   "id": 301,
+   "name": "SipsBuddy48",
+   "level": 35,
+   "job": "bandit (thief class)",
+   "planned_job": "BANDIT",
+   "role": "Quest farmer C11",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 72,
+   "meso": 1716566,
+   "map": 100030000,
+   "heading_to": 100030000,
+   "party": 1000000048,
+   "grinding": true,
+   "advisor_status": "training to lv43; farming Dark Nightshift from Pig at map 100030000 - i really want that drop",
+   "gear": [
+    "Brown Skullcap",
+    "Amethyst Earrings",
+    "Dark Nightshift",
+    "Ice Jeans",
+    "White Gomushin",
+    "Brown Duo",
+    "Maple Shield",
+    "Field Dagger"
+   ],
+   "top_skills": [
+    "Nimble Body 20",
+    "Dark Sight 20",
+    "Dagger Booster 11",
+    "Double Stab 9"
+   ]
+  },
+  {
+   "id": 302,
+   "name": "SipsBuddy49",
+   "level": 38,
+   "job": "bandit (thief class)",
+   "planned_job": "BANDIT",
+   "role": "Quest farmer C12",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 43,
+   "meso": 2552670,
+   "map": 100010100,
+   "heading_to": 100010100,
+   "party": 1000000049,
+   "grinding": true,
+   "advisor_status": "training to lv43; grinding Cynical Orange Mushroom at map 100010100 - good exp",
+   "gear": [
+    "Brown Skullcap",
+    "Amethyst Earrings",
+    "Red Nightshift",
+    "Red Cloth Pants",
+    "White Gomushin",
+    "Brown Duo",
+    "Stolen Fence",
+    "Field Dagger"
+   ],
+   "top_skills": [
+    "Nimble Body 20",
+    "Dark Sight 20",
+    "Dagger Booster 11",
+    "Savage Blow 10"
+   ]
+  },
+  {
+   "id": 303,
+   "name": "SipsBuddy50",
+   "level": 36,
+   "job": "bandit (thief class)",
+   "planned_job": "BANDIT",
+   "role": "Quest farmer C13",
+   "training_cap": 43,
+   "cap_reached": false,
+   "exp_pct": 14,
+   "meso": 1635988,
+   "map": 101020002,
+   "heading_to": 101020002,
+   "party": 1000000050,
+   "grinding": true,
+   "advisor_status": "training to lv43; grinding Slime at map 101020002 - good exp",
+   "gear": [
+    "White Bandana",
+    "Amethyst Earrings",
+    "Dark Nightshift",
+    "Red Cloth Pants",
+    "White Gomushin",
+    "Brown Duo",
+    "Pan Lid",
+    "Field Dagger"
+   ],
+   "top_skills": [
+    "Nimble Body 20",
+    "Dark Sight 20",
+    "Dagger Booster 11",
+    "Double Stab 9"
+   ]
+  }
+ ],
+ "maps": [
+  {
+   "id": 100000003,
+   "name": "Pig Park",
+   "street": "Hidden Street",
+   "mobs": [
+    {
+     "name": "Green Mushroom",
+     "level": 15,
+     "spawns": 9
+    },
+    {
+     "name": "Blue Mushroom",
+     "level": 20,
+     "spawns": 9
+    }
+   ]
+  },
+  {
+   "id": 100000005,
+   "name": "Someone Else's House",
+   "street": "Hidden Street",
+   "mobs": [
+    {
+     "name": "Horny Mushroom",
+     "level": 22,
+     "spawns": 13
+    },
+    {
+     "name": "Fairy 2",
+     "level": 30,
+     "spawns": 2
+    },
+    {
+     "name": "Mushmom",
+     "level": 60,
+     "spawns": 1
+    }
+   ]
+  },
+  {
+   "id": 100010000,
+   "name": "The Hill East of Henesys",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Blue Snail",
+     "level": 2,
+     "spawns": 17
+    },
+    {
+     "name": "Shroom",
+     "level": 2,
+     "spawns": 9
+    },
+    {
+     "name": "Red Snail",
+     "level": 4,
+     "spawns": 11
+    },
+    {
+     "name": "Pig",
+     "level": 7,
+     "spawns": 13
+    },
+    {
+     "name": "Cynical Orange Mushroom",
+     "level": 8,
+     "spawns": 2
+    }
+   ]
+  },
+  {
+   "id": 100010100,
+   "name": "Nefarious Hill",
+   "street": "Hidden Street",
+   "mobs": [
+    {
+     "name": "Cynical Orange Mushroom",
+     "level": 8,
+     "spawns": 20
+    }
+   ]
+  },
+  {
+   "id": 100030000,
+   "name": "The Forest East of Henesys",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Pig",
+     "level": 7,
+     "spawns": 22
+    },
+    {
+     "name": "Strange Pig",
+     "level": 7,
+     "spawns": 3
+    },
+    {
+     "name": "Orange Mushroom",
+     "level": 8,
+     "spawns": 19
+    },
+    {
+     "name": "Strange Orange Mushroom",
+     "level": 8,
+     "spawns": 4
+    },
+    {
+     "name": "Ribbon Pig",
+     "level": 10,
+     "spawns": 10
+    },
+    {
+     "name": "Strange Ribbon Pig",
+     "level": 10,
+     "spawns": 4
+    }
+   ]
+  },
+  {
+   "id": 100040002,
+   "name": "Dungeon, Southern Forest II",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Slime",
+     "level": 6,
+     "spawns": 23
+    }
+   ]
+  },
+  {
+   "id": 100040003,
+   "name": "Dungeon, Southern Forest III",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Dejected Green Mushroom",
+     "level": 15,
+     "spawns": 14
+    },
+    {
+     "name": "Green Mushroom",
+     "level": 15,
+     "spawns": 8
+    }
+   ]
+  },
+  {
+   "id": 100040004,
+   "name": "Dungeon, Southern Forest IV",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Bubbling",
+     "level": 15,
+     "spawns": 19
+    }
+   ]
+  },
+  {
+   "id": 100050000,
+   "name": "The Field South of Ellinia",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Stump",
+     "level": 4,
+     "spawns": 31
+    },
+    {
+     "name": "Slime",
+     "level": 6,
+     "spawns": 20
+    },
+    {
+     "name": "Green Mushroom",
+     "level": 15,
+     "spawns": 7
+    }
+   ]
+  },
+  {
+   "id": 101020000,
+   "name": "The Forest North of Ellinia",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Slime",
+     "level": 6,
+     "spawns": 36
+    },
+    {
+     "name": "Dark Stump",
+     "level": 10,
+     "spawns": 25
+    }
+   ]
+  },
+  {
+   "id": 101020002,
+   "name": "Tree Dungeon, Forest Up North I",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Slime",
+     "level": 6,
+     "spawns": 26
+    }
+   ]
+  },
+  {
+   "id": 101020005,
+   "name": "Tree Dungeon, Forest Up North IV",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Green Mushroom",
+     "level": 15,
+     "spawns": 20
+    },
+    {
+     "name": "Fairy 3",
+     "level": 30,
+     "spawns": 2
+    }
+   ]
+  },
+  {
+   "id": 101030001,
+   "name": "The Land of Wild Boar II",
+   "street": "Hidden Street",
+   "mobs": [
+    {
+     "name": "Dark Axe Stump",
+     "level": 22,
+     "spawns": 3
+    },
+    {
+     "name": "Wild Boar",
+     "level": 25,
+     "spawns": 30
+    }
+   ]
+  },
+  {
+   "id": 101030102,
+   "name": "Excavation Site II",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Ghost Stump",
+     "level": 19,
+     "spawns": 7
+    },
+    {
+     "name": "Wooden Mask",
+     "level": 23,
+     "spawns": 39
+    },
+    {
+     "name": "Rocky Mask",
+     "level": 24,
+     "spawns": 9
+    }
+   ]
+  },
+  {
+   "id": 101030406,
+   "name": "East Rocky Mountain VII",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Wild Boar",
+     "level": 25,
+     "spawns": 33
+    }
+   ]
+  },
+  {
+   "id": 101040000,
+   "name": "Perion Street Corner",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Blue Snail",
+     "level": 2,
+     "spawns": 12
+    },
+    {
+     "name": "Red Snail",
+     "level": 4,
+     "spawns": 9
+    },
+    {
+     "name": "Stump",
+     "level": 4,
+     "spawns": 32
+    }
+   ]
+  },
+  {
+   "id": 101040002,
+   "name": "Over the Wall",
+   "street": "Hidden Street",
+   "mobs": [
+    {
+     "name": "Stump",
+     "level": 4,
+     "spawns": 4
+    },
+    {
+     "name": "Dark Stump",
+     "level": 10,
+     "spawns": 4
+    },
+    {
+     "name": "Axe Stump",
+     "level": 17,
+     "spawns": 11
+    },
+    {
+     "name": "Dark Axe Stump",
+     "level": 22,
+     "spawns": 5
+    }
+   ]
+  },
+  {
+   "id": 102020300,
+   "name": "West Rocky Mountain IV",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Dark Axe Stump",
+     "level": 22,
+     "spawns": 11
+    },
+    {
+     "name": "Strange Dark Axe Stump",
+     "level": 22,
+     "spawns": 3
+    },
+    {
+     "name": "Strange Zombie Mushroom",
+     "level": 24,
+     "spawns": 3
+    },
+    {
+     "name": "Zombie Mushroom",
+     "level": 24,
+     "spawns": 14
+    }
+   ]
+  },
+  {
+   "id": 103000101,
+   "name": "Line 1 <Area 1>",
+   "street": "Kerning City Subway",
+   "mobs": [
+    {
+     "name": "Bubbling",
+     "level": 15,
+     "spawns": 64
+    }
+   ]
+  },
+  {
+   "id": 103000103,
+   "name": "Line 1 <Area 2>",
+   "street": "Kerning City Subway",
+   "mobs": [
+    {
+     "name": "Stirge",
+     "level": 20,
+     "spawns": 21
+    },
+    {
+     "name": "Jr. Wraith",
+     "level": 35,
+     "spawns": 70
+    }
+   ]
+  },
+  {
+   "id": 103000200,
+   "name": "Line 2 <Area 1>",
+   "street": "Kerning City Subway",
+   "mobs": [
+    {
+     "name": "Jr. Necki",
+     "level": 21,
+     "spawns": 14
+    },
+    {
+     "name": "Jr. Wraith",
+     "level": 35,
+     "spawns": 83
+    }
+   ]
+  },
+  {
+   "id": 103020100,
+   "name": "L Forest II",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Orange Mushroom",
+     "level": 8,
+     "spawns": 21
+    },
+    {
+     "name": "Ribbon Pig",
+     "level": 10,
+     "spawns": 24
+    }
+   ]
+  },
+  {
+   "id": 103020200,
+   "name": "L Forest III",
+   "street": "Victoria Road",
+   "mobs": [
+    {
+     "name": "Orange Mushroom",
+     "level": 8,
+     "spawns": 35
+    },
+    {
+     "name": "Ribbon Pig",
+     "level": 10,
+     "spawns": 14
+    }
+   ]
+  },
+  {
+   "id": 105040200,
+   "name": "Hunting Ground in the Deep Forest II",
+   "street": "Dungeon",
+   "mobs": [
+    {
+     "name": "Curse Eye",
+     "level": 35,
+     "spawns": 39
+    }
+   ]
+  },
+  {
+   "id": 105050300,
+   "name": "Ant Tunnel IV",
+   "street": "Dungeon",
+   "mobs": [
+    {
+     "name": "Horny Mushroom",
+     "level": 22,
+     "spawns": 42
+    },
+    {
+     "name": "Annoyed Zombie Mushroom",
+     "level": 24,
+     "spawns": 17
+    },
+    {
+     "name": "Zombie Mushroom",
+     "level": 24,
+     "spawns": 6
+    }
+   ]
+  },
+  {
+   "id": 105070300,
+   "name": "The Cave of Evil Eye III",
+   "street": "Dungeon",
+   "mobs": [
+    {
+     "name": "Evil Eye",
+     "level": 27,
+     "spawns": 41
+    },
+    {
+     "name": "Jr. Boogie 2",
+     "level": 35,
+     "spawns": 2
+    }
+   ]
+  },
+  {
+   "id": 220000000,
+   "name": "Ludibrium",
+   "street": "Ludibrium",
+   "mobs": []
+  },
+  {
+   "id": 220010000,
+   "name": "Cloud Terrace<5>",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Brown Teddy",
+     "level": 30,
+     "spawns": 6
+    },
+    {
+     "name": "Toy Trojan",
+     "level": 39,
+     "spawns": 16
+    }
+   ]
+  },
+  {
+   "id": 220010200,
+   "name": "Cloud Terrace<3>",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Brown Teddy",
+     "level": 30,
+     "spawns": 7
+    },
+    {
+     "name": "Pink Teddy",
+     "level": 32,
+     "spawns": 14
+    },
+    {
+     "name": "Toy Trojan",
+     "level": 39,
+     "spawns": 8
+    }
+   ]
+  },
+  {
+   "id": 220010300,
+   "name": "Cloud Terrace<2>",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Pink Teddy",
+     "level": 32,
+     "spawns": 28
+    },
+    {
+     "name": "Roloduck",
+     "level": 34,
+     "spawns": 5
+    }
+   ]
+  },
+  {
+   "id": 220010400,
+   "name": "Cloud Terrace<1>",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Brown Teddy",
+     "level": 30,
+     "spawns": 18
+    },
+    {
+     "name": "Pink Teddy",
+     "level": 32,
+     "spawns": 19
+    }
+   ]
+  },
+  {
+   "id": 220010500,
+   "name": "Terrace Hall",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Brown Teddy",
+     "level": 30,
+     "spawns": 32
+    },
+    {
+     "name": "Pink Teddy",
+     "level": 32,
+     "spawns": 4
+    }
+   ]
+  },
+  {
+   "id": 220010600,
+   "name": "Sky Terrace<1>",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Brown Teddy",
+     "level": 30,
+     "spawns": 23
+    },
+    {
+     "name": "Pink Teddy",
+     "level": 32,
+     "spawns": 13
+    }
+   ]
+  },
+  {
+   "id": 220010700,
+   "name": "Sky Terrace<2>",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Brown Teddy",
+     "level": 30,
+     "spawns": 16
+    },
+    {
+     "name": "Pink Teddy",
+     "level": 32,
+     "spawns": 12
+    },
+    {
+     "name": "Toy Trojan",
+     "level": 39,
+     "spawns": 4
+    }
+   ]
+  },
+  {
+   "id": 220010900,
+   "name": "Sky Terrace<4>",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Pink Teddy",
+     "level": 32,
+     "spawns": 24
+    },
+    {
+     "name": "Roloduck",
+     "level": 34,
+     "spawns": 12
+    }
+   ]
+  },
+  {
+   "id": 220011000,
+   "name": "Sky Terrace<5>",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Roloduck",
+     "level": 34,
+     "spawns": 22
+    },
+    {
+     "name": "Panda Teddy",
+     "level": 36,
+     "spawns": 19
+    }
+   ]
+  },
+  {
+   "id": 220020200,
+   "name": "Toy Factory <Process 1> Zone 3",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Panda Teddy",
+     "level": 36,
+     "spawns": 32
+    }
+   ]
+  },
+  {
+   "id": 220020500,
+   "name": "Toy Factory <Process 1> Zone 6",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Panda Teddy",
+     "level": 36,
+     "spawns": 8
+    },
+    {
+     "name": "Robo",
+     "level": 41,
+     "spawns": 30
+    }
+   ]
+  },
+  {
+   "id": 220030200,
+   "name": "Toy Factory <Main Process 2>",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Panda Teddy",
+     "level": 36,
+     "spawns": 35
+    }
+   ]
+  },
+  {
+   "id": 220030400,
+   "name": "Toy Factory <Process 2> Zone 4",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Panda Teddy",
+     "level": 36,
+     "spawns": 8
+    },
+    {
+     "name": "Robo",
+     "level": 41,
+     "spawns": 28
+    }
+   ]
+  },
+  {
+   "id": 220050300,
+   "name": "Path of Time",
+   "street": "Ludibrium",
+   "mobs": []
+  },
+  {
+   "id": 221023300,
+   "name": "Eos Tower 75th Floor",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Drumming Bunny",
+     "level": 30,
+     "spawns": 15
+    },
+    {
+     "name": "Chirppy",
+     "level": 31,
+     "spawns": 3
+    },
+    {
+     "name": "Helly",
+     "level": 36,
+     "spawns": 12
+    }
+   ]
+  },
+  {
+   "id": 221023700,
+   "name": "Eos Tower 93rd Floor",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Trixter",
+     "level": 23,
+     "spawns": 11
+    },
+    {
+     "name": "Black Ratz",
+     "level": 34,
+     "spawns": 7
+    }
+   ]
+  },
+  {
+   "id": 221023800,
+   "name": "Eos Tower 94th Floor",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Trixter",
+     "level": 23,
+     "spawns": 6
+    },
+    {
+     "name": "Black Ratz",
+     "level": 34,
+     "spawns": 10
+    }
+   ]
+  },
+  {
+   "id": 221024100,
+   "name": "Eos Tower 97th Floor",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Ratz",
+     "level": 32,
+     "spawns": 14
+    },
+    {
+     "name": "Black Ratz",
+     "level": 34,
+     "spawns": 8
+    }
+   ]
+  },
+  {
+   "id": 221024200,
+   "name": "Eos Tower 98th Floor",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Ratz",
+     "level": 32,
+     "spawns": 13
+    },
+    {
+     "name": "Black Ratz",
+     "level": 34,
+     "spawns": 5
+    }
+   ]
+  },
+  {
+   "id": 221024400,
+   "name": "Eos Tower 100th Floor",
+   "street": "Ludibrium",
+   "mobs": [
+    {
+     "name": "Ratz",
+     "level": 32,
+     "spawns": 14
+    }
+   ]
+  },
+  {
+   "id": 261000000,
+   "name": "Magatia",
+   "street": "Sunset Road",
+   "mobs": []
+  },
+  {
+   "id": 600010300,
+   "name": "Jungle Valley ",
+   "street": "Masteria",
+   "mobs": [
+    {
+     "name": "Urban Fungus",
+     "level": 21,
+     "spawns": 22
+    },
+    {
+     "name": "Boomer",
+     "level": 27,
+     "spawns": 41
+    },
+    {
+     "name": "Mighty Maple Eater",
+     "level": 30,
+     "spawns": 11
+    }
+   ]
+  },
+  {
+   "id": 600020100,
+   "name": "Deity Room",
+   "street": "MesoGears",
+   "mobs": [
+    {
+     "name": "Killa Bee",
+     "level": 25,
+     "spawns": 25
+    },
+    {
+     "name": "Mighty Maple Eater",
+     "level": 30,
+     "spawns": 14
+    },
+    {
+     "name": "Fire Tusk",
+     "level": 36,
+     "spawns": 12
+    }
+   ]
+  },
+  {
+   "id": 682000000,
+   "name": "Haunted House",
+   "street": "Phantom Forest",
+   "mobs": []
+  },
+  {
+   "id": 682000100,
+   "name": "Foyer",
+   "street": "Haunted House",
+   "mobs": [
+    {
+     "name": "Glutton Ghoul",
+     "level": 21,
+     "spawns": 8
+    },
+    {
+     "name": "Psycho Jack Box",
+     "level": 30,
+     "spawns": 7
+    },
+    {
+     "name": "Sophilia Doll Ground",
+     "level": 50,
+     "spawns": 2
+    }
+   ]
+  },
+  {
+   "id": 682000400,
+   "name": "Hallway - Where am I?",
+   "street": "Haunted House",
+   "mobs": [
+    {
+     "name": "Rotting Skeleton",
+     "level": 20,
+     "spawns": 5
+    },
+    {
+     "name": "Nightmare",
+     "level": 40,
+     "spawns": 6
+    },
+    {
+     "name": "Dead Scarecrow",
+     "level": 50,
+     "spawns": 5
+    },
+    {
+     "name": "Sophilia Doll Ground",
+     "level": 50,
+     "spawns": 6
+    }
+   ]
+  },
+  {
+   "id": 682000600,
+   "name": "Hallway - This Again?",
+   "street": "Haunted House",
+   "mobs": [
+    {
+     "name": "Rotting Skeleton",
+     "level": 20,
+     "spawns": 8
+    },
+    {
+     "name": "Glutton Ghoul",
+     "level": 21,
+     "spawns": 5
+    },
+    {
+     "name": "Nightmare",
+     "level": 40,
+     "spawns": 10
+    }
+   ]
+  },
+  {
+   "id": 682010202,
+   "name": "Chimney Possessed by the Scarecrow",
+   "street": "Haunted House",
+   "mobs": [
+    {
+     "name": "Dead Scarecrow",
+     "level": 50,
+     "spawns": 31
+    }
+   ]
+  }
+ ]
+}

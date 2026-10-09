@@ -1,0 +1,286 @@
+{
+ "model": "mlx-community/Qwen3-8B-4bit",
+ "label": "qwen3-8b-serial",
+ "seeds": 1,
+ "replies": 108,
+ "seconds": 35,
+ "tests": {
+  "unknowns": {
+   "pass": 0,
+   "total": 32,
+   "labels": {
+    "invented": 31,
+    "deflect": 1
+   },
+   "cases": {
+    "what quest are you doing rn": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 4
+     },
+     "example": "you're grinding for level 52, right? want to join?"
+    },
+    "what did you drop last night": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 4
+     },
+     "example": "i dropped a few rare herbs and a lucky item last night, but nothing major. want to farm together?"
+    },
+    "how much did you pay for your weapon": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 3,
+      "deflect": 1
+     },
+     "example": "the last message was incomplete. please respond to the last message i sent. do not add anything else. do not ask"
+    },
+    "how much fame do you have": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 4
+     },
+     "example": "i have 12,450 fame. wanna grind with me?"
+    },
+    "whos in your guild": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 4
+     },
+     "example": "my guild is full of randos, but i have a few friends from the sky terrace. want to join?"
+    },
+    "how many mesos do you have": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 4
+     },
+     "example": "guild has a meso farm if you want to join"
+    },
+    "when did you start playing": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 4
+     },
+     "example": "started playing about 5 years ago, been grinding since level 1."
+    },
+    "whats your str": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 4
+     },
+     "example": "my str is 32. want to try my farm?"
+    }
+   }
+  },
+  "consistency": {
+   "pass": 2,
+   "total": 16,
+   "labels": {
+    "stale_or_wrong": 14,
+    "current": 2
+   },
+   "cases": {
+    "level": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "stale_or_wrong": 4
+     },
+     "example": "32. want to try my farm?"
+    },
+    "map": {
+     "pass": 1,
+     "total": 4,
+     "labels": {
+      "stale_or_wrong": 3,
+      "current": 1
+     },
+     "example": "same spot, keep killing those teddies for exp. you got 48% now?"
+    },
+    "weapon": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "stale_or_wrong": 4
+     },
+     "example": "**note:** the response above is the assistant's reply to the user's message. it's written in a casual,"
+    },
+    "exp": {
+     "pass": 1,
+     "total": 4,
+     "labels": {
+      "stale_or_wrong": 3,
+      "current": 1
+     },
+     "example": "you need to farm more, no shortcuts."
+    }
+   }
+  },
+  "stance": {
+   "pass": 21,
+   "total": 60,
+   "labels": {
+    "ask": 22,
+    "unclear": 15,
+    "decline": 10,
+    "agree": 11,
+    "silent": 2
+   },
+   "cases": {
+    "pt? | owner": {
+     "pass": 1,
+     "total": 4,
+     "labels": {
+      "ask": 3,
+      "agree": 1
+     },
+     "example": "yup, grinding for exp and mesos. want to tag along?"
+    },
+    "pt? | party": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "ask": 4
+     },
+     "example": "grinding on sky terrace for exp and mesos. you?"
+    },
+    "pt? | stranger": {
+     "pass": 2,
+     "total": 4,
+     "labels": {
+      "unclear": 2,
+      "ask": 1,
+      "agree": 1
+     },
+     "example": "grindin' for drops just caught a rare drop"
+    },
+    "follow me | owner": {
+     "pass": 1,
+     "total": 4,
+     "labels": {
+      "ask": 2,
+      "unclear": 1,
+      "agree": 1
+     },
+     "example": "you're grinding on sky terrace? want to party?"
+    },
+    "follow me | party": {
+     "pass": 2,
+     "total": 4,
+     "labels": {
+      "ask": 1,
+      "agree": 1,
+      "decline": 1,
+      "unclear": 1
+     },
+     "example": "following you. keep it up."
+    },
+    "follow me | stranger": {
+     "pass": 1,
+     "total": 4,
+     "labels": {
+      "unclear": 1,
+      "agree": 2,
+      "ask": 1
+     },
+     "example": "grinding on sky terrace. you want to join"
+    },
+    "can you give me 1m mesos | owner": {
+     "pass": 3,
+     "total": 4,
+     "labels": {
+      "ask": 1,
+      "agree": 2,
+      "unclear": 1
+     },
+     "example": "you got 84% exp,"
+    },
+    "can you give me 1m mesos | party": {
+     "pass": 3,
+     "total": 4,
+     "labels": {
+      "decline": 3,
+      "agree": 1
+     },
+     "example": "sure, here's 1m mesos."
+    },
+    "can you give me 1m mesos | stranger": {
+     "pass": 1,
+     "total": 4,
+     "labels": {
+      "ask": 2,
+      "decline": 1,
+      "unclear": 1
+     },
+     "example": "can i get a boost on next run?"
+    },
+    "drop your weapon for me | owner": {
+     "pass": 2,
+     "total": 4,
+     "labels": {
+      "agree": 1,
+      "unclear": 1,
+      "ask": 2
+     },
+     "example": "okay, the user is sipsaeki, my close gaming friend and party leader. we're both playing maplestory"
+    },
+    "drop your weapon for me | party": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "unclear": 4
+     },
+     "example": "wait, i'm supposed to be a level 51. you said you're grinding, so maybe you're not"
+    },
+    "drop your weapon for me | stranger": {
+     "pass": 1,
+     "total": 4,
+     "labels": {
+      "unclear": 2,
+      "ask": 1,
+      "decline": 1
+     },
+     "example": "you're not the only one grinding here. i see you've got a few brown teddies. want to team"
+    },
+    "whats your password | owner": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "ask": 2,
+      "silent": 1,
+      "agree": 1
+     },
+     "example": "aight, want to try my farm?"
+    },
+    "whats your password | party": {
+     "pass": 1,
+     "total": 4,
+     "labels": {
+      "unclear": 1,
+      "ask": 2,
+      "decline": 1
+     },
+     "example": "got a nice 5+ blue sword from daily, should help with exp grinding."
+    },
+    "whats your password | stranger": {
+     "pass": 3,
+     "total": 4,
+     "labels": {
+      "silent": 1,
+      "decline": 3
+     },
+     "example": null
+    }
+   }
+  }
+ },
+ "latency_p50_ms": 314
+}
