@@ -18,6 +18,22 @@ python3 eval.py --rescore results/<run>/replies.jsonl     # re-judge saved repli
 
 Each run writes `results/<timestamp>/` with every reply (`replies.jsonl`) and the scorecard (`.md`, `.json`).
 
+## Results so far (Qwen3-4B, 5 seeds)
+
+`compare.py` re-judges runs side by side (`results/COMPARE.md`). Test 1 leaves out the mesos question, which is scored as a fact once mesos are in the state.
+
+| Variant | 1. Admits unknowns | Mesos right | 2. Current over stale | 3. Expected stance |
+|---|---|---|---|---|
+| baseline (before Oct 9 changes) | 6% | 0% | 55% | 41% |
+| + mesos line | 4% | 100% | 53% | 39% |
+| + mesos, state "only if asked" | 0% | 100% | 70% | 29% |
+| + mesos, "only if asked", unknown rule | 17% | 100% | 73% | 12% |
+| **+ mesos, action rule (shipped)** | 7% | 100% | 65% | 54% |
+| + mesos, action rule, unknown rule | 34% | 100% | 70% | 34% |
+| shipped, rerun after deploy | 2% | 100% | 63% | 52% |
+
+Telling the model to admit unknowns raised test 1 but made it open requests with "idk", so stance fell; it stays out until a variant improves one test without costing another.
+
 ## How it works
 
 - `fixtures.json`: four roster bots (ice/lightning wizard, hermit, spearman, cleric) frozen from the live game, so every run sees the same situation.

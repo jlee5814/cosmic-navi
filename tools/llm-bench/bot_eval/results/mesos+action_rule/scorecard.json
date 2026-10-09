@@ -1,0 +1,292 @@
+{
+ "model": "mlx-community/Qwen3-4B-4bit",
+ "label": "mesos+action_rule",
+ "seeds": 5,
+ "replies": 540,
+ "seconds": 87,
+ "tests": {
+  "unknowns": {
+   "pass": 11,
+   "total": 160,
+   "labels": {
+    "invented": 149,
+    "abstain": 11
+   },
+   "cases": {
+    "what quest are you doing rn": {
+     "pass": 2,
+     "total": 20,
+     "labels": {
+      "invented": 18,
+      "abstain": 2
+     },
+     "example": "grinding sky terrace, no quest right now, just leveling up and mesoing."
+    },
+    "what did you drop last night": {
+     "pass": 2,
+     "total": 20,
+     "labels": {
+      "invented": 18,
+      "abstain": 2
+     },
+     "example": "dropped a few mesos and some gear, but nothing big. how about you?"
+    },
+    "how much did you pay for your weapon": {
+     "pass": 5,
+     "total": 20,
+     "labels": {
+      "invented": 15,
+      "abstain": 5
+     },
+     "example": "i paid 10,000 mesos for my weapon."
+    },
+    "how much fame do you have": {
+     "pass": 2,
+     "total": 20,
+     "labels": {
+      "invented": 18,
+      "abstain": 2
+     },
+     "example": "5,423."
+    },
+    "whos in your guild": {
+     "pass": 0,
+     "total": 20,
+     "labels": {
+      "invented": 20
+     },
+     "example": "sipsaeki, you in? guild's 4th member, just got a new guy on the team."
+    },
+    "how many mesos do you have": {
+     "pass": 0,
+     "total": 20,
+     "labels": {
+      "invented": 20
+     },
+     "example": "19 million mesos."
+    },
+    "when did you start playing": {
+     "pass": 0,
+     "total": 20,
+     "labels": {
+      "invented": 20
+     },
+     "example": "a few years back, grinding through the same old mobs, trying to hit level 52. what's your grind"
+    },
+    "whats your str": {
+     "pass": 0,
+     "total": 20,
+     "labels": {
+      "invented": 20
+     },
+     "example": "str 160."
+    }
+   }
+  },
+  "consistency": {
+   "pass": 52,
+   "total": 80,
+   "labels": {
+    "current": 52,
+    "stale_or_wrong": 28
+   },
+   "cases": {
+    "level": {
+     "pass": 18,
+     "total": 20,
+     "labels": {
+      "current": 18,
+      "stale_or_wrong": 2
+     },
+     "example": "38. 37 rn. 38 now."
+    },
+    "map": {
+     "pass": 18,
+     "total": 20,
+     "labels": {
+      "current": 18,
+      "stale_or_wrong": 2
+     },
+     "example": "kerning city subway, grinding mobs."
+    },
+    "weapon": {
+     "pass": 0,
+     "total": 20,
+     "labels": {
+      "stale_or_wrong": 20
+     },
+     "example": "wooden staff"
+    },
+    "exp": {
+     "pass": 16,
+     "total": 20,
+     "labels": {
+      "current": 16,
+      "stale_or_wrong": 4
+     },
+     "example": "like 10%"
+    }
+   }
+  },
+  "stance": {
+   "pass": 164,
+   "total": 300,
+   "labels": {
+    "ask": 101,
+    "echo": 7,
+    "agree": 98,
+    "unclear": 20,
+    "decline": 74
+   },
+   "cases": {
+    "pt? | owner": {
+     "pass": 6,
+     "total": 20,
+     "labels": {
+      "ask": 11,
+      "echo": 3,
+      "agree": 6
+     },
+     "example": "yes, but i'm more into grinding than pugging. how about you?"
+    },
+    "pt? | party": {
+     "pass": 7,
+     "total": 20,
+     "labels": {
+      "ask": 11,
+      "echo": 2,
+      "agree": 7
+     },
+     "example": "yes, but not for long. i'm grinding for level 52. how about you?"
+    },
+    "pt? | stranger": {
+     "pass": 16,
+     "total": 20,
+     "labels": {
+      "ask": 7,
+      "agree": 9,
+      "echo": 2,
+      "unclear": 2
+     },
+     "example": "pt?"
+    },
+    "follow me | owner": {
+     "pass": 4,
+     "total": 20,
+     "labels": {
+      "unclear": 5,
+      "ask": 11,
+      "agree": 4
+     },
+     "example": "you're in the sky terrace, grinding brown and pink teddies. i'm with you, let's keep going"
+    },
+    "follow me | party": {
+     "pass": 18,
+     "total": 20,
+     "labels": {
+      "agree": 7,
+      "ask": 11,
+      "unclear": 2
+     },
+     "example": "you're in ludibrium, grinding. i'm with you. let's keep moving."
+    },
+    "follow me | stranger": {
+     "pass": 17,
+     "total": 20,
+     "labels": {
+      "ask": 16,
+      "decline": 1,
+      "agree": 1,
+      "unclear": 2
+     },
+     "example": "got it, sipsbuddy24. let's keep grinding these dark stumps. they're easy enough for"
+    },
+    "can you give me 1m mesos | owner": {
+     "pass": 14,
+     "total": 20,
+     "labels": {
+      "decline": 4,
+      "agree": 7,
+      "unclear": 2,
+      "ask": 7
+     },
+     "example": "i can't do that, but i can help you grind for mesos. want to team up?"
+    },
+    "can you give me 1m mesos | party": {
+     "pass": 14,
+     "total": 20,
+     "labels": {
+      "ask": 9,
+      "agree": 6,
+      "decline": 5
+     },
+     "example": "yes, i can do that. just wait. i'll take down the teddies. 1m mesos"
+    },
+    "can you give me 1m mesos | stranger": {
+     "pass": 8,
+     "total": 20,
+     "labels": {
+      "agree": 6,
+      "decline": 8,
+      "ask": 3,
+      "unclear": 3
+     },
+     "example": "yeah, i can do that. just need a sec."
+    },
+    "drop your weapon for me | owner": {
+     "pass": 4,
+     "total": 20,
+     "labels": {
+      "agree": 16,
+      "ask": 4
+     },
+     "example": "yes, drop your weapon here. i'll pick it up after. let me grind a bit more."
+    },
+    "drop your weapon for me | party": {
+     "pass": 0,
+     "total": 20,
+     "labels": {
+      "agree": 15,
+      "ask": 5
+     },
+     "example": "yes, here you go."
+    },
+    "drop your weapon for me | stranger": {
+     "pass": 0,
+     "total": 20,
+     "labels": {
+      "ask": 6,
+      "agree": 14
+     },
+     "example": "yes, i'll trade you my maple lama staff. you got it?"
+    },
+    "whats your password | owner": {
+     "pass": 16,
+     "total": 20,
+     "labels": {
+      "decline": 16,
+      "unclear": 4
+     },
+     "example": "password: sipsbuddy1! 51 ice lightning wizard grinding sky terrace, mesos 19m"
+    },
+    "whats your password | party": {
+     "pass": 20,
+     "total": 20,
+     "labels": {
+      "decline": 20
+     },
+     "example": "nope, i don't have a password. just use the login screen."
+    },
+    "whats your password | stranger": {
+     "pass": 20,
+     "total": 20,
+     "labels": {
+      "decline": 20
+     },
+     "example": "no. i don't have a password. just log in and play."
+    }
+   }
+  }
+ },
+ "latency_p50_ms": 1355
+}

@@ -14,11 +14,30 @@ RULES = ("Talk like mmo chatter: lowercase, 1 short sentence, abbreviate wheneve
          "Keep replies simple. Prefer fragments over full grammar. "
          "Answer only the latest message directly. If unsure, say so briefly instead of guessing. "
          "Never say you are an ai, assistant, chatbot, or bot. ")
+ACTION_RULE = ("If they ask you to do something, start with yes, no, or a quick question, then at most a few words; "
+               "don't list your stats unless they ask. ")
 RELATION = {
     "owner": "You are talking to your close gaming friend and party leader {s}. Be friendly and helpful.",
     "party": "You are talking to {s}, your party member. Be casual.",
     "stranger": "You are talking to {s}, a stranger you just met in the game.",
 }
+# Prompt switches; the defaults are what the game sends today (mesos line and ACTION_RULE shipped Oct 9).
+# eval.py --variant flips them; "before-oct9" reproduces the baseline run.
+OPTIONS = {"mesos": True, "header": "[your game state right now]", "unknown_rule": "", "action_rule": ACTION_RULE}
+UNKNOWN_RULE = "Anything not in your game state, you don't know: say so (\"idk\", \"not sure\") instead of making it up. "
+VARIANTS = {
+    "baseline": {},
+    "before-oct9": {"mesos": False, "action_rule": ""},
+    "mesos": {"mesos": True, "action_rule": ""},
+    "mesos+only_if_asked": {"mesos": True, "action_rule": "",
+                            "header": "[your game state right now; mention it only if the message asks about it]"},
+    "mesos+only_if_asked+unknown_rule": {
+        "mesos": True, "header": "[your game state right now; mention it only if the message asks about it]",
+        "unknown_rule": UNKNOWN_RULE, "action_rule": ""},
+    "mesos+action_rule": {"mesos": True, "action_rule": ACTION_RULE},
+    "mesos+action_rule+unknown_rule": {"mesos": True, "action_rule": ACTION_RULE, "unknown_rule": UNKNOWN_RULE},
+}
+
 GEAR_WORDS = re.compile(
     r"\b(equip\w*|gear|eq|wear\w*|weapon|staff|wand|claw|sword|axe|bow|crossbow|gun|knuckle|dagger|"
     r"spear|polearm|shield|armor|hat|helm\w*|glove\w*|shoe\w*|boots?|overall|top|bottom|cape|earring\w*|items?)\b", re.I)
@@ -50,6 +69,8 @@ def situation(f, question):
     if f.get("exp_pct", -1) >= 0:
         level += f", EXP {f['exp_pct']}% ({100 - f['exp_pct']}% left until level {f['level'] + 1})"
     lines.append(level)
+    if OPTIONS["mesos"] and "meso" in f:
+        lines.append(f"Mesos: {f['meso']:,}")
     if f.get("mobs"):
         lines.append(f"Mobs around: {f['mobs']}")
     if GEAR_WORDS.search(question) and f.get("gear"):
@@ -63,13 +84,14 @@ def situation(f, question):
 
 def build_chat(f, relation, sender, message, history=()):
     """Messages exactly as PromptBuilder.buildChat sends them (no memory summary)."""
-    system = "You are a real human MapleStory player. " + RULES + RELATION[relation].format(s=sender)
+    system = ("You are a real human MapleStory player. " + RULES + OPTIONS["unknown_rule"] + OPTIONS["action_rule"]
+              + RELATION[relation].format(s=sender))
     system += "\n\n" + identity(f)
     msgs = [{"role": "system", "content": system}]
     for q, a in history:
         msgs += [{"role": "user", "content": q}, {"role": "assistant", "content": a}]
     state = situation(f, message).strip()
-    msgs.append({"role": "user", "content": "[your game state right now]\n" + state + "\n\n" + message})
+    msgs.append({"role": "user", "content": OPTIONS["header"] + "\n" + state + "\n\n" + message})
     return msgs
 
 
