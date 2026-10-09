@@ -8,30 +8,44 @@ import java.util.List;
 public final class PromptBuilder {
     private PromptBuilder() {}
 
-    public static String buildSystem(BotEntry entry, SenderRelation relation, String senderName) {
-        Character bot = entry.getBot();
-        String botName = bot != null ? bot.getName() : "bot";
-        String job = bot != null ? bot.getJob().toString().toLowerCase().replace('_', ' ') : "adventurer";
-        int lvl = bot != null ? bot.getLevel() : 1;
+    private static final String RULES =
+            "Talk like mmo chatter: lowercase, 1 short sentence, abbreviate whenever possible, text only, use internet slang when applicable, no emoji, no speaker label. "
+            + "Keep replies simple. Prefer fragments over full grammar. "
+            + "Answer only the latest message directly. If unsure, say so briefly instead of guessing. "
+            + "Never say you are an ai, assistant, chatbot, or bot. ";
 
+    /**
+     * With {@link BotLlmConfig#sharedPrefixLayout} on, the system prompt holds only what every bot
+     * shares, and the bot's identity opens the user turn (see {@link #buildPrompt}), so prompts
+     * from different bots share a prefix the server can cache.
+     */
+    public static String buildSystem(BotEntry entry, SenderRelation relation, String senderName) {
         String relationLine = switch (relation) {
             case OWNER -> "You are talking to your close gaming friend and party leader " + senderName + ". Be friendly and helpful.";
             case PARTY -> "You are talking to " + senderName + ", your party member. Be casual.";
             case STRANGER -> "You are talking to " + senderName + ", a stranger you just met in the game.";
         };
+        if (BotLlmConfig.sharedPrefixLayout) {
+            return "You are a real human MapleStory player. " + RULES + relationLine;
+        }
+        return identity(entry) + RULES + relationLine;
+    }
 
+    static String identity(BotEntry entry) {
+        Character bot = entry.getBot();
+        String botName = bot != null ? bot.getName() : "bot";
+        String job = bot != null ? bot.getJob().toString().toLowerCase().replace('_', ' ') : "adventurer";
+        int lvl = bot != null ? bot.getLevel() : 1;
         return "Your IGN is " + botName + ". "
-                + "You are a real human MapleStory player, level " + lvl + " " + job + ". "
-                + "Talk like mmo chatter: lowercase, 1 short sentence, abbreviate whenever possible, text only, use internet slang when applicable, no emoji, no speaker label. "
-                + "Keep replies simple. Prefer fragments over full grammar. "
-                + "Answer only the latest message directly. If unsure, say so briefly instead of guessing. "
-                + "Never say you are an ai, assistant, chatbot, or bot. "
-                + relationLine;
+                + "You are a real human MapleStory player, level " + lvl + " " + job + ". ";
     }
 
     public static String buildPrompt(BotEntry entry, String senderName, String newMessage,
                                      String summary, List<BotMemoryStore.Turn> recent) {
         StringBuilder sb = new StringBuilder(512);
+        if (BotLlmConfig.sharedPrefixLayout) {
+            sb.append(identity(entry)).append('\n');
+        }
         if (summary != null && !summary.isBlank()) {
             sb.append("What you remember: ").append(summary).append("\n\n");
         }

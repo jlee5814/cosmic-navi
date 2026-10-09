@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Orchestrates LLM-backed bot chat replies. Stays out of the game loop:
- * - All Ollama calls run on a dedicated executor with a small thread cap.
+ * - All LLM calls run on a dedicated executor; the global gate below sets real concurrency.
  * - A global semaphore caps concurrent inferences so a busy host doesn't thrash.
  * - Per-bot in-flight gate prevents queueing multiple replies for one bot.
  * - All errors are swallowed; LLM failures must never crash a bot tick.
@@ -25,7 +25,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class BotLlmReplyManager {
     private static final Logger log = LoggerFactory.getLogger(BotLlmReplyManager.class);
 
-    private static final ScheduledExecutorService EXEC = Executors.newScheduledThreadPool(2, r -> {
+    // Each reply blocks one thread for the whole HTTP call, so the pool must be at least as wide as
+    // the global gate or a server that batches (SGLang) never sees more than two requests at once.
+    private static final ScheduledExecutorService EXEC = Executors.newScheduledThreadPool(16, r -> {
         Thread t = new Thread(r, "bot-llm");
         t.setDaemon(true);
         return t;
@@ -116,7 +118,7 @@ public final class BotLlmReplyManager {
                     BotLlmConfig.numCtx, BotLlmConfig.maxPredictTokens, prompt);
         }
 
-        Optional<String> raw = OllamaClient.generate(prompt, system);
+        Optional<String> raw = LlmClient.generate(prompt, system);
         long elapsed = System.currentTimeMillis() - t0;
 
         if (raw.isEmpty()) {
