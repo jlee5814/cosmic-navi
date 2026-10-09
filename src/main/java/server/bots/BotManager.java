@@ -1871,6 +1871,10 @@ public class BotManager {
                         foreign.debugCommanderFollow = true;
                     }
                     BotChatManager.handleChat(foreign, foreignMatch.commandText());
+                    // Same fallback as the owner path: chatter that matched no command goes to the LLM.
+                    if (server.bots.llm.BotLlmConfig.enabled && !BotChatManager.wasLastChatHandled()) {
+                        server.bots.llm.BotLlmReplyManager.maybeRespond(foreign, owner, foreignMatch.commandText());
+                    }
                     if (foreign.debugCommanderFollow) {
                         // Self-owned bots are each their own owner, so the per-owner formation loop
                         // never staggers them — assign slots across the GM's whole follow cohort here
