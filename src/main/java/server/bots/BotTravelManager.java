@@ -827,6 +827,20 @@ final class BotTravelManager {
         entry.followTravelGiveUpReason = null;
     }
 
+    /** Name, target and position of the hop's portal and where the bot stands: portal 0 is a real id
+     *  (often the spawn point), and the same map hops that kept failing named no portal at all. */
+    private static String portalDetail(BotEntry entry) {
+        try {
+            Character bot = entry.bot;
+            Portal p = bot.getMap().getPortal(entry.followTravelPortalId);
+            return (p == null ? "(missing)" : "(" + p.getName() + " tm=" + p.getTargetMapId() + " at "
+                    + p.getPosition().x + "," + p.getPosition().y + ")")
+                    + " botPos=" + bot.getPosition().x + "," + bot.getPosition().y;
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
     private static void giveUp(BotEntry entry, long now, String reason) {
         int failedDest = entry.followTravelTargetMapId; // capture before clear() wipes it
         // Snapshot the failed hop's shape too, so the stuck-bot log/pathlog can say WHICH leg failed
@@ -834,7 +848,7 @@ final class BotTravelManager {
         String hop = "nextHop=" + entry.followTravelNextHopMapId
                 + (entry.followTravelTaxiNpcId != 0 ? " viaTaxi=" + entry.followTravelTaxiNpcId : "")
                 + (entry.followTravelFerry ? " viaFerry" : "")
-                + (entry.followTravelPortalId > 0 ? " viaPortal=" + entry.followTravelPortalId : "")
+                + (entry.followTravelPortalId >= 0 ? " viaPortal=" + entry.followTravelPortalId + portalDetail(entry) : "")
                 + " fromMap=" + entry.followTravelFromMapId
                 // closest the bot got to the hop target: small = reached it but ran out of budget; large/absent
                 // = never made progress (nav can't reach it), a deeper routing problem than a short deadline.
