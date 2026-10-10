@@ -246,13 +246,13 @@ final class BotFleetOps {
     static List<String> handle(Character owner, String request) {
         String req = request == null ? "" : request.strip();
         if (FLEET.matcher(req).matches()) {
-            return fleet(owned(owner), System.currentTimeMillis());
+            return fleetForOwner(owner.getId());
         }
         Matcher m = ACTION.matcher(req);
         if (!m.matches()) {
             return null;
         }
-        List<BotEntry> mine = owned(owner);
+        List<BotEntry> mine = owned(owner.getId());
         List<String> names = mine.stream().map(e -> e.bot.getName()).toList();
         List<String> found = resolve(names, m.group(2));
         if (found.isEmpty()) {
@@ -274,10 +274,15 @@ final class BotFleetOps {
         return HELP.matcher(request == null ? "" : request.strip()).matches();
     }
 
-    private static List<BotEntry> owned(Character owner) {
+    /** The navi fleet lines for one owner; also served at /api/fleetops for checking without the game. */
+    static List<String> fleetForOwner(int ownerId) {
+        return fleet(owned(ownerId), System.currentTimeMillis());
+    }
+
+    private static List<BotEntry> owned(int ownerId) {
         List<BotEntry> out = new ArrayList<>();
         for (BotEntry e : BotManager.getInstance().allEntries()) {
-            if (e.bot != null && Objects.equals(BotOwnershipService.getInstance().getRegisteredOwnerId(e.bot.getId()), owner.getId())) {
+            if (e.bot != null && Objects.equals(BotOwnershipService.getInstance().getRegisteredOwnerId(e.bot.getId()), ownerId)) {
                 out.add(e);
             }
         }

@@ -199,6 +199,12 @@ Reachability uses the same verdict fields as `navprobe`: `reached:true` = genuin
 
 ## Settings API
 
+### `/api/fleetops?owner=<ownerCharId>`
+Plain text: the lines `navi fleet` whispers that owner (training bots, fleet EXP/h over the last hour, stuck,
+looping, slowest, capped), for checking fleet ops without logging in. Read only. Backed by `BotFleetOps`, whose
+once a minute sampler keeps 90 minutes of history per bot; right after a restart it reports EXP/h only after
+10 minutes of samples.
+
 ### `/api/settings` (GET + POST)
 Live admin/tuning surface behind `/admin`. Same SSOT as the GM commands: `BotConfigReflect` (the
 `!botcfg` reflection), `BotScheduler` (`@botpop`), `BotLlmConfig` (`!botllm`), `BotAdminOps` (`@botpop wipe`).

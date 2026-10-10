@@ -180,6 +180,7 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/pathfind", BotWorldGraphWebServer::servePathfind);
             s.createContext("/admin", BotWorldGraphWebServer::serveAdminPage);
             s.createContext("/api/settings", BotWorldGraphWebServer::serveSettings);
+            s.createContext("/api/fleetops", BotWorldGraphWebServer::serveFleetOps);
             s.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "bot-worldmap-web");
                 t.setDaemon(true);
@@ -194,6 +195,20 @@ public final class BotWorldGraphWebServer {
     }
 
     // --- HTTP handlers ---
+
+    /** GET /api/fleetops?owner=<owner char id>: the lines navi fleet whispers that owner, as plain text. */
+    private static void serveFleetOps(HttpExchange ex) throws IOException {
+        Map<String, String> q = queryParams(ex.getRequestURI().getRawQuery());
+        int owner;
+        try {
+            owner = Integer.parseInt(q.getOrDefault("owner", "").trim());
+        } catch (NumberFormatException e) {
+            send(ex, 400, "text/plain; charset=utf-8", "owner=<owner char id> required\n".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        String body = String.join("\n", BotFleetOps.fleetForOwner(owner)) + "\n";
+        send(ex, 200, "text/plain; charset=utf-8", body.getBytes(StandardCharsets.UTF_8));
+    }
 
     private static final String LANDING_PAGE =
             "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Bot World</title><style>"
