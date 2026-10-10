@@ -46,15 +46,15 @@ The service runs on the host, outside the game server. It holds the email creden
 | Whisper a bot you own | Effect |
 |---|---|
 | `navi email` / `navi check my email` / `navi inbox` / `navi any new emails` | Unread Primary count plus newest three senders and subjects |
-| `navi fleet` | Training bots, fleet EXP per hour over the last hour, stuck and looping bots, the slowest two, capped bots |
-| `navi why <bot>` | Where the bot is, what it is doing and why, its EXP per hour, and whether it is stuck or looping |
+| `navi fleet` | Training bots, fleet EXP per hour over the last hour, stuck and looping bots, bots busy with no EXP for 15 minutes, the slowest two, capped bots |
+| `navi why <bot>` | Where the bot is, what it is doing and why, its EXP per hour, and whether it is stuck, looping or earning nothing |
 | `navi rescue <bot>` | Uses a town return scroll (the legal way out) and puts the bot back on its own plan; without a usable scroll, walks it to the map's town |
 | `navi park <bot>` | Parks a roster bot: stores rosterActive=false and logs it out |
 | `navi` | Lists what Navi can do |
 
 `<bot>` is a full name or the number at its end: `26` for SipsBuddy26. The fleet commands run inside the game server (`BotFleetOps`), need no service call, and see only the bots registered to you.
 
-Navi also whispers you first, once per incident, when one of your bots stands still for 10 minutes while it means to grind or travel, or starts a third errand to the same map within 45 minutes. A once a minute sampler in the game server keeps 90 minutes of history per bot for this.
+Navi also whispers you first, once per incident, when one of your bots stands still for 10 minutes while it means to grind or travel, starts a third errand to the same map within 45 minutes, or stays busy for 30 minutes without gaining EXP (a bot touring shops with a full bag moves but never fights). A once a minute sampler in the game server keeps 90 minutes of history per bot for this and saves it to `cache/fleet-ops/samples.tsv`, so a restart keeps the history and does not repeat a whisper for an incident already reported.
 
 To revoke access, delete the app password in your Google account or run `security delete-generic-password -s navi-gmail`.
 
