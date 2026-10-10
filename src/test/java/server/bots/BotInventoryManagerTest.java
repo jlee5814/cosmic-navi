@@ -352,6 +352,36 @@ class BotInventoryManagerTest {
     }
 
     @Test
+    void crampedSalesShedWorthlessArrowsAndKeepReturnScrolls() {
+        // SipsBuddy1, a mage, filled its USE tab with 0 meso arrows. The cramped visit skipped them
+        // (no NPC price), sold its return scrolls instead and bought them back at the next shop.
+        Character bot = mock(Character.class);
+        Inventory use = new Inventory(bot, InventoryType.USE, (byte) 96);
+        Item returnScrolls = Items.itemWithQuantity(BotShopManager.RETURN_SCROLL_NEAREST_TOWN, 10);
+        use.addItem(returnScrolls);
+        use.addItem(Items.itemWithQuantity(2060000, 2000));
+        use.addItem(Items.itemWithQuantity(2061000, 2000));
+        use.addItem(Items.itemWithQuantity(2060000, 2000));
+        when(bot.getInventory(InventoryType.USE)).thenReturn(use);
+
+        try (AutoCloseable seams = withUseSeams(id -> null, id -> 0, id -> 0,
+                    (id, qty) -> id == BotShopManager.RETURN_SCROLL_NEAREST_TOWN ? 150 * qty : 0);
+             MockedStatic<BotAttackExecutionProvider> attacks = mockStatic(BotAttackExecutionProvider.class)) {
+            attacks.when(() -> BotAttackExecutionProvider.getEquippedWeaponType(bot))
+                    .thenReturn(client.inventory.WeaponType.WAND);
+
+            assertEquals(BotInventoryManager.UseTier.RUNWAY,
+                    BotInventoryManager.classifyBagUse(bot).get(returnScrolls).tier());
+            List<Item> sales = BotInventoryManager.collectCrampedUseSales(bot, 99, null);
+            assertFalse(sales.contains(returnScrolls));
+            assertTrue(sales.size() >= 2, "arrow stacks must be sheddable: " + sales);
+            assertTrue(sales.stream().allMatch(it -> it.getItemId() == 2060000 || it.getItemId() == 2061000));
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    @Test
     void crampedSalesUseScrollMarketValueSoDarkAttackScrollBeatsCheapAmmo() {
         Character bot = mock(Character.class);
         Inventory use = new Inventory(bot, InventoryType.USE, (byte) 96);
