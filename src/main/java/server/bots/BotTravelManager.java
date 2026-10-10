@@ -251,6 +251,10 @@ final class BotTravelManager {
             clear(entry);
             active = false;
         }
+        if (active && entry.followTravelEnteredAtMs > 0 && landedOnSameMap(entry, bot, map)) {
+            clear(entry); // the teleport put us on the next platform: plan the next hop from here
+            active = false;
+        }
         if (active && entry.followTravelEnteredAtMs > 0) {
             if (now - entry.followTravelEnteredAtMs > PORTAL_LAND_GRACE_MS) {
                 giveUp(entry, now, "warp-no-land");
@@ -400,6 +404,26 @@ final class BotTravelManager {
         }
         Point reachable = BotPhysicsEngine.reachableApproachInBox(map, portal.getPosition(), COLLISION_ENTER_X, COLLISION_ENTER_Y);
         return reachable != null ? reachable : portal.getPosition();
+    }
+
+    /** How far from the entered portal a bot must be for a same map hop to count as landed. */
+    static final int SAME_MAP_LAND_PX = 150;
+
+    /**
+     * A partition route can make the next hop another platform of the same map, reached through a hidden
+     * teleport portal (pt 10, target map = this map; Ellinia, Perion, Kerning City and Sleepywood all have
+     * them). The map id never changes on that hop, so the landing check that waits for a map change timed out
+     * as warp-no-land every time: SipsBuddy29, 31 and 32 failed every errand to Singapore CBD from those
+     * towns. The hop has landed once the bot is clear of the portal it entered.
+     */
+    static boolean landedOnSameMap(BotEntry entry, Character bot, MapleMap map) {
+        if (entry.followTravelNextHopMapId != bot.getMapId() || entry.followTravelPortalId < 0) {
+            return false;
+        }
+        Portal entered = map.getPortal(entry.followTravelPortalId);
+        Point pos = bot.getPosition();
+        return entered != null && pos != null && entered.getPosition() != null
+                && pos.distance(entered.getPosition()) > SAME_MAP_LAND_PX;
     }
 
     static boolean walkToPortalAndEnter(BotEntry entry, Character bot, Portal portal, long now, boolean runAiTick) {

@@ -14,6 +14,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -156,6 +157,35 @@ class BotTravelManagerTest {
         assertSame(scripted, picked);
         assertNull(BotTravelManager.findAdjacentPortal(List.of(scriptOnly, closed, otherMap, door),
                 HENESYS, new Point(0, 0)));
+    }
+
+    @Test
+    void aSameMapTeleportHopLandsOnceTheBotIsClearOfThePortal() {
+        int ellinia = 101000000;
+        // ph00 at (-1068,-2475) teleports to ph00_1 at (425,180) on the same map.
+        Portal ph00 = portal(28, ellinia, 10, null, Portal.OPEN, new Point(-1068, -2475));
+        Fixture f = fixture(ellinia, 540000000, new Point(425, 180), List.of(ph00));
+        BotEntry e = f.entry();
+        e.followTravelTargetMapId = 540000000;
+        e.followTravelNextHopMapId = ellinia;
+        e.followTravelFromMapId = ellinia;
+        e.followTravelPortalId = 28;
+        e.followTravelEnteredAtMs = System.currentTimeMillis() - 5_000L; // well past the land grace
+
+        assertTrue(BotTravelManager.landedOnSameMap(e, f.bot(), f.map()));
+        try (RouteStub route = new RouteStub((from, to, maxHops, options, blocked) -> null)) {
+            BotTravelManager.tickTravel(e, f.bot(), 540000000, 30, true, true);
+        }
+        assertNotEquals("warp-no-land", e.followTravelGiveUpReason);
+        assertEquals(0L, e.followTravelEnteredAtMs);
+
+        // Still standing on the portal: the teleport never fired, which is a real failure.
+        when(f.bot().getPosition()).thenReturn(new Point(-1060, -2475));
+        assertFalse(BotTravelManager.landedOnSameMap(e, f.bot(), f.map()));
+        // A cross map hop never counts as a same map landing.
+        e.followTravelNextHopMapId = 103000000;
+        when(f.bot().getPosition()).thenReturn(new Point(425, 180));
+        assertFalse(BotTravelManager.landedOnSameMap(e, f.bot(), f.map()));
     }
 
     @Test
