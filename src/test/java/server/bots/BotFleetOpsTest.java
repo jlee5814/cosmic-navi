@@ -179,6 +179,48 @@ class BotFleetOpsTest {
     }
 
     @Test
+    void theResponderGetsOnlyStallsAScrollCannotFix() {
+        BotFleetOps.Track loop = new BotFleetOps.Track();
+        BotFleetOps.Track errandNoExp = new BotFleetOps.Track();
+        BotFleetOps.Track frozen = new BotFleetOps.Track();
+        for (long m = 0; m <= 35; m++) {
+            int errand = m % 12 <= 1 ? 600000000 : -1; // SipsBuddy26's ten minute weapon trips
+            BotFleetOps.record(loop, new BotFleetOps.Sample(m * MIN, 103000101, (int) m * 50, 0, 1_000 + m, true, errand));
+            BotFleetOps.record(errandNoExp, new BotFleetOps.Sample(m * MIN, 200000111 + (int) (m % 3), (int) m * 40, 0, 9_000, true, 101000300));
+            BotFleetOps.record(frozen, still(m * MIN, 5_000));
+        }
+        // the loop is mid errand at minute 24 (24 % 12 == 0)
+        assertEquals("errand_loop", BotFleetOps.incidentKind(trimTo(loop, 24), 24 * MIN));
+        assertEquals("no_exp_on_errand", BotFleetOps.incidentKind(errandNoExp, 35 * MIN));
+        assertNull(BotFleetOps.incidentKind(frozen, 35 * MIN), "auto rescue owns a frozen bot first");
+        frozen.autoRescueGaveUpAlerted = true;
+        assertEquals("refreezing", BotFleetOps.incidentKind(frozen, 35 * MIN));
+    }
+
+    private static BotFleetOps.Track trimTo(BotFleetOps.Track src, long minute) {
+        BotFleetOps.Track t = new BotFleetOps.Track();
+        for (BotFleetOps.Sample s : src.samples) {
+            if (s.t() <= minute * MIN) {
+                BotFleetOps.record(t, s);
+            }
+        }
+        return t;
+    }
+
+    @Test
+    void holdErrandsDropsTheTripAndUsesTheErrandCooldown() {
+        BotEntry entry = org.mockito.Mockito.mock(BotEntry.class);
+        entry.autopilotErrandMapId = 600000000;
+        entry.autopilotNextErrandAtMs = 0L;
+        BotFleetOps.holdErrands(entry, 1_000_000L, 45);
+        assertEquals(-1, entry.autopilotErrandMapId);
+        assertTrue(entry.autopilotReturningFromErrand);
+        assertEquals(1_000_000L + 45 * MIN, entry.autopilotNextErrandAtMs);
+        BotFleetOps.holdErrands(entry, 1_000_000L, 15);
+        assertEquals(1_000_000L + 45 * MIN, entry.autopilotNextErrandAtMs, "a shorter hold never cuts a longer one");
+    }
+
+    @Test
     void aTaskQueuedForTheNextTickRunsOnceAndAFailureStaysContained() {
         BotEntry entry = org.mockito.Mockito.mock(BotEntry.class);
         int[] runs = {0};
