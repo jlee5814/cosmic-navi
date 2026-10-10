@@ -66,7 +66,7 @@ final class BotShopManager {
     private static final int POT_TARGET_THRESHOLD = 5; // full target when buying at shop
     private static final int AMMO_TRIGGER_THRESHOLD = 8;
     private static final int AMMO_TARGET_THRESHOLD = 10; // full target when buying at shop
-    private static final int RETURN_SCROLL_NEAREST_TOWN = 2030000;
+    static final int RETURN_SCROLL_NEAREST_TOWN = 2030000;
     private static final int RETURN_SCROLL_TARGET_QTY = 10;
     private static final int RECHARGE_MAX_SETS = 10; // cap recharge to the best N own-type stacks
     private static final int AUTO_SELL_FREE_SLOT_THRESHOLD = 2; // bag tab "cramped" when this few slots left
