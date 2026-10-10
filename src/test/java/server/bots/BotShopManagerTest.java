@@ -343,8 +343,34 @@ class BotShopManagerTest {
         return bot;
     }
 
-    // Stub the ItemInformationProvider-backed seam: star 2070018 is the strongest, all stacks
-    // are well under slot-max so any partial stack counts as refillable. Restored on close.
+    @Test
+    void clawBotTopsUpToThreeStarStacksWhileShopping() {
+        try (Seam seam = withStarStats()) {
+            // One stack: the SipsBuddy38 case, dry every few hundred throws.
+            assertTrue(BotShopManager.shouldBuyExtraAmmoSetsWhileShopping(clawBotWithStars(632), WeaponType.CLAW));
+            assertTrue(BotShopManager.shouldBuyExtraAmmoSetsWhileShopping(clawBotWithStars(800, 800), WeaponType.CLAW));
+            assertFalse(BotShopManager.shouldBuyExtraAmmoSetsWhileShopping(clawBotWithStars(800, 800, 800), WeaponType.CLAW));
+            // No stack at all is the starter set rule's job, and bows don't recharge.
+            assertFalse(BotShopManager.shouldBuyExtraAmmoSetsWhileShopping(clawBotWithStars(), WeaponType.CLAW));
+            assertFalse(BotShopManager.shouldBuyExtraAmmoSetsWhileShopping(bowBotWithArrows(500), WeaponType.BOW));
+        }
+    }
+
+    @Test
+    void clawBotShortOfStacksVisitsTheNpcThatSellsStarsUnlessPotsAreLow() {
+        Character oneStack = clawBotWithStars(632);
+        Character threeStacks = clawBotWithStars(800, 800, 800);
+        try (Seam seam = withStarStats();
+             MockedStatic<BotPotionManager> potions = mockStatic(BotPotionManager.class)) {
+            potions.when(() -> BotPotionManager.countPotions(any())).thenReturn(new int[]{9999, 9999});
+            assertTrue(BotShopManager.wantsAmmoStackShop(oneStack, WeaponType.CLAW));
+            assertFalse(BotShopManager.wantsAmmoStackShop(threeStacks, WeaponType.CLAW));
+            // Low pots: the visit goes wherever pots are sold; stacks wait for a later trip.
+            potions.when(() -> BotPotionManager.countPotions(any())).thenReturn(new int[]{0, 9999});
+            assertFalse(BotShopManager.wantsAmmoStackShop(oneStack, WeaponType.CLAW));
+        }
+    }
+
     @Test
     void weaponUpgradeNeedsAClearGainOverTheWornWeapon() {
         // Field Dagger to Cass is a big step; a sliver of gain is not worth a shop trip.
@@ -357,6 +383,8 @@ class BotShopManagerTest {
         assertTrue(BotShopManager.isWorthwhileWeaponUpgrade(0.0, 5.0));
     }
 
+    // Stub the ItemInformationProvider-backed seam: star 2070018 is the strongest, all stacks
+    // are well under slot-max so any partial stack counts as refillable. Restored on close.
     private static Seam withStarStats() {
         IntUnaryOperator prevWatk = BotShopManager.projectileWatk;
         BotShopManager.SlotMaxLookup prevSlot = BotShopManager.ammoSlotMax;
