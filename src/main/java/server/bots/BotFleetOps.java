@@ -84,6 +84,7 @@ final class BotFleetOps {
         long resetAtMs;                                         // a rescue starts the stall clocks over
         final ArrayDeque<Long> autoRescuesAtMs = new ArrayDeque<>();
         boolean autoRescueGaveUpAlerted;
+        final ArrayDeque<Long> responderActsAtMs = new ArrayDeque<>();
         final Map<Integer, Long> loopAlertedAtMs = new HashMap<>();
     }
 
@@ -612,6 +613,200 @@ final class BotFleetOps {
             notifyOwner(entry, bot, List.of(clip(name + " is " + why + " at " + from
                     + " with no usable return scroll. navi rescue " + shortName(name))));
         }
+    }
+
+    // ---- responder hooks (tools/responder asks a model what to do about stalls rules can't settle) -------
+
+    static final int RESPONDER_MAX_ACTS = 3;
+    static final long RESPONDER_WINDOW_MS = 2 * 60 * 60_000L;
+    static final int HOLD_ERRANDS_MAX_MIN = 60;
+    static final java.util.Set<String> RESPONDER_ACTIONS = java.util.Set.of("rescue", "hold_errands", "sell_trash", "park");
+
+    /** Why this bot is an open incident for the responder, or null: a scroll can't fix an errand loop or a
+     *  bot earning nothing on an errand, and a bot past its auto rescues needs another idea. */
+    static String incidentKind(Track t, long now) {
+        long noExp = noExpForMs(t);
+        int loopMap = lastErrandMap(t);
+        int starts = loopMap == -1 ? 0 : errandStarts(t, loopMap, now);
+        synchronized (t) {
+            Sample last = t.samples.peekLast();
+            if (last == null || !last.busy()) {
+                return null;
+            }
+            if (t.autoRescueGaveUpAlerted) {
+                return "refreezing";
+            }
+            if (starts >= LOOP_REPEATS && last.errandMapId() == loopMap) {
+                return "errand_loop";
+            }
+            if (noExp >= NO_EXP_ALERT_MS && last.errandMapId() != -1) {
+                return "no_exp_on_errand";
+            }
+            if (noExp >= NO_EXP_ALERT_MS && !t.autoRescuesAtMs.isEmpty()) {
+                return "no_exp_after_rescue";
+            }
+            return null;
+        }
+    }
+
+    /** Every open incident as a JSON array: the facts a model needs to pick an action. */
+    static String incidentsJson(long now) {
+        List<String> out = new ArrayList<>();
+        for (BotEntry e : BotManager.getInstance().allEntries()) {
+            Character bot = e.bot;
+            Track t = bot == null ? null : tracks.get(bot.getId());
+            if (t == null || bot.getMap() == null) {
+                continue;
+            }
+            String kind = incidentKind(t, now);
+            if (kind == null) {
+                continue;
+            }
+            try {
+                out.add(incidentJson(e, bot, t, kind, now));
+            } catch (RuntimeException ex) {
+                log.debug("fleet ops: incident for {} failed", bot.getName(), ex);
+            }
+        }
+        return "[" + String.join(",", out) + "]";
+    }
+
+    private static String incidentJson(BotEntry e, Character bot, Track t, String kind, long now) {
+        int loopMap = lastErrandMap(t);
+        int errand = e.autopilotErrandMapId;
+        int rescues;
+        int acts;
+        synchronized (t) {
+            rescues = t.autoRescuesAtMs.size();
+            acts = t.responderActsAtMs.size();
+        }
+        StringBuilder b = new StringBuilder("{");
+        b.append("\"id\":").append(bot.getId())
+                .append(",\"name\":").append(js(bot.getName()))
+                .append(",\"kind\":").append(js(kind))
+                .append(",\"level\":").append(bot.getLevel())
+                .append(",\"job\":").append(bot.getJob().getId())
+                .append(",\"map\":").append(bot.getMapId())
+                .append(",\"mapName\":").append(js(mapName(bot.getMapId())))
+                .append(",\"x\":").append(bot.getPosition().x).append(",\"y\":").append(bot.getPosition().y)
+                .append(",\"errandMap\":").append(errand)
+                .append(",\"errandMapName\":").append(js(errand == -1 ? "" : mapName(errand)))
+                .append(",\"noExpMin\":").append(noExpForMs(t) / 60_000)
+                .append(",\"frozenMin\":").append(frozenForMs(t) / 60_000)
+                .append(",\"errandStartsLast45Min\":").append(loopMap == -1 ? 0 : errandStarts(t, loopMap, now))
+                .append(",\"lastErrandMapName\":").append(js(loopMap == -1 ? "" : mapName(loopMap)))
+                .append(",\"autoRescuesLast2h\":").append(rescues)
+                .append(",\"responderActsLast2h\":").append(acts)
+                .append(",\"meso\":").append(bot.getMeso())
+                .append(",\"status\":").append(js(BotAutopilotManager.statusReport(e, bot)))
+                .append(",\"bag\":{");
+        String[] tabs = {"EQUIP", "USE", "ETC"};
+        client.inventory.InventoryType[] types = {client.inventory.InventoryType.EQUIP,
+                client.inventory.InventoryType.USE, client.inventory.InventoryType.ETC};
+        for (int i = 0; i < tabs.length; i++) {
+            var inv = bot.getInventory(types[i]);
+            int slots = inv == null ? 0 : inv.getSlotLimit();
+            int free = inv == null ? 0 : inv.getNumFreeSlot();
+            b.append(i == 0 ? "" : ",").append('"').append(tabs[i]).append("\":{\"used\":").append(slots - free)
+                    .append(",\"slots\":").append(slots).append('}');
+        }
+        b.append("},\"use\":[");
+        // USE stacks grouped by item, most slots first, with how the sell rules classify them.
+        Map<Integer, int[]> slotsQty = new HashMap<>();
+        Map<Integer, String> why = new HashMap<>();
+        for (var c : BotInventoryManager.classifyBagUse(bot).entrySet()) {
+            int id = c.getKey().getItemId();
+            int[] sq = slotsQty.computeIfAbsent(id, k -> new int[2]);
+            sq[0]++;
+            sq[1] += c.getKey().getQuantity();
+            why.merge(id, c.getValue().tier() + " " + c.getValue().reason(), (a, x) -> a.contains(x) ? a : a + "; " + x);
+        }
+        List<Integer> ids = new ArrayList<>(slotsQty.keySet());
+        ids.sort(Comparator.comparingInt((Integer id) -> -slotsQty.get(id)[0]));
+        for (int i = 0; i < Math.min(15, ids.size()); i++) {
+            int id = ids.get(i);
+            String name = server.ItemInformationProvider.getInstance().getName(id);
+            b.append(i == 0 ? "" : ",").append("{\"id\":").append(id)
+                    .append(",\"name\":").append(js(name == null ? "item " + id : name))
+                    .append(",\"slots\":").append(slotsQty.get(id)[0])
+                    .append(",\"qty\":").append(slotsQty.get(id)[1])
+                    .append(",\"rule\":").append(js(why.get(id))).append('}');
+        }
+        return b.append("]}").toString();
+    }
+
+    private static String js(String s) {
+        return BotWorldGraphWebServer.jsonStr(s == null ? "" : s);
+    }
+
+    /** Queue one responder action on the bot's next tick. Each bot takes at most {@link #RESPONDER_MAX_ACTS} per
+     *  {@link #RESPONDER_WINDOW_MS}, so a model that keeps picking wrong can't churn it. Returns "queued ..." or
+     *  why not. hold_errands: drop the current errand and allow none for {@code arg} minutes (at most
+     *  {@link #HOLD_ERRANDS_MAX_MIN}), so the bot grinds instead of riding a loop; sell_trash: a sell visit at a
+     *  shop on this map; park: the cap check's park, for roster bots only; rescue: the navi rescue scroll. */
+    static String act(int botId, String action, int arg, String reason, long now) {
+        BotEntry entry = BotManager.getInstance().getEntryByBotCharId(botId);
+        if (entry == null || entry.bot == null) {
+            return "no bot " + botId + " online";
+        }
+        if (!RESPONDER_ACTIONS.contains(action)) {
+            return "unknown action " + action + "; use one of " + RESPONDER_ACTIONS;
+        }
+        if ("park".equals(action) && !BotTrainingPlan.canPark(entry)) {
+            return entry.bot.getName() + " isn't an active roster bot, so it can't be parked";
+        }
+        Track t = tracks.computeIfAbsent(botId, id -> new Track());
+        synchronized (t) {
+            while (!t.responderActsAtMs.isEmpty() && now - t.responderActsAtMs.peekFirst() > RESPONDER_WINDOW_MS) {
+                t.responderActsAtMs.removeFirst();
+            }
+            if (t.responderActsAtMs.size() >= RESPONDER_MAX_ACTS) {
+                return entry.bot.getName() + " already had " + RESPONDER_MAX_ACTS + " responder actions in 2 h";
+            }
+            t.responderActsAtMs.addLast(now);
+        }
+        int minutes = Math.max(15, Math.min(HOLD_ERRANDS_MAX_MIN, arg));
+        String why = reason.length() > 120 ? reason.substring(0, 120) : reason;
+        entry.nextTickTask = () -> runResponderAction(entry, action, minutes, why);
+        log.info("fleet ops: responder queued {} for {}: {}", action, entry.bot.getName(), why);
+        return "queued " + action + " for " + entry.bot.getName();
+    }
+
+    private static void runResponderAction(BotEntry entry, String action, int minutes, String why) {
+        Character bot = entry.bot;
+        if (bot == null || bot.getMap() == null || entry.loggingOut) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        String name = bot.getName();
+        String from = mapName(bot.getMapId());
+        String done = switch (action) {
+            case "rescue" -> scrollOut(entry, now) ? "scrolled from " + from + " to " + mapName(bot.getMapId())
+                    : "had no usable return scroll at " + from;
+            case "hold_errands" -> {
+                holdErrands(entry, now, minutes);
+                yield "holds errands for " + minutes + " min and goes back to grinding";
+            }
+            case "sell_trash" -> {
+                BotShopManager.requestSellTrashVisit(entry, bot);
+                yield entry.shopVisitPending ? "is selling trash at " + from : "found no shop or nothing to sell at " + from;
+            }
+            case "park" -> BotTrainingPlan.park(entry, bot, "parked by the navi responder: " + why)
+                    ? "parked and logging out" : "couldn't be parked";
+            default -> "did nothing";
+        };
+        log.info("fleet ops: responder {} {}: {} ({})", action, name, done, why);
+        notifyOwner(entry, bot, List.of(clip("responder: " + name + " " + done), clip("why: " + why)));
+    }
+
+    /** Drop the current errand and start the errand cooldown the autopilot already honors, so every optional
+     *  trip (a weapon upgrade, a full bag) waits; the bot heads back to its grind map. */
+    static void holdErrands(BotEntry entry, long now, int minutes) {
+        if (entry.autopilotErrandMapId != -1) {
+            entry.autopilotErrandMapId = -1;
+            entry.autopilotReturningFromErrand = true;
+        }
+        entry.autopilotNextErrandAtMs = Math.max(entry.autopilotNextErrandAtMs, now + minutes * 60_000L);
     }
 
     private static List<String> rescue(BotEntry entry) {
