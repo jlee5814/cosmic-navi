@@ -1386,7 +1386,7 @@ final class BotShopManager {
     static java.util.function.BiFunction<BotEntry, Character, Integer> weaponUpgradeShopMapSeam =
             BotShopManager::computeWeaponUpgradeShopMap;
 
-    /** Nearest reachable map, other than the current one, whose shop sells a worthwhile weapon upgrade;
+    /** Nearest reachable map (by ship too), other than the current one, whose shop sells a worthwhile weapon upgrade;
      *  null when none. Each bot runs the search at most once per {@link #WEAPON_UPGRADE_RECHECK_MS} and
      *  reuses the answer in between; a purchase resets the clock. */
     static Integer weaponUpgradeShopMap(BotEntry entry, Character bot) {
@@ -1403,6 +1403,63 @@ final class BotShopManager {
         }
     }
 
+    /** Route hops a weapon trip may take; the travel layer's own cap, ships and taxis included. */
+    static final int WEAPON_TRIP_MAX_HOPS = BotAutopilotManager.MAX_TRAVEL_HOPS;
+    private static volatile List<Integer> shopNpcIds;
+
+    /** Every NPC that runs a shop, read once from the shops table. */
+    private static List<Integer> shopNpcIds() {
+        List<Integer> ids = shopNpcIds;
+        if (ids != null) {
+            return ids;
+        }
+        List<Integer> loaded = new ArrayList<>();
+        try (java.sql.Connection con = tools.DatabaseConnection.getConnection();
+             java.sql.PreparedStatement ps = con.prepareStatement("SELECT DISTINCT npcid FROM shops");
+             java.sql.ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                loaded.add(rs.getInt(1));
+            }
+        } catch (java.sql.SQLException | RuntimeException e) {
+            log.warn("bot-shop: could not list shop NPCs; weapon trips fall back to the nearby map scan", e);
+            return List.of();
+        }
+        shopNpcIds = List.copyOf(loaded);
+        return shopNpcIds;
+    }
+
+    /** The map with the shortest route (portals, ships and taxis, danger gated) whose shop NPC passes
+     *  {@code accept}. Uses the shop catalog and the NPC placement index instead of loading maps, so it
+     *  can look across continents: the nearby scan stopped at six portals and never reached the Orbis or
+     *  El Nath stores that stock level 30 to 40 spears. Falls back to that scan if the catalog is empty. */
+    private static Integer nearestShopMapSelling(Character bot, Predicate<Shop> accept) {
+        List<Integer> npcs = shopNpcIds();
+        if (npcs.isEmpty()) {
+            return findNearestUncachedShopMap(bot, accept);
+        }
+        int from = bot.getMapId();
+        BotWorldGraph.RouteOptions options = BotAutopilotManager.travelOptions(bot, true);
+        Integer best = null;
+        int bestHops = Integer.MAX_VALUE;
+        for (int npc : npcs) {
+            Shop shop = ShopFactory.getInstance().getShopForNPC(npc);
+            if (shop == null || !accept.test(shop)) {
+                continue;
+            }
+            for (int mapId : BotSpawnIndex.mapsWithNpc(npc)) {
+                if (mapId == from) {
+                    return mapId;
+                }
+                List<Integer> route = BotAutopilotManager.routeForBot(bot, from, mapId, WEAPON_TRIP_MAX_HOPS, options);
+                if (route != null && route.size() < bestHops) {
+                    best = mapId;
+                    bestHops = route.size();
+                }
+            }
+        }
+        return best;
+    }
+
     /** True when {@link #weaponUpgradeShopMap} has somewhere to go: the errand gates ask this. */
     static boolean wantsWeaponUpgrade(BotEntry entry, Character bot) {
         return weaponUpgradeShopMap(entry, bot) != null;
@@ -1416,7 +1473,7 @@ final class BotShopManager {
         if (now >= entry.weaponUpgradeCheckAtMs) {
             entry.weaponUpgradeCheckAtMs = now + WEAPON_UPGRADE_RECHECK_MS;
             Integer found = preferredWeaponBudget(bot) <= 0 ? null
-                    : findNearestUncachedShopMap(bot, shop -> findWeaponUpgradeItem(bot, shop) != null);
+                    : nearestShopMapSelling(bot, shop -> findWeaponUpgradeItem(bot, shop) != null);
             entry.weaponUpgradeShopMapId = found == null ? -1 : found;
         }
         int cached = entry.weaponUpgradeShopMapId;
