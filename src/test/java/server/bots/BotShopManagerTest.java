@@ -372,6 +372,25 @@ class BotShopManagerTest {
     }
 
     @Test
+    void anUnreachableWeaponShopIsSkippedAndTheSearchRerunsNow() {
+        BotEntry entry = new BotEntry(mock(Character.class), null, null);
+        entry.weaponUpgradeShopMapId = 540000000;
+        entry.weaponUpgradeCheckAtMs = 9_999_999L;
+
+        BotShopManager.markShopMapUnreachable(entry, 540000000, 1_000L);
+
+        assertEquals(1_000L + BotShopManager.UNREACHABLE_SHOP_RETRY_MS, (long) entry.unreachableShopUntilMs.get(540000000));
+        assertEquals(-1, entry.weaponUpgradeShopMapId);
+        assertEquals(0L, entry.weaponUpgradeCheckAtMs);
+        // A pot errand that failed elsewhere leaves the weapon search alone.
+        entry.weaponUpgradeShopMapId = 211000100;
+        entry.weaponUpgradeCheckAtMs = 5L;
+        BotShopManager.markShopMapUnreachable(entry, 104000000, 1_000L);
+        assertEquals(211000100, entry.weaponUpgradeShopMapId);
+        assertEquals(5L, entry.weaponUpgradeCheckAtMs);
+    }
+
+    @Test
     void weaponUpgradeNeedsAClearGainOverTheWornWeapon() {
         // Field Dagger to Cass is a big step; a sliver of gain is not worth a shop trip.
         assertTrue(BotShopManager.isWorthwhileWeaponUpgrade(30.0, 45.0));
