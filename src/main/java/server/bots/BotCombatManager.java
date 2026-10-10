@@ -1169,7 +1169,6 @@ class BotCombatManager {
         if (entry == null || bot == null || mob == null) {
             return 0.0;
         }
-        WeaponType weaponType = BotAttackExecutionProvider.getEquippedWeaponType(bot);
         double best = 0.0;
         for (int skillId : cachedAttackSkillIds(entry)) {
             Skill skill = SkillFactory.getSkill(skillId);
@@ -1186,8 +1185,14 @@ class BotCombatManager {
             }
             AttackRoute route = BotAttackExecutionProvider.determineSkillRoute(bot, skillId);
             int lines = Math.max(1, effectiveHitCount(effect) * shadowPartnerHitMultiplier(bot, route));
+            // No weapon type override: the override path (physicalMaxBaseDamage) is the STR formula meant
+            // for spear and polearm stab or swing actions, and passing the equipped type sent every thief,
+            // archer and gunslinger through it. A level 39 bandit (STR 4, LUK 184) estimated about 15 max
+            // damage instead of about 216, so GrindAdvisor priced Jr. Wraith at 154 s a kill and kept the
+            // bot on Pigs. Live attacks already pass null here unless the action is a stab or swing
+            // (damageWeaponTypeForAction); calculateMaxBaseDamage picks the right main stat.
             CombatFormulaProvider.DamageProfile profile =
-                    resolveAttackDamageProfile(bot, skillId, skillLevel, route, weaponType);
+                    resolveAttackDamageProfile(bot, skillId, skillLevel, route, null);
             double dmg = CombatFormulaProvider.getInstance().estimateExpectedDamage(bot, mob, lines, skillId, profile);
             if (dmg > best) {
                 best = dmg;

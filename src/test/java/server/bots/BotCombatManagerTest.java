@@ -2042,6 +2042,35 @@ class BotCombatManagerTest {
     }
 
     @Test
+    void thiefDaggerDamageNeedsTheNullOverrideNotTheEquippedWeaponType() {
+        // SipsBuddy46: bandit lv39, STR 4, DEX 30, LUK 184, 31 attack, Field Dagger (DAGGER_OTHER).
+        Character bot = mock(Character.class);
+        when(bot.getTotalWatk()).thenReturn(31);
+        when(bot.getTotalStr()).thenReturn(4);
+        when(bot.getTotalDex()).thenReturn(30);
+        when(bot.getTotalLuk()).thenReturn(184);
+        when(bot.calculateMaxBaseDamage(31)).thenReturn(216); // LUK main stat, the thief dagger formula
+        when(bot.calculateMinBaseDamage(org.mockito.ArgumentMatchers.eq(31), org.mockito.ArgumentMatchers.anyDouble()))
+                .thenReturn(57);
+        Inventory equipped = mock(Inventory.class);
+        when(bot.getInventory(InventoryType.EQUIPPED)).thenReturn(equipped);
+
+        try (MockedStatic<BotAttackExecutionProvider> attackExecution =
+                     Mockito.mockStatic(BotAttackExecutionProvider.class, Mockito.CALLS_REAL_METHODS)) {
+            attackExecution.when(() -> BotAttackExecutionProvider.getEquippedWeaponType(bot))
+                    .thenReturn(WeaponType.DAGGER_OTHER);
+
+            // What estimateBestSkillHitDamage now passes, and what live attacks pass for a dagger.
+            assertEquals(216, BotCombatManager.resolveAttackDamageProfile(bot, 0, 0,
+                    BotCombatManager.AttackRoute.CLOSE, null).maxDamage());
+            // What it used to pass: the STR override formula, (4.0 * 4 + 30) * 31 / 100 = 15, a 14x miss
+            // that priced a Jr. Wraith at 154 s a kill and kept the bandits on Pigs.
+            assertEquals(15, BotCombatManager.resolveAttackDamageProfile(bot, 0, 0,
+                    BotCombatManager.AttackRoute.CLOSE, WeaponType.DAGGER_OTHER).maxDamage());
+        }
+    }
+
+    @Test
     void shouldKeepNormalCritableProfileForRangedRouteWithRangedWeapon() {
         Character bot = mock(Character.class);
         when(bot.getTotalWatk()).thenReturn(150);
