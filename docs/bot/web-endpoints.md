@@ -80,6 +80,14 @@ The client renders regions/edges/npcs/portals once and repaints only `chars` on 
 region report backs the GM command **`!pos`** (`PosCommand` → `BotNavigationDebugOverlay.posReport`),
 which reports the region you're standing on using your own movement profile.
 
+### `/api/apdebug?id=<botCharId>[&maps=<mapId>,<mapId>]`
+Read-only plain text: the bot's full autopilot grind decision report (reachable maps, per candidate exp/h,
+gear value, travel and quest weights, the pick), the same report the in game `autopilot why` command and
+the ops console `grind` verb write to `logs/bot-grind/ap-debug-<name>.txt`. Scores candidates without
+applying a plan. `maps=` appends the raw candidate inputs for those maps (mob, kill time, spawns,
+kills and exp per hour, travel weight), which the top 15 list hides. Runs on the decide pool, so it can
+take a few seconds.
+
 ### `/api/botdebug[?id=<botCharId>]`
 Read-only per-bot autopilot internals for live debugging (party cohesion, follow, travel). No cache.
 Every row also includes `plannedJob` (terminal owner career goal, or empty), `trainingTarget`

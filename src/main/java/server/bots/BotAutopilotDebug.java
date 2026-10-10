@@ -68,6 +68,30 @@ final class BotAutopilotDebug {
         return members;
     }
 
+    /** {@link #buildReport(BotEntry, Character)} plus, for each focus map, the raw candidate inputs (mob,
+     *  kill time, spawns, kills and exp per hour, travel weight) that the top 15 list hides. */
+    static String buildReport(BotEntry entry, Character bot, List<Integer> focusMapIds) {
+        String report = buildReport(entry, bot);
+        if (focusMapIds == null || focusMapIds.isEmpty()) {
+            return report;
+        }
+        StringBuilder sb = new StringBuilder(report).append("\n--- f. FOCUS MAPS (raw candidates) ---\n");
+        IntToDoubleFunction weight = BotAutopilotManager.partyInputs(List.of(entry)).weights().get(0);
+        for (int mapId : focusMapIds) {
+            List<MobCandidate> cands = BotGrindAdvisor.candidatesFor(entry, bot, m -> m == mapId);
+            sb.append(String.format("map=%d travelWeight=%.3f%s%n", mapId, weight.applyAsDouble(mapId),
+                    cands.isEmpty() ? "  (no candidate: unreachable, town, or nothing it can damage)" : ""));
+            for (MobCandidate c : cands) {
+                double kph = BotGrindPlanner.killsPerHour(c);
+                sb.append(String.format(
+                        "  %-20s lv%d exp=%d killSeconds=%.2f spawns=%d areaPx=%d touchDanger=%.3f kills/hr=%.0f exp/hr=%,.0f%n",
+                        truncate(c.mobName(), 20), c.mobLevel(), c.exp(), c.killSeconds(), c.spawnPoints(),
+                        c.mapAreaPx(), c.touchDanger(), kph, c.exp() * kph));
+            }
+        }
+        return sb.toString();
+    }
+
     static String buildReport(BotEntry entry, Character bot) {
         List<BotEntry> members = resolveParty(entry);
         PartyInputs in = BotAutopilotManager.partyInputs(members);

@@ -171,6 +171,7 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/mapinfo", BotWorldGraphWebServer::serveMapInfo);
             s.createContext("/api/command", BotWorldGraphWebServer::serveCommand);
             s.createContext("/api/botdebug", BotWorldGraphWebServer::serveBotDebug);
+            s.createContext("/api/apdebug", BotWorldGraphWebServer::serveAutopilotDecision);
             s.createContext("/api/bot/pathlog", BotWorldGraphWebServer::servePathLog);
             s.createContext("/api/perf", BotWorldGraphWebServer::servePerf);
             s.createContext("/api/spawnbot", BotWorldGraphWebServer::serveSpawnBot);
@@ -1093,6 +1094,39 @@ public final class BotWorldGraphWebServer {
             filterId = Integer.parseInt(queryParams(ex.getRequestURI().getRawQuery()).getOrDefault("id", "0").trim());
         } catch (NumberFormatException ignore) { /* 0 = all bots */ }
         send(ex, 200, "application/json", botDebugJson(filterId).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** {@code ?id=<botCharId>[&maps=<id>,<id>]}: the full autopilot grind decision report, the same text the in game
+     *  {@code autopilot why} / ops console {@code grind} command writes to logs/bot-grind. Read only:
+     *  it scores candidates without applying a plan. Runs on the decide pool like every decision. */
+    private static void serveAutopilotDecision(HttpExchange ex) throws IOException {
+        int id;
+        try {
+            id = Integer.parseInt(queryParams(ex.getRequestURI().getRawQuery()).getOrDefault("id", "").trim());
+        } catch (NumberFormatException e) {
+            send(ex, 400, "text/plain", "need ?id=<botCharId>".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        BotEntry e = lookupBotEntry(id);
+        if (e == null || e.bot == null || e.bot.getMap() == null) {
+            send(ex, 404, "text/plain", "no such online bot".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        String report;
+        try {
+            List<Integer> focus = new ArrayList<>();
+            for (String m : queryParams(ex.getRequestURI().getRawQuery()).getOrDefault("maps", "").split(",")) {
+                if (!m.isBlank()) {
+                    focus.add(Integer.parseInt(m.trim()));
+                }
+            }
+            report = BotGrindAdvisor.DECIDE_POOL.submit(() -> BotAutopilotDebug.buildReport(e, e.bot, focus))
+                    .get(120, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception err) {
+            send(ex, 500, "text/plain", ("decision report failed: " + err).getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        send(ex, 200, "text/plain; charset=utf-8", report.getBytes(StandardCharsets.UTF_8));
     }
 
     /** {@code ?id=<botCharId>} filters to one bot AND adds a {@code "detail"} block with live stats +
