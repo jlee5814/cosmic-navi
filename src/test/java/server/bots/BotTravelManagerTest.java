@@ -435,6 +435,36 @@ class BotTravelManagerTest {
     }
 
     @Test
+    void aReturnScrollHopRecordsTheMapItLeftNotTheTownItLandedIn() {
+        int deepMap = 105050100;
+        int lith = 104000000;
+        Fixture f = fixture(deepMap, lith, new Point(0, 0), List.of());
+        Character bot = f.bot();
+
+        try (MovementRecorder movement = new MovementRecorder();
+             ConsumableSeams seams = new ConsumableSeams();
+             RouteStub route = new RouteStub((from, to, maxHops, options, blocked) ->
+                     from == deepMap && options.withReturnScroll() ? List.of(HENESYS, lith) : null)) {
+            BotTravelManager.scrollTargetLookup = mapId -> mapId == deepMap ? HENESYS : -1;
+            BotTravelManager.returnScrollCount = b -> 1;
+            // The real scroll warps on the spot: the bot is in town before use() returns.
+            BotTravelManager.returnScrollUse = b -> {
+                when(bot.getMapId()).thenReturn(HENESYS);
+                return true;
+            };
+
+            assertTrue(BotTravelManager.tickTravel(f.entry(), bot, lith, 30, true, true));
+            assertEquals(deepMap, f.entry().followTravelFromMapId);
+
+            // Next tick, past the land grace, standing in town: a landing, not warp-no-land.
+            f.entry().lastMapId = HENESYS;
+            f.entry().followTravelEnteredAtMs = System.currentTimeMillis() - 20_000L;
+            BotTravelManager.tickTravel(f.entry(), bot, lith, 30, true, true);
+            assertNotEquals("warp-no-land", f.entry().followTravelGiveUpReason);
+        }
+    }
+
+    @Test
     void shouldNotPlanScrollHopsWithoutAScrollInTheBag() {
         int deepMap = 105050100;
         Fixture f = fixture(deepMap, HENESYS, new Point(0, 0), List.of());
