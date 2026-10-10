@@ -51,17 +51,34 @@ final class BotTrainingPlan {
         if (nowMs - entry.capIdleSinceMs < PARK_AFTER_IDLE_MS) {
             return;
         }
-        BotPersonality parked = p.withRosterActive(false);
+        if (!park(entry, bot, "idle at training cap " + p.trainingLevelTarget())) {
+            entry.capIdleSinceMs = nowMs; // try again after another idle window
+        }
+    }
+
+    /** Can {@link #park} take this bot: a roster bot with a role, still active and not logging out. */
+    static boolean canPark(BotEntry entry) {
+        BotPersonality p = entry.personality;
+        return p != null && p.rosterActive() && !p.rosterRole().isBlank() && !entry.loggingOut;
+    }
+
+    /** Store rosterActive=false (the boot roster restore skips the bot) and log it out gracefully. The
+     *  auto park at cap and the owner's navi park both come through here. False when the bot can't be
+     *  parked or the config save failed. */
+    static boolean park(BotEntry entry, Character bot, String why) {
+        if (!canPark(entry)) {
+            return false;
+        }
+        BotPersonality parked = entry.personality.withRosterActive(false);
         try {
             saveConfig.accept(bot.getId(), parked.serialize());
         } catch (RuntimeException e) {
-            entry.capIdleSinceMs = nowMs; // try again after another idle window
             log.warn("bot-park: could not save rosterActive=false for {}", bot.getName(), e);
-            return;
+            return false;
         }
         entry.personality = parked;
-        log.info("bot-park: {} idle at training cap {}; parked (rosterActive=false), logging out",
-                bot.getName(), p.trainingLevelTarget());
+        log.info("bot-park: {} {}; parked (rosterActive=false), logging out", bot.getName(), why);
         logout.accept(bot.getId());
+        return true;
     }
 }

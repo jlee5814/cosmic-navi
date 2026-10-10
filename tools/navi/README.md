@@ -46,7 +46,15 @@ The service runs on the host, outside the game server. It holds the email creden
 | Whisper a bot you own | Effect |
 |---|---|
 | `navi email` / `navi check my email` / `navi inbox` / `navi any new emails` | Unread Primary count plus newest three senders and subjects |
+| `navi fleet` | Training bots, fleet EXP per hour over the last hour, stuck and looping bots, the slowest two, capped bots |
+| `navi why <bot>` | Where the bot is, what it is doing and why, its EXP per hour, and whether it is stuck or looping |
+| `navi rescue <bot>` | Uses a town return scroll (the legal way out) and puts the bot back on its own plan; without a usable scroll, walks it to the map's town |
+| `navi park <bot>` | Parks a roster bot: stores rosterActive=false and logs it out |
 | `navi` | Lists what Navi can do |
+
+`<bot>` is a full name or the number at its end: `26` for SipsBuddy26. The fleet commands run inside the game server (`BotFleetOps`), need no service call, and see only the bots registered to you.
+
+Navi also whispers you first, once per incident, when one of your bots stands still for 10 minutes while it means to grind or travel, or starts a third errand to the same map within 45 minutes. A once a minute sampler in the game server keeps 90 minutes of history per bot for this.
 
 To revoke access, delete the app password in your Google account or run `security delete-generic-password -s navi-gmail`.
 
@@ -56,4 +64,4 @@ To revoke access, delete the app password in your Google account or run `securit
 python3 -m unittest tools/navi/test_navi_service.py
 ```
 
-Java side: `BotNaviManagerTest`.
+Java side: `BotNaviManagerTest` and `BotFleetOpsTest`.
