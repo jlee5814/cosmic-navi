@@ -2053,7 +2053,7 @@ class BotInventoryManager {
         }
 
         classifyRecoveryRunway(recovery, out, shelf);
-        classifyOtherAmmoReserve(otherAmmo, out, shelf);
+        classifyOtherAmmoReserve(bot, otherAmmo, out, shelf);
 
         // RUNWAY: a little all-cure insurance; surplus to the shelf. (Not resupplied -> no buy loop.)
         allCure.sort(Comparator.comparingInt(Item::getQuantity).reversed());
@@ -2131,10 +2131,10 @@ class BotInventoryManager {
 
     // Other-class ammo the bot can't fire: among REDUNDANT off-class ammo (a weapon class with >=2
     // stacks), keep the single best-WATK stack (worth holding to gift a party member who uses it /
-    // the strongest to re-sell) and drop the rest to the shelf. A LONE off-class stack has no "rest"
+    // the strongest to re-sell); the rest is junk (see offClassJunk). A LONE off-class stack has no "rest"
     // to protect it from, so it just shelves and is valued normally by useShelfKeepValue — cheap lone
     // ammo still sheds under bag pressure (a 2M scroll must always beat 500 basic bolts).
-    private static void classifyOtherAmmoReserve(List<Item> otherAmmo, Map<Item, UseClass> out, List<Item> shelf) {
+    private static void classifyOtherAmmoReserve(Character bot, List<Item> otherAmmo, Map<Item, UseClass> out, List<Item> shelf) {
         Map<WeaponType, List<Item>> byType = new HashMap<>();
         for (Item it : otherAmmo) {
             byType.computeIfAbsent(ammoWeaponType(it.getItemId()), k -> new ArrayList<>()).add(it);
@@ -2153,11 +2153,42 @@ class BotInventoryManager {
             for (Item it : stacks) {
                 if (it == best) {
                     out.put(it, new UseClass(UseTier.RUNWAY, 0, 0, "ammo-other-best-tier"));
+                } else if (offClassJunk(bot, it)) {
+                    out.put(it, new UseClass(UseTier.JUNK, 0, 0, OFF_CLASS_AMMO_JUNK));
                 } else {
                     shelf.add(it);
                 }
             }
         }
+    }
+
+    static final String OFF_CLASS_AMMO_JUNK = "ammo-off-class-extra";
+
+    // Past the one reserve stack, ammo the bot can't fire is junk, sold on any shop visit. The 2026-10-10
+    // bag audit found 35 to 60 USE slots of it on nearly every bot (looted mob drops piled into 2,000
+    // stacks), which kept tabs near full and sent bots on repeated sell trips that shed only 14 slots each.
+    // A rechargeable set worth USE_NEVER_SELL_MESO or more (a rare star) stays on the shelf as a trade good.
+    private static boolean offClassJunk(Character bot, Item it) {
+        return !ItemConstants.isRechargeable(it.getItemId()) || useShelfKeepValue(bot, it) < USE_NEVER_SELL_MESO;
+    }
+
+    /** True when looting {@code itemId} would only add junk: ammo this bot can't fire, when it already holds
+     *  a reserve stack of that kind. Beginners have no class yet, so they keep everything. */
+    static boolean isUnwantedOffClassAmmo(Character bot, int itemId) {
+        WeaponType type = ammoWeaponType(itemId);
+        if (type == null || bot.getJob() == null || bot.getJob().getId() == 0 || type == tradeAmmoWeaponType(bot)) {
+            return false;
+        }
+        Inventory use = bot.getInventory(InventoryType.USE);
+        if (use == null) {
+            return false;
+        }
+        for (Item it : use.list()) {
+            if (it != null && it.getQuantity() > 0 && ammoWeaponType(it.getItemId()) == type) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Sort own ammo slots strongest-first so RangedAttackHandler's first-slot-wins pick always
@@ -2320,9 +2351,11 @@ class BotInventoryManager {
         List<Item> result = new ArrayList<>();
         for (var e : classifyBagUse(bot).entrySet()) {
             Item item = e.getKey();
+            // Off-class ammo sells even at 0 meso (basic arrows): the shop still clears the slot.
             if (e.getValue().tier() == UseTier.JUNK
                     && item.getQuantity() > 0
-                    && sellPrice.price(item.getItemId(), item.getQuantity()) > 0) {
+                    && (sellPrice.price(item.getItemId(), item.getQuantity()) > 0
+                        || OFF_CLASS_AMMO_JUNK.equals(e.getValue().reason()))) {
                 result.add(item);
             }
         }

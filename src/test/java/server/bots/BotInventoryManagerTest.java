@@ -270,9 +270,11 @@ class BotInventoryManagerTest {
             attacks.when(() -> BotAttackExecutionProvider.getEquippedWeaponType(bot))
                     .thenReturn(client.inventory.WeaponType.BOW);
 
-            // A normal sell trip sells only JUNK -> nothing here (no single cures / junk scrolls / stale quest).
-            assertTrue(BotInventoryManager.collectSellTrashUseItems(bot).isEmpty());
-            // But the bag holds a shelf stack (the weaker off-class star) a cramped trip could shed.
+            // A normal sell trip sells only JUNK: here the weaker off-class star, the extra stack past the
+            // reserve (2026-10-10: extra off-class ammo is junk). Own ammo and pots never are.
+            assertEquals(List.of(2070000), BotInventoryManager.collectSellTrashUseItems(bot).stream()
+                    .map(Item::getItemId).toList());
+            // The lone bolt stack is still a shelf stack a cramped trip could shed.
             assertTrue(BotInventoryManager.crampedUseSalesAvailable(bot));
 
             var classes = BotInventoryManager.classifyBagUse(bot);
@@ -282,7 +284,7 @@ class BotInventoryManagerTest {
             // off-class stack (the bolts) just shelves and is valued normally.
             assertEquals(BotInventoryManager.UseTier.SHELF, tierOf(classes, 2061000));  // lone crossbow stack
             assertEquals(BotInventoryManager.UseTier.RUNWAY, tierOf(classes, 2070005)); // redundant best star tier
-            assertEquals(BotInventoryManager.UseTier.SHELF, tierOf(classes, 2070000));  // redundant weaker star tier
+            assertEquals(BotInventoryManager.UseTier.JUNK, tierOf(classes, 2070000));   // redundant weaker star tier
         } catch (Exception e) {
             throw new AssertionError(e);
         }
@@ -374,10 +376,60 @@ class BotInventoryManagerTest {
                     BotInventoryManager.classifyBagUse(bot).get(returnScrolls).tier());
             List<Item> sales = BotInventoryManager.collectCrampedUseSales(bot, 99, null);
             assertFalse(sales.contains(returnScrolls));
-            assertTrue(sales.size() >= 2, "arrow stacks must be sheddable: " + sales);
-            assertTrue(sales.stream().allMatch(it -> it.getItemId() == 2060000 || it.getItemId() == 2061000));
+            // The lone crossbow stack is the shelf's worthless ammo; the extra bow stack is junk now
+            // (sold on any visit, see the next test), so only the crossbow stack is a cramped sale.
+            assertEquals(1, sales.size(), "worthless ammo must be sheddable: " + sales);
+            assertEquals(2061000, sales.get(0).getItemId());
         } catch (Exception e) {
             throw new AssertionError(e);
+        }
+    }
+
+    @Test
+    void extraOffClassAmmoIsJunkSoldOnAnyVisitWhileOneReserveStackStays() {
+        Character bot = mock(Character.class);
+        Inventory use = new Inventory(bot, InventoryType.USE, (byte) 96);
+        Item first = Items.itemWithQuantity(2060000, 2000);
+        Item second = Items.itemWithQuantity(2060000, 2000);
+        Item third = Items.itemWithQuantity(2060000, 1500);
+        use.addItem(first);
+        use.addItem(second);
+        use.addItem(third);
+        when(bot.getInventory(InventoryType.USE)).thenReturn(use);
+
+        try (AutoCloseable seams = withUseSeams(id -> null, id -> 0, id -> 0, (id, qty) -> 0);
+             MockedStatic<BotAttackExecutionProvider> attacks = mockStatic(BotAttackExecutionProvider.class)) {
+            attacks.when(() -> BotAttackExecutionProvider.getEquippedWeaponType(bot))
+                    .thenReturn(client.inventory.WeaponType.WAND);
+            var classes = BotInventoryManager.classifyBagUse(bot);
+            long runway = classes.values().stream().filter(c -> c.tier() == BotInventoryManager.UseTier.RUNWAY).count();
+            long junk = classes.values().stream().filter(c -> c.tier() == BotInventoryManager.UseTier.JUNK).count();
+            assertEquals(1, runway, "one reserve stack to gift a bowman");
+            assertEquals(2, junk);
+            // 0 meso arrows still make the always-sold list: the shop clears the slot for nothing.
+            assertEquals(2, BotInventoryManager.collectSellTrashUseItems(bot).size());
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    @Test
+    void aBotSkipsLootingAmmoItCantFireOnceItHoldsAReserveStack() {
+        Character bot = mock(Character.class);
+        Inventory use = new Inventory(bot, InventoryType.USE, (byte) 96);
+        when(bot.getInventory(InventoryType.USE)).thenReturn(use);
+        when(bot.getJob()).thenReturn(client.Job.IL_WIZARD);
+        try (MockedStatic<BotAttackExecutionProvider> attacks = mockStatic(BotAttackExecutionProvider.class)) {
+            attacks.when(() -> BotAttackExecutionProvider.getEquippedWeaponType(bot))
+                    .thenReturn(client.inventory.WeaponType.WAND);
+            assertFalse(BotInventoryManager.isUnwantedOffClassAmmo(bot, 2060000), "no reserve yet: take one");
+            use.addItem(Items.itemWithQuantity(2060000, 120));
+            assertTrue(BotInventoryManager.isUnwantedOffClassAmmo(bot, 2060000));
+            assertFalse(BotInventoryManager.isUnwantedOffClassAmmo(bot, 2061000), "a different kind still gets a reserve");
+            assertFalse(BotInventoryManager.isUnwantedOffClassAmmo(bot, 2002000), "not ammo");
+            attacks.when(() -> BotAttackExecutionProvider.getEquippedWeaponType(bot))
+                    .thenReturn(client.inventory.WeaponType.BOW);
+            assertFalse(BotInventoryManager.isUnwantedOffClassAmmo(bot, 2060000), "a bowman always loots arrows");
         }
     }
 

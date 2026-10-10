@@ -44,6 +44,9 @@ public final class BotLootEligibility {
         if (itemId > 0 && !bot.needQuestItem(drop.getQuest(), itemId)) {
             return false;
         }
+        if (itemId > 0 && BotInventoryManager.isUnwantedOffClassAmmo(bot, itemId)) {
+            return false; // more ammo it can't fire; the sell rules would only dump it again
+        }
         if (drop.getMeso() <= 0 && itemId > 0) {
             InventoryType type = ItemConstants.getInventoryType(itemId);
             Inventory inv = bot.getInventory(type);
