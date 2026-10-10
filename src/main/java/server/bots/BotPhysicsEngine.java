@@ -550,7 +550,7 @@ final class BotPhysicsEngine {
     }
 
     static boolean isGroundRunwayBlockedByWall(MapleMap map, Point from, Point to) {
-        return findGroundWallCollision(map, from, to).type() == AirCollisionType.WALL;
+        return findGroundWallCollision(map, from, to, findGroundFoothold(map, from)).type() == AirCollisionType.WALL;
     }
 
     static boolean isGroundFarBelow(MapleMap map, Point position) {
@@ -722,7 +722,7 @@ final class BotPhysicsEngine {
                 ? standingPoint.y
                 : currentPos.y;
 
-        AirCollision wall = findGroundWallCollision(map, currentPos, new Point(nextX, baseY));
+        AirCollision wall = findGroundWallCollision(map, currentPos, new Point(nextX, baseY), foothold);
         if (wall.type() == AirCollisionType.WALL) {
             return new GroundStepPreview(baseY, currentPos, foothold, false, true);
         }
@@ -2343,17 +2343,18 @@ final class BotPhysicsEngine {
     }
 
     private static AirCollision findWallCollision(MapleMap map, Point previousPos, Point nextPos) {
-        return findWallCollision(map, previousPos, nextPos, false);
+        return findWallCollision(map, previousPos, nextPos, false, null);
     }
 
-    private static AirCollision findGroundWallCollision(MapleMap map, Point previousPos, Point nextPos) {
-        return findWallCollision(map, previousPos, nextPos, true);
+    private static AirCollision findGroundWallCollision(MapleMap map, Point previousPos, Point nextPos, Foothold standing) {
+        return findWallCollision(map, previousPos, nextPos, true, standing);
     }
 
     private static AirCollision findWallCollision(MapleMap map,
                                                   Point previousPos,
                                                   Point nextPos,
-                                                  boolean allowWalkableGroundEndpoint) {
+                                                  boolean allowWalkableGroundEndpoint,
+                                                  Foothold standing) {
         if (map == null || map.getFootholds() == null) {
             return AirCollision.none();
         }
@@ -2363,7 +2364,7 @@ final class BotPhysicsEngine {
 
         AirCollision best = mapSideBoundaryCollision(map, previousPos, nextPos);
         for (Foothold foothold : collisionIndex(map).collidableWalls()) {
-            AirCollision collision = wallCollision(foothold, previousPos, nextPos, allowWalkableGroundEndpoint);
+            AirCollision collision = wallCollision(foothold, previousPos, nextPos, allowWalkableGroundEndpoint, standing);
             if (collision.type() == AirCollisionType.WALL && collision.progress() < best.progress()) {
                 best = collision;
             }
@@ -2675,7 +2676,8 @@ final class BotPhysicsEngine {
     private static AirCollision wallCollision(Foothold wall,
                                               Point previousPos,
                                               Point nextPos,
-                                              boolean allowWalkableGroundEndpoint) {
+                                              boolean allowWalkableGroundEndpoint,
+                                              Foothold standing) {
         int wallX = wall.getX1();
         int startX = previousPos.x;
         int endX = nextPos.x;
@@ -2698,6 +2700,10 @@ final class BotPhysicsEngine {
         }
         if (allowWalkableGroundEndpoint && isWalkableGroundWallEndpoint(yAtWall, minY, maxY)) {
             return AirCollision.none();
+        }
+        if (allowWalkableGroundEndpoint && standing != null && Math.abs(yAtWall - maxY) < 0.001
+                && !wallFootJoins(wall, standing)) {
+            return AirCollision.none(); // only the wall's foot, and it stands on another chain
         }
 
         int dir = Integer.compare(endX, startX);
@@ -2735,6 +2741,25 @@ final class BotPhysicsEngine {
                 new Point((int) Math.round(xAtCeiling), ceilingY + 1),
                 foothold,
                 progress);
+    }
+
+    /**
+     * When the walking height is a wall's lowest point, ground movement meets only the wall's foot. The client
+     * walks a character along its own foothold chain, so such a wall stops it only when it joins that chain: it
+     * is the standing foothold's neighbor, or the standing foothold ends at the wall's foot. A wall standing on
+     * another chain's floor is passed underneath. Deity Room (600020100): a layer 3 wall at x -1315 stands on the
+     * layer 5 floor that bots walk in on from portal st00, and it stopped every one of them (issue #20).
+     */
+    static boolean wallFootJoins(Foothold wall, Foothold standing) {
+        int id = standing.getId();
+        if (id == wall.getId() || id == wall.getPrev() || id == wall.getNext()) {
+            return true;
+        }
+        boolean firstIsFoot = wall.getY1() >= wall.getY2();
+        int footX = firstIsFoot ? wall.getX1() : wall.getX2();
+        int footY = firstIsFoot ? wall.getY1() : wall.getY2();
+        return (standing.getX1() == footX && standing.getY1() == footY)
+                || (standing.getX2() == footX && standing.getY2() == footY);
     }
 
     private static boolean isWalkableGroundWallEndpoint(double yAtWall, int minY, int maxY) {
