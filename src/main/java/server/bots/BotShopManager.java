@@ -436,6 +436,15 @@ final class BotShopManager {
                 return upgradeMap;
             }
         }
+        // A claw or gun bot short of stacks, with pots to spare, goes where its ammo is sold: recharge works
+        // at any shop, but new stacks don't. Ludibrium's stars are in a shop room (220000002) one portal off
+        // the town map, so an errand to the town map refilled one stack and never bought more (SipsBuddy39).
+        if (entry != null) {
+            Integer ammoMap = nearestAmmoStackShopMap(bot);
+            if (ammoMap != null) {
+                return ammoMap;
+            }
+        }
         // Sell-trash trip => any shop; supply run => a potion-stocking shop (also carries ammo).
         Map<Integer, Integer> cache = allowAnyShop ? nearestAnyShopMapCache : nearestPotionShopMapCache;
         Integer cached = cache.get(from);
@@ -466,6 +475,19 @@ final class BotShopManager {
         }
         cache.put(from, found == null ? NO_SHOP_MAP : found);
         return found;
+    }
+
+    private static Integer nearestAmmoStackShopMap(Character bot) {
+        WeaponType wt;
+        try {
+            wt = BotAttackExecutionProvider.getEquippedWeaponType(bot);
+            if (!wantsAmmoStackShop(bot, wt)) {
+                return null;
+            }
+        } catch (RuntimeException ex) {
+            return null; // best effort: an unreadable bag falls through to the normal shop search
+        }
+        return findNearestUncachedShopMap(bot, shop -> findAmmoItem(shop, wt) != null);
     }
 
     private static Integer findNearestUncachedShopMap(Character bot, Predicate<Shop> accept) {
