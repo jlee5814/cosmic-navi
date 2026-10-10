@@ -679,9 +679,7 @@ final class BotAutopilotManager {
      * grind/combat flow.
      */
     static boolean tick(BotEntry entry, Character bot, boolean runAiTick) {
-        boolean atCap = BotTrainingPlan.complete(entry, bot);
-        BotTrainingPlan.parkIfIdleAtCap(entry, bot, atCap, System.currentTimeMillis());
-        if (atCap) {
+        if (BotTrainingPlan.complete(entry, bot)) {
             BotTrainingPlan.stopIfComplete(entry, bot);
             return true;
         }

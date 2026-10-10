@@ -3607,6 +3607,11 @@ public class BotManager {
             return;
         }
 
+        // A capped bot is idle, and the idle fast path below consumes its tick before the autopilot tick
+        // runs, so the park check lives here where every bot reaches it. (SipsBuddy41 sat at 43 for
+        // 20 minutes after the first build because the check was inside the autopilot tick.)
+        BotTrainingPlan.parkIfIdleAtCap(entry, bot, BotTrainingPlan.complete(entry, bot), nowMs);
+
         // A scheduled logout must reach the tickLogout branch below even when the bot is otherwise
         // idle. The idle fast-path consumes the tick and returns, so without this guard a logging-out
         // bot that has gone idle (e.g. arrived in town between autopilot decisions) never runs the
