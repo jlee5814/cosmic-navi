@@ -55,7 +55,11 @@ final class BotTravelManager {
     private static final int NO_DESTINATION_MAPID = 999999999;
     // enterPortal fired but the map change lands asynchronously; if it never lands the
     // portal was blocked (e.g. closed mid-walk) and the warp fallback takes over.
-    private static final long PORTAL_LAND_GRACE_MS = 2_000L;
+    // A warp into a map nobody has loaded yet lands late: right after a restart every map is cold, and
+    // SipsBuddy26's portal to New Leaf City landed after the old 2 s grace, so travel gave up on a warp
+    // that was still in flight and dropped the errand (the boot time warp-no-land drops toward Singapore
+    // CBD). A warp that truly failed only holds the bot a few seconds longer.
+    private static final long PORTAL_LAND_GRACE_MS = 8_000L;
     // After a failed attempt, don't immediately retry the same doomed walk — warp directly
     // (the legacy behavior) for this long.
     private static final long GIVE_UP_WARP_WINDOW_MS = 45_000L;

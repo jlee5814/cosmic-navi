@@ -170,7 +170,7 @@ class BotTravelManagerTest {
         e.followTravelNextHopMapId = ellinia;
         e.followTravelFromMapId = ellinia;
         e.followTravelPortalId = 28;
-        e.followTravelEnteredAtMs = System.currentTimeMillis() - 5_000L; // well past the land grace
+        e.followTravelEnteredAtMs = System.currentTimeMillis() - 20_000L; // well past the land grace
 
         assertTrue(BotTravelManager.landedOnSameMap(e, f.bot(), f.map()));
         try (RouteStub route = new RouteStub((from, to, maxHops, options, blocked) -> null)) {
