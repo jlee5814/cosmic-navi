@@ -1377,6 +1377,7 @@ final class BotShopManager {
             sequence.bought().add(resolveItemName(upgrade.shopItem.getItemId(), "weapon"));
             BotEquipManager.autoEquip(bot, sequence.entry().owner, null, true);
             sequence.entry().weaponUpgradeCheckAtMs = 0L; // search again from the new weapon
+            sequence.entry().weaponUpgradeShopMapId = -1; // this trip is done: see weaponTripFailedHere
             return sequence;
         }
         return sequence.withFirstShortfall(new BuyReport(upgrade.shopItem.getItemId(), 0, 1, ShortfallReason.NO_MESO));
@@ -1386,7 +1387,7 @@ final class BotShopManager {
     static java.util.function.BiFunction<BotEntry, Character, Integer> weaponUpgradeShopMapSeam =
             BotShopManager::computeWeaponUpgradeShopMap;
 
-    /** Nearest reachable map, other than the current one, whose shop sells a worthwhile weapon upgrade;
+    /** Nearest reachable map (by ship too), other than the current one, whose shop sells a worthwhile weapon upgrade;
      *  null when none. Each bot runs the search at most once per {@link #WEAPON_UPGRADE_RECHECK_MS} and
      *  reuses the answer in between; a purchase resets the clock. */
     static Integer weaponUpgradeShopMap(BotEntry entry, Character bot) {
@@ -1403,6 +1404,90 @@ final class BotShopManager {
         }
     }
 
+    /** Route hops a weapon trip may take; the travel layer's own cap, ships and taxis included. */
+    static final int WEAPON_TRIP_MAX_HOPS = BotAutopilotManager.MAX_TRAVEL_HOPS;
+    private static volatile List<Integer> shopNpcIds;
+
+    /** Every NPC that runs a shop, read once from the shops table. */
+    private static List<Integer> shopNpcIds() {
+        List<Integer> ids = shopNpcIds;
+        if (ids != null) {
+            return ids;
+        }
+        List<Integer> loaded = new ArrayList<>();
+        try (java.sql.Connection con = tools.DatabaseConnection.getConnection();
+             java.sql.PreparedStatement ps = con.prepareStatement("SELECT DISTINCT npcid FROM shops");
+             java.sql.ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                loaded.add(rs.getInt(1));
+            }
+        } catch (java.sql.SQLException | RuntimeException e) {
+            log.warn("bot-shop: could not list shop NPCs; weapon trips fall back to the nearby map scan", e);
+            return List.of();
+        }
+        shopNpcIds = List.copyOf(loaded);
+        return shopNpcIds;
+    }
+
+    /** The map with the shortest route (portals, ships and taxis, danger gated) whose shop NPC passes
+     *  {@code accept}. Uses the shop catalog and the NPC placement index instead of loading maps, so it
+     *  can look across continents: the nearby scan stopped at six portals and never reached the Orbis or
+     *  El Nath stores that stock level 30 to 40 spears. Falls back to that scan if the catalog is empty. */
+    private static Integer nearestShopMapSelling(BotEntry entry, Character bot, Predicate<Shop> accept) {
+        List<Integer> npcs = shopNpcIds();
+        long now = System.currentTimeMillis();
+        if (npcs.isEmpty()) {
+            return findNearestUncachedShopMap(bot, accept);
+        }
+        int from = bot.getMapId();
+        BotWorldGraph.RouteOptions options = BotAutopilotManager.travelOptions(bot, true);
+        Integer best = null;
+        int bestHops = Integer.MAX_VALUE;
+        for (int npc : npcs) {
+            Shop shop = ShopFactory.getInstance().getShopForNPC(npc);
+            if (shop == null || !accept.test(shop)) {
+                continue;
+            }
+            for (int mapId : BotSpawnIndex.mapsWithNpc(npc)) {
+                if (entry != null && entry.unreachableShopUntilMs.getOrDefault(mapId, 0L) > now) {
+                    continue; // an errand there just failed; try the next nearest shop
+                }
+                if (mapId == from) {
+                    return mapId;
+                }
+                List<Integer> route = BotAutopilotManager.routeForBot(bot, from, mapId, WEAPON_TRIP_MAX_HOPS, options);
+                if (route != null && route.size() < bestHops) {
+                    best = mapId;
+                    bestHops = route.size();
+                }
+            }
+        }
+        return best;
+    }
+
+    /** How long the weapon upgrade search skips a shop map an errand could not reach. */
+    static final long UNREACHABLE_SHOP_RETRY_MS = 2 * 60 * 60_000L;
+
+    /** An errand to this map was dropped as unreachable. A route can exist on the world graph while the
+     *  travel layer cannot ride it: SipsBuddy29, 30, 31 and 32 picked Singapore CBD (540000000) for a Zeco,
+     *  failed the first hop with warp-no-land every ten minutes and never shopped. Skip the map for a while
+     *  and search again now, so the next errand goes to the next nearest shop. */
+    static void markShopMapUnreachable(BotEntry entry, int mapId, long nowMs) {
+        entry.unreachableShopUntilMs.put(mapId, nowMs + UNREACHABLE_SHOP_RETRY_MS);
+        if (entry.weaponUpgradeShopMapId == mapId) {
+            entry.weaponUpgradeShopMapId = -1;
+            entry.weaponUpgradeCheckAtMs = 0L;
+        }
+    }
+
+    /** A weapon trip reached its shop map and is heading home without the weapon: the shopkeeper was out of
+     *  reach or the visit timed out. SipsBuddy26 and 36 rode to New Leaf City every ten minutes all night and
+     *  never got to the spear seller. A purchase clears the target, so a target still pointing here means
+     *  nothing was bought. */
+    static boolean weaponTripFailedHere(BotEntry entry, Character bot) {
+        return entry.weaponUpgradeShopMapId != -1 && entry.weaponUpgradeShopMapId == bot.getMapId();
+    }
+
     /** True when {@link #weaponUpgradeShopMap} has somewhere to go: the errand gates ask this. */
     static boolean wantsWeaponUpgrade(BotEntry entry, Character bot) {
         return weaponUpgradeShopMap(entry, bot) != null;
@@ -1416,7 +1501,7 @@ final class BotShopManager {
         if (now >= entry.weaponUpgradeCheckAtMs) {
             entry.weaponUpgradeCheckAtMs = now + WEAPON_UPGRADE_RECHECK_MS;
             Integer found = preferredWeaponBudget(bot) <= 0 ? null
-                    : findNearestUncachedShopMap(bot, shop -> findWeaponUpgradeItem(bot, shop) != null);
+                    : nearestShopMapSelling(entry, bot, shop -> findWeaponUpgradeItem(bot, shop) != null);
             entry.weaponUpgradeShopMapId = found == null ? -1 : found;
         }
         int cached = entry.weaponUpgradeShopMapId;
