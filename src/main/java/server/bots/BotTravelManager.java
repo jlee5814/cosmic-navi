@@ -525,12 +525,17 @@ final class BotTravelManager {
                                             int targetMapId, int nextHopMapId, long now, boolean runAiTick) {
         if (nextHopMapId == scrollTargetLookup.scrollTarget(bot.getMapId())
                 && returnScrollCount.applyAsInt(bot) > 0) {
+            // Read the map before the scroll: the warp is synchronous, so afterwards the bot already stands
+            // in the town. Recorded after, the hop read town to town, the landing check took the bot for
+            // still in flight and gave up as warp-no-land (SipsBuddy29, 31, 32 and 35 scrolling to Ellinia,
+            // Perion or Sleepywood at the start of every errand to Singapore CBD).
+            int fromMapId = bot.getMapId();
             if (!returnScrollUse.use(bot)) {
                 return false;
             }
             entry.followTravelTargetMapId = targetMapId;
             entry.followTravelNextHopMapId = nextHopMapId;
-            entry.followTravelFromMapId = bot.getMapId();
+            entry.followTravelFromMapId = fromMapId;
             entry.followTravelPortalId = -1;
             entry.followTravelDeadlineMs = now + PORTAL_LAND_GRACE_MS;
             entry.followTravelEnteredAtMs = now;
