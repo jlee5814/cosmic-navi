@@ -10,6 +10,8 @@ Fleet ops in the game server (`BotFleetOps`) already rescues a frozen bot by its
 | `no_exp_on_errand` | Busy on an errand for 30 minutes or more with no EXP |
 | `refreezing` | Frozen again after 2 auto rescues in 2 hours |
 | `no_exp_after_rescue` | Still earning nothing after an auto rescue (or a rescue that found no scroll) |
+| `low_exp_on_errand` | On an errand for 30 minutes, earning under a fifth of its usual EXP per hour |
+| `low_exp_after_rescue` | Still under a fifth of its usual pace after an auto rescue |
 
 For each new incident, one `claude -p` call (Sonnet on the owner's plan, no tools) reads the bot's state, bag, recent log lines and chat, and answers with one action from a fixed menu:
 
