@@ -94,12 +94,24 @@ public final class BotNaviManager {
         }
     }
 
+    /** The words after navi, without leading or trailing punctuation. */
+    static String requestOf(String message) {
+        Matcher m = NAVI_PATTERN.matcher(message == null ? "" : message.strip());
+        return m.matches() ? m.group(1).replaceAll("^[\\p{Punct}\\s]+|[\\p{Punct}\\s]+$", "") : "";
+    }
+
     /** Whisper entry point. The caller has already checked the speaker is the registered owner. */
     static void handleWhisper(BotEntry entry, Character owner, String message) {
         Character bot = entry.bot;
+        // Fleet ops answer from the game server's own state; no service call, no token needed.
+        List<String> fleet = BotFleetOps.handle(owner, requestOf(message));
+        if (fleet != null) {
+            whisperLater(bot, owner, fleet.stream().limit(MAX_LINES).toList(), BotManager.randMs(400, 800));
+            return;
+        }
         String tool = toolFor(message);
         if (tool == null) {
-            whisperLater(bot, owner, List.of("navi can do: navi email"), BotManager.randMs(400, 800));
+            whisperLater(bot, owner, List.of(BotFleetOps.HELP_LINE), BotManager.randMs(400, 800));
             return;
         }
         if (TOKEN.isEmpty()) {
@@ -135,7 +147,7 @@ public final class BotNaviManager {
                 });
     }
 
-    private static void whisperLater(Character bot, Character owner, List<String> lines, long firstDelayMs) {
+    static void whisperLater(Character bot, Character owner, List<String> lines, long firstDelayMs) {
         long delay = firstDelayMs;
         for (String line : lines) {
             BotManager.after(delay, () -> whisper(bot, owner, line));

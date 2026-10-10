@@ -896,6 +896,7 @@ public class BotManager {
         if (!entry.personality.rosterRole().isBlank()) entry.apAuto = true;
         BotNavigationGraphProvider.warmGraphAsync(bot.getMap(), entry.movementProfile);
         maybeStartGraphEvictionSweep();
+        BotFleetOps.ensureStarted(); // Navi fleet ops sampler: navi fleet and the stuck whispers
         // Global dedup + atomic publish: a bot character has exactly one runtime owner. Remove any prior
         // entry for this bot under ANY owner key (relog, takeover, party re-register), not just
         // ownerCharId, then add ours — all under the lock so a concurrent register of the SAME id can't
