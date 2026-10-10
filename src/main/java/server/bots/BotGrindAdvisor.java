@@ -839,22 +839,29 @@ final class BotGrindAdvisor {
      *  bot WOULD grind if accuracy were free. Magic attackers use magic accuracy (INT/LUK), so a mage
      *  isn't penalized on its low DEX. */
     private static double[] killProfile(BotEntry entry, Character bot, Monster mob) {
-        double perAttack = BotCombatManager.estimateBestSkillHitDamage(entry, bot, mob);
-        if (perAttack <= 0.0) {
-            int mobWdef = mob.getStats() != null ? mob.getStats().getPDDamage() : 0;
-            perAttack = BotEquipManager.expectedDamageAfterDef(
-                    bot.calculateMaxBaseDamage(bot.getTotalWatk()), mobWdef);
-        }
-        if (perAttack <= 0.0) {
-            return null;
-        }
-        double dps = perAttack / ATTACK_CYCLE_SECONDS;
-        double hp = Math.max(1, mob.getMaxHp());
-        double rawKill = Math.max(ATTACK_CYCLE_SECONDS, hp / dps);
         boolean magic = bot.getJobStyle() == client.Job.MAGICIAN;
         double hitChance = server.combat.CombatFormulaProvider.getInstance().calculateMobHitChance(bot, mob, magic);
-        double killSeconds = Math.max(ATTACK_CYCLE_SECONDS, hp / (dps * Math.max(0.01, hitChance)));
-        return new double[]{killSeconds, rawKill};
+        double hp = Math.max(1, mob.getMaxHp());
+        double perAttack = BotCombatManager.estimateBestSkillHitDamage(entry, bot, mob);
+        if (perAttack > 0.0) {
+            return killSeconds(perAttack, true, hp, hitChance);
+        }
+        int mobWdef = mob.getStats() != null ? mob.getStats().getPDDamage() : 0;
+        perAttack = BotEquipManager.expectedDamageAfterDef(bot.calculateMaxBaseDamage(bot.getTotalWatk()), mobWdef);
+        return perAttack > 0.0 ? killSeconds(perAttack, false, hp, hitChance) : null;
+    }
+
+    /** {@code [killSeconds, rawKillSeconds]} for one mob. The skill estimate
+     *  ({@link server.combat.CombatFormulaProvider#estimateExpectedDamage}) already multiplies by the hit chance, so
+     *  dividing by it again counted every miss twice and ranked high avoid mobs far too slow; only the
+     *  basic swing fallback still needs the discount applied here. The raw time is the accuracy blind
+     *  view the aspirational pick ranks on. */
+    static double[] killSeconds(double perAttack, boolean includesHitChance, double hp, double hitChance) {
+        double hit = Math.max(0.01, hitChance);
+        double hitAdjusted = includesHitChance ? perAttack : perAttack * hit;
+        double raw = includesHitChance ? perAttack / hit : perAttack;
+        return new double[]{Math.max(ATTACK_CYCLE_SECONDS, hp / (hitAdjusted / ATTACK_CYCLE_SECONDS)),
+                Math.max(ATTACK_CYCLE_SECONDS, hp / (raw / ATTACK_CYCLE_SECONDS))};
     }
 
     /** Gear-progression drops of this mob: wearable equips valued as expected improvement over
