@@ -138,6 +138,10 @@ final class BotShopManager {
         // the weapon upgrade, else the first that has anything needed. (SipsBuddy32 walked to New Leaf
         // City for a better spear and bought pants from the first NPC that matched.)
         NpcShopMatch match = findBestShop(bot.getMap(), shop -> findWeaponUpgradeItem(bot, shop) != null);
+        WeaponType wt = BotAttackExecutionProvider.getEquippedWeaponType(bot);
+        if (match == null && wantsAmmoStackShop(bot, wt)) {
+            match = findBestShop(bot.getMap(), shop -> findAmmoItem(shop, wt) != null);
+        }
         if (match == null) {
             match = findBestShop(entry, bot, wantsSellTrash);
         }
@@ -145,7 +149,6 @@ final class BotShopManager {
             return;
         }
 
-        WeaponType wt = BotAttackExecutionProvider.getEquippedWeaponType(bot);
         boolean needsRecharge = needsRechargeForShop(bot, wt, ammoTriggerThreshold());
         boolean needsAmmoForShop = needsFixedAmmoForShop(bot, match.shop, wt, ammoTriggerThreshold());
         int[] pots = BotPotionManager.countPotions(bot);
@@ -1000,6 +1003,19 @@ final class BotShopManager {
     /** Owns at least one set (else the starter set rule applies) but fewer than {@link #RECHARGE_MIN_SETS},
      *  with room left in the USE tab for the new stacks plus two slots of slack. Bought only while the
      *  bot is shopping anyway; it never triggers a trip by itself. */
+    /** New star and bullet stacks are sold only where the ammo is, while recharge works at any shop, so a
+     *  claw or gun bot short of stacks visits the NPC that sells its ammo. Not when pots are low: another
+     *  NPC may sell those, and pots come first. (SipsBuddy38 recharged its one stack at a Ludibrium NPC
+     *  that sells no stars, so the extra stacks were never bought.) */
+    static boolean wantsAmmoStackShop(Character bot, WeaponType wt) {
+        if (!shouldBuyStarterAmmoSet(bot, wt) && !shouldBuyExtraAmmoSetsWhileShopping(bot, wt)) {
+            return false;
+        }
+        int[] pots = BotPotionManager.countPotions(bot);
+        int potTrigger = BotManager.cfg.POT_LOW_WARN * POT_TRIGGER_THRESHOLD;
+        return pots[0] >= potTrigger && pots[1] >= potTrigger;
+    }
+
     static boolean shouldBuyExtraAmmoSetsWhileShopping(Character bot, WeaponType wt) {
         if (!isRechargeWeaponType(wt) || bestRechargeAmmoId(bot, wt) < 0) {
             return false;
