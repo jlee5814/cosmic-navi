@@ -1432,8 +1432,9 @@ final class BotShopManager {
      *  {@code accept}. Uses the shop catalog and the NPC placement index instead of loading maps, so it
      *  can look across continents: the nearby scan stopped at six portals and never reached the Orbis or
      *  El Nath stores that stock level 30 to 40 spears. Falls back to that scan if the catalog is empty. */
-    private static Integer nearestShopMapSelling(Character bot, Predicate<Shop> accept) {
+    private static Integer nearestShopMapSelling(BotEntry entry, Character bot, Predicate<Shop> accept) {
         List<Integer> npcs = shopNpcIds();
+        long now = System.currentTimeMillis();
         if (npcs.isEmpty()) {
             return findNearestUncachedShopMap(bot, accept);
         }
@@ -1447,6 +1448,9 @@ final class BotShopManager {
                 continue;
             }
             for (int mapId : BotSpawnIndex.mapsWithNpc(npc)) {
+                if (entry != null && entry.unreachableShopUntilMs.getOrDefault(mapId, 0L) > now) {
+                    continue; // an errand there just failed; try the next nearest shop
+                }
                 if (mapId == from) {
                     return mapId;
                 }
@@ -1458,6 +1462,21 @@ final class BotShopManager {
             }
         }
         return best;
+    }
+
+    /** How long the weapon upgrade search skips a shop map an errand could not reach. */
+    static final long UNREACHABLE_SHOP_RETRY_MS = 2 * 60 * 60_000L;
+
+    /** An errand to this map was dropped as unreachable. A route can exist on the world graph while the
+     *  travel layer cannot ride it: SipsBuddy29, 30, 31 and 32 picked Singapore CBD (540000000) for a Zeco,
+     *  failed the first hop with warp-no-land every ten minutes and never shopped. Skip the map for a while
+     *  and search again now, so the next errand goes to the next nearest shop. */
+    static void markShopMapUnreachable(BotEntry entry, int mapId, long nowMs) {
+        entry.unreachableShopUntilMs.put(mapId, nowMs + UNREACHABLE_SHOP_RETRY_MS);
+        if (entry.weaponUpgradeShopMapId == mapId) {
+            entry.weaponUpgradeShopMapId = -1;
+            entry.weaponUpgradeCheckAtMs = 0L;
+        }
     }
 
     /** True when {@link #weaponUpgradeShopMap} has somewhere to go: the errand gates ask this. */
@@ -1473,7 +1492,7 @@ final class BotShopManager {
         if (now >= entry.weaponUpgradeCheckAtMs) {
             entry.weaponUpgradeCheckAtMs = now + WEAPON_UPGRADE_RECHECK_MS;
             Integer found = preferredWeaponBudget(bot) <= 0 ? null
-                    : nearestShopMapSelling(bot, shop -> findWeaponUpgradeItem(bot, shop) != null);
+                    : nearestShopMapSelling(entry, bot, shop -> findWeaponUpgradeItem(bot, shop) != null);
             entry.weaponUpgradeShopMapId = found == null ? -1 : found;
         }
         int cached = entry.weaponUpgradeShopMapId;

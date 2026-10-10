@@ -823,6 +823,7 @@ final class BotAutopilotManager {
         // travel retries by itself once the window passes.
         if (entry.autopilotErrandMapId != -1) {
             logErrandDropped(entry, bot, entry.autopilotErrandMapId);
+            BotShopManager.markShopMapUnreachable(entry, entry.autopilotErrandMapId, System.currentTimeMillis());
             entry.autopilotErrandMapId = -1; // unreachable errand: forget it, the cooldown gates retries
             entry.autopilotReturningFromErrand = false;
             // A rest-errand whose town is UNREACHABLE must also drop restErrand. Otherwise line ~578
