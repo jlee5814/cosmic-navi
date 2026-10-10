@@ -357,6 +357,21 @@ class BotShopManagerTest {
     }
 
     @Test
+    void clawBotShortOfStacksVisitsTheNpcThatSellsStarsUnlessPotsAreLow() {
+        Character oneStack = clawBotWithStars(632);
+        Character threeStacks = clawBotWithStars(800, 800, 800);
+        try (Seam seam = withStarStats();
+             MockedStatic<BotPotionManager> potions = mockStatic(BotPotionManager.class)) {
+            potions.when(() -> BotPotionManager.countPotions(any())).thenReturn(new int[]{9999, 9999});
+            assertTrue(BotShopManager.wantsAmmoStackShop(oneStack, WeaponType.CLAW));
+            assertFalse(BotShopManager.wantsAmmoStackShop(threeStacks, WeaponType.CLAW));
+            // Low pots: the visit goes wherever pots are sold; stacks wait for a later trip.
+            potions.when(() -> BotPotionManager.countPotions(any())).thenReturn(new int[]{0, 9999});
+            assertFalse(BotShopManager.wantsAmmoStackShop(oneStack, WeaponType.CLAW));
+        }
+    }
+
+    @Test
     void weaponUpgradeNeedsAClearGainOverTheWornWeapon() {
         // Field Dagger to Cass is a big step; a sliver of gain is not worth a shop trip.
         assertTrue(BotShopManager.isWorthwhileWeaponUpgrade(30.0, 45.0));
