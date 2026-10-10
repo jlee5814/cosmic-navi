@@ -181,6 +181,8 @@ public final class BotWorldGraphWebServer {
             s.createContext("/admin", BotWorldGraphWebServer::serveAdminPage);
             s.createContext("/api/settings", BotWorldGraphWebServer::serveSettings);
             s.createContext("/api/fleetops", BotWorldGraphWebServer::serveFleetOps);
+            s.createContext("/api/fleetops/incidents", BotWorldGraphWebServer::serveFleetIncidents);
+            s.createContext("/api/fleetops/act", BotWorldGraphWebServer::serveFleetAct);
             s.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "bot-worldmap-web");
                 t.setDaemon(true);
@@ -208,6 +210,28 @@ public final class BotWorldGraphWebServer {
         }
         String body = String.join("\n", BotFleetOps.fleetForOwner(owner)) + "\n";
         send(ex, 200, "text/plain; charset=utf-8", body.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** GET /api/fleetops/incidents: stalls the rules don't settle, with each bot's state, for tools/responder. */
+    private static void serveFleetIncidents(HttpExchange ex) throws IOException {
+        send(ex, 200, "application/json", BotFleetOps.incidentsJson(System.currentTimeMillis())
+                .getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** POST /api/fleetops/act {"bot":id,"action":"rescue|hold_errands|sell_trash|park","arg":n,"reason":"..."}:
+     *  one responder action, run on the bot's next tick. Not reachable through the LAN share, which is GET only. */
+    private static void serveFleetAct(HttpExchange ex) throws IOException {
+        if (!"POST".equals(ex.getRequestMethod())) {
+            send(ex, 405, "text/plain; charset=utf-8", "POST only\n".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+        String action = jsonField(body, "action");
+        String reason = jsonField(body, "reason");
+        String result = BotFleetOps.act(jsonInt(body, "bot"), action == null ? "" : action, jsonInt(body, "arg"),
+                reason == null ? "" : reason, System.currentTimeMillis());
+        send(ex, result.startsWith("queued") ? 200 : 400, "text/plain; charset=utf-8",
+                (result + "\n").getBytes(StandardCharsets.UTF_8));
     }
 
     private static final String LANDING_PAGE =
@@ -2184,7 +2208,7 @@ public final class BotWorldGraphWebServer {
         return xs == null || xs.isEmpty() ? "[]" : "[" + String.join(",", xs) + "]";
     }
 
-    private static String jsonStr(String s) {
+    static String jsonStr(String s) {
         StringBuilder b = new StringBuilder("\"");
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
