@@ -621,6 +621,12 @@ final class BotShopManager {
             actions.add((sequence, shop) -> appendBuyReport(sequence, buyStarterAmmoSet(bot, shop, wt),
                     wt == WeaponType.GUN ? "bullets" : "throwing stars"));
         }
+        // A claw or gun bot with one stack runs dry and walks to town every few hundred throws; while it
+        // is shopping anyway, top it up to RECHARGE_MIN_SETS stacks (the recharge below fills them).
+        if (shouldBuyExtraAmmoSetsWhileShopping(bot, wt)) {
+            actions.add((sequence, shop) -> appendBuyReport(sequence, buyExtraAmmoSets(bot, shop, wt),
+                    wt == WeaponType.GUN ? "bullets" : "throwing stars"));
+        }
         if (shouldRechargeWhileShopping(bot, wt)) {
             actions.add((sequence, shop) -> {
                 BuyReport recharge = doRecharge(bot, shop, wt);
@@ -986,6 +992,50 @@ final class BotShopManager {
     static boolean shouldBuyStarterAmmoSet(Character bot, WeaponType wt) {
         return isRechargeWeaponType(wt) && bestRechargeAmmoId(bot, wt) < 0
                 && BotCombatManager.countAmmo(bot, wt) < ammoTargetThreshold();
+    }
+
+    /** Stacks of rechargeable ammo a claw or gun bot carries, so one emptying is not a town trip. */
+    static final int RECHARGE_MIN_SETS = 3;
+
+    /** Owns at least one set (else the starter set rule applies) but fewer than {@link #RECHARGE_MIN_SETS},
+     *  with room left in the USE tab for the new stacks plus two slots of slack. Bought only while the
+     *  bot is shopping anyway; it never triggers a trip by itself. */
+    static boolean shouldBuyExtraAmmoSetsWhileShopping(Character bot, WeaponType wt) {
+        if (!isRechargeWeaponType(wt) || bestRechargeAmmoId(bot, wt) < 0) {
+            return false;
+        }
+        int missing = RECHARGE_MIN_SETS - rechargeSetCount(bot, wt);
+        return missing > 0 && bot.getInventory(InventoryType.USE).getNumFreeSlot() >= missing + 2;
+    }
+
+    private static int rechargeSetCount(Character bot, WeaponType wt) {
+        int sets = 0;
+        for (Item item : bot.getInventory(InventoryType.USE).list()) {
+            if (ItemConstants.isRechargeable(item.getItemId()) && matchesRechargeWeapon(item.getItemId(), wt)) {
+                sets++;
+            }
+        }
+        return sets;
+    }
+
+    /** Buy the missing stacks: the bot's best ammo if this shop sells it, else the cheapest matching set. */
+    private static BuyReport buyExtraAmmoSets(Character bot, Shop shop, WeaponType wt) {
+        int bestId = bestRechargeAmmoId(bot, wt);
+        ShopSlotItem ammo = null;
+        List<ShopItem> items = shop.getItems();
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).getItemId() == bestId && items.get(i).getPrice() > 0) {
+                ammo = new ShopSlotItem((short) i, items.get(i));
+                break;
+            }
+        }
+        if (ammo == null) {
+            ammo = findAmmoItem(shop, wt);
+        }
+        if (ammo == null) {
+            return new BuyReport(0, 0, 0, ShortfallReason.NONE);
+        }
+        return buyFixedCostItem(bot, shop, ammo, RECHARGE_MIN_SETS - rechargeSetCount(bot, wt), 1);
     }
 
     /** Buy one fresh set of the cheapest matching rechargeable ammo (a star/bullet stack). The
