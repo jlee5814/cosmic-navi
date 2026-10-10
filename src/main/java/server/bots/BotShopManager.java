@@ -1644,15 +1644,26 @@ final class BotShopManager {
     }
 
 
-    private static NPC findNpcNear(Character bot, Point pos) {
+    /** The shop NPC nearest {@code pos}: the visit stores the chosen shopkeeper's own position, so this is that
+     *  NPC. It used to return the first shop NPC in range, in the map's object order, so a bot that came to New
+     *  Leaf City for a Forked Spear (9201059) shopped at a neighbor 272 px away (9201058) and bought nothing,
+     *  every ten minutes all night (SipsBuddy26). */
+    static NPC findNpcNear(Character bot, Point pos) {
+        NPC nearest = null;
+        double nearestSq = Double.MAX_VALUE;
         for (MapObject obj : bot.getMap().getMapObjectsInRange(
                 pos, SHOP_NPC_SEARCH_DIST * SHOP_NPC_SEARCH_DIST,
                 Arrays.asList(MapObjectType.NPC))) {
             NPC npc = (NPC) obj;
-            if (npc.hasShop()) {
-                return npc;
+            if (!npc.hasShop() || npc.getPosition() == null) {
+                continue;
+            }
+            double d = npc.getPosition().distanceSq(pos);
+            if (d < nearestSq) {
+                nearest = npc;
+                nearestSq = d;
             }
         }
-        return null;
+        return nearest;
     }
 }
