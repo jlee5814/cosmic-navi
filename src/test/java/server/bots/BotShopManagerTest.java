@@ -346,6 +346,20 @@ class BotShopManagerTest {
     // Stub the ItemInformationProvider-backed seam: star 2070018 is the strongest, all stacks
     // are well under slot-max so any partial stack counts as refillable. Restored on close.
     @Test
+    void aWeaponTripThatLeavesTheShopMapEmptyHandedHasFailed() {
+        Character bot = mock(Character.class);
+        when(bot.getMapId()).thenReturn(600000000);
+        BotEntry entry = new BotEntry(bot, null, null);
+
+        entry.weaponUpgradeShopMapId = 600000000; // came to New Leaf City for a spear, bought nothing
+        assertTrue(BotShopManager.weaponTripFailedHere(entry, bot));
+        entry.weaponUpgradeShopMapId = 211000100; // the target shop is elsewhere: a pot stop, not this trip
+        assertFalse(BotShopManager.weaponTripFailedHere(entry, bot));
+        entry.weaponUpgradeShopMapId = -1; // a purchase clears the target
+        assertFalse(BotShopManager.weaponTripFailedHere(entry, bot));
+    }
+
+    @Test
     void anUnreachableWeaponShopIsSkippedAndTheSearchRerunsNow() {
         BotEntry entry = new BotEntry(mock(Character.class), null, null);
         entry.weaponUpgradeShopMapId = 540000000;

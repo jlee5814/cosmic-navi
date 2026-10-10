@@ -1377,6 +1377,7 @@ final class BotShopManager {
             sequence.bought().add(resolveItemName(upgrade.shopItem.getItemId(), "weapon"));
             BotEquipManager.autoEquip(bot, sequence.entry().owner, null, true);
             sequence.entry().weaponUpgradeCheckAtMs = 0L; // search again from the new weapon
+            sequence.entry().weaponUpgradeShopMapId = -1; // this trip is done: see weaponTripFailedHere
             return sequence;
         }
         return sequence.withFirstShortfall(new BuyReport(upgrade.shopItem.getItemId(), 0, 1, ShortfallReason.NO_MESO));
@@ -1477,6 +1478,14 @@ final class BotShopManager {
             entry.weaponUpgradeShopMapId = -1;
             entry.weaponUpgradeCheckAtMs = 0L;
         }
+    }
+
+    /** A weapon trip reached its shop map and is heading home without the weapon: the shopkeeper was out of
+     *  reach or the visit timed out. SipsBuddy26 and 36 rode to New Leaf City every ten minutes all night and
+     *  never got to the spear seller. A purchase clears the target, so a target still pointing here means
+     *  nothing was bought. */
+    static boolean weaponTripFailedHere(BotEntry entry, Character bot) {
+        return entry.weaponUpgradeShopMapId != -1 && entry.weaponUpgradeShopMapId == bot.getMapId();
     }
 
     /** True when {@link #weaponUpgradeShopMap} has somewhere to go: the errand gates ask this. */

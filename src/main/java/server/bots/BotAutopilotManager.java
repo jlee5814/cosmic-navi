@@ -763,6 +763,10 @@ final class BotAutopilotManager {
                 }
                 // The auto shop visit (triggered by the map change) is over or never fired —
                 // errand done either way, head back to the grind map.
+                if (BotShopManager.weaponTripFailedHere(entry, bot)) {
+                    // Came for a weapon, leaving without it: try the next nearest shop next time.
+                    BotShopManager.markShopMapUnreachable(entry, bot.getMapId(), System.currentTimeMillis());
+                }
                 entry.autopilotErrandMapId = -1;
                 entry.autopilotReturningFromErrand = true;
                 reply.accept(entry, "restocked, heading back");
