@@ -55,7 +55,11 @@ final class BotTravelManager {
     private static final int NO_DESTINATION_MAPID = 999999999;
     // enterPortal fired but the map change lands asynchronously; if it never lands the
     // portal was blocked (e.g. closed mid-walk) and the warp fallback takes over.
-    private static final long PORTAL_LAND_GRACE_MS = 2_000L;
+    // A warp into a map nobody has loaded yet lands late: right after a restart every map is cold, and
+    // SipsBuddy26's portal to New Leaf City landed after the old 2 s grace, so travel gave up on a warp
+    // that was still in flight and dropped the errand (the boot time warp-no-land drops toward Singapore
+    // CBD). A warp that truly failed only holds the bot a few seconds longer.
+    private static final long PORTAL_LAND_GRACE_MS = 8_000L;
     // After a failed attempt, don't immediately retry the same doomed walk — warp directly
     // (the legacy behavior) for this long.
     private static final long GIVE_UP_WARP_WINDOW_MS = 45_000L;
@@ -251,6 +255,10 @@ final class BotTravelManager {
             clear(entry);
             active = false;
         }
+        if (active && entry.followTravelEnteredAtMs > 0 && landedOnSameMap(entry, bot, map)) {
+            clear(entry); // the teleport put us on the next platform: plan the next hop from here
+            active = false;
+        }
         if (active && entry.followTravelEnteredAtMs > 0) {
             if (now - entry.followTravelEnteredAtMs > PORTAL_LAND_GRACE_MS) {
                 giveUp(entry, now, "warp-no-land");
@@ -402,6 +410,26 @@ final class BotTravelManager {
         return reachable != null ? reachable : portal.getPosition();
     }
 
+    /** How far from the entered portal a bot must be for a same map hop to count as landed. */
+    static final int SAME_MAP_LAND_PX = 150;
+
+    /**
+     * A partition route can make the next hop another platform of the same map, reached through a hidden
+     * teleport portal (pt 10, target map = this map; Ellinia, Perion, Kerning City and Sleepywood all have
+     * them). The map id never changes on that hop, so the landing check that waits for a map change timed out
+     * as warp-no-land every time: SipsBuddy29, 31 and 32 failed every errand to Singapore CBD from those
+     * towns. The hop has landed once the bot is clear of the portal it entered.
+     */
+    static boolean landedOnSameMap(BotEntry entry, Character bot, MapleMap map) {
+        if (entry.followTravelNextHopMapId != bot.getMapId() || entry.followTravelPortalId < 0) {
+            return false;
+        }
+        Portal entered = map.getPortal(entry.followTravelPortalId);
+        Point pos = bot.getPosition();
+        return entered != null && pos != null && entered.getPosition() != null
+                && pos.distance(entered.getPosition()) > SAME_MAP_LAND_PX;
+    }
+
     static boolean walkToPortalAndEnter(BotEntry entry, Character bot, Portal portal, long now, boolean runAiTick) {
         Point portalPos = portalApproachTarget(bot.getMap(), portal);
         Point botPos = bot.getPosition();
@@ -497,12 +525,17 @@ final class BotTravelManager {
                                             int targetMapId, int nextHopMapId, long now, boolean runAiTick) {
         if (nextHopMapId == scrollTargetLookup.scrollTarget(bot.getMapId())
                 && returnScrollCount.applyAsInt(bot) > 0) {
+            // Read the map before the scroll: the warp is synchronous, so afterwards the bot already stands
+            // in the town. Recorded after, the hop read town to town, the landing check took the bot for
+            // still in flight and gave up as warp-no-land (SipsBuddy29, 31, 32 and 35 scrolling to Ellinia,
+            // Perion or Sleepywood at the start of every errand to Singapore CBD).
+            int fromMapId = bot.getMapId();
             if (!returnScrollUse.use(bot)) {
                 return false;
             }
             entry.followTravelTargetMapId = targetMapId;
             entry.followTravelNextHopMapId = nextHopMapId;
-            entry.followTravelFromMapId = bot.getMapId();
+            entry.followTravelFromMapId = fromMapId;
             entry.followTravelPortalId = -1;
             entry.followTravelDeadlineMs = now + PORTAL_LAND_GRACE_MS;
             entry.followTravelEnteredAtMs = now;
@@ -803,6 +836,20 @@ final class BotTravelManager {
         entry.followTravelGiveUpReason = null;
     }
 
+    /** Name, target and position of the hop's portal and where the bot stands: portal 0 is a real id
+     *  (often the spawn point), and the same map hops that kept failing named no portal at all. */
+    private static String portalDetail(BotEntry entry) {
+        try {
+            Character bot = entry.bot;
+            Portal p = bot.getMap().getPortal(entry.followTravelPortalId);
+            return (p == null ? "(missing)" : "(" + p.getName() + " tm=" + p.getTargetMapId() + " at "
+                    + p.getPosition().x + "," + p.getPosition().y + ")")
+                    + " botPos=" + bot.getPosition().x + "," + bot.getPosition().y;
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
     private static void giveUp(BotEntry entry, long now, String reason) {
         int failedDest = entry.followTravelTargetMapId; // capture before clear() wipes it
         // Snapshot the failed hop's shape too, so the stuck-bot log/pathlog can say WHICH leg failed
@@ -810,7 +857,7 @@ final class BotTravelManager {
         String hop = "nextHop=" + entry.followTravelNextHopMapId
                 + (entry.followTravelTaxiNpcId != 0 ? " viaTaxi=" + entry.followTravelTaxiNpcId : "")
                 + (entry.followTravelFerry ? " viaFerry" : "")
-                + (entry.followTravelPortalId > 0 ? " viaPortal=" + entry.followTravelPortalId : "")
+                + (entry.followTravelPortalId >= 0 ? " viaPortal=" + entry.followTravelPortalId + portalDetail(entry) : "")
                 + " fromMap=" + entry.followTravelFromMapId
                 // closest the bot got to the hop target: small = reached it but ran out of budget; large/absent
                 // = never made progress (nav can't reach it), a deeper routing problem than a short deadline.

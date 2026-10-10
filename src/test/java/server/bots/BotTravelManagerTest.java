@@ -14,6 +14,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -156,6 +157,35 @@ class BotTravelManagerTest {
         assertSame(scripted, picked);
         assertNull(BotTravelManager.findAdjacentPortal(List.of(scriptOnly, closed, otherMap, door),
                 HENESYS, new Point(0, 0)));
+    }
+
+    @Test
+    void aSameMapTeleportHopLandsOnceTheBotIsClearOfThePortal() {
+        int ellinia = 101000000;
+        // ph00 at (-1068,-2475) teleports to ph00_1 at (425,180) on the same map.
+        Portal ph00 = portal(28, ellinia, 10, null, Portal.OPEN, new Point(-1068, -2475));
+        Fixture f = fixture(ellinia, 540000000, new Point(425, 180), List.of(ph00));
+        BotEntry e = f.entry();
+        e.followTravelTargetMapId = 540000000;
+        e.followTravelNextHopMapId = ellinia;
+        e.followTravelFromMapId = ellinia;
+        e.followTravelPortalId = 28;
+        e.followTravelEnteredAtMs = System.currentTimeMillis() - 20_000L; // well past the land grace
+
+        assertTrue(BotTravelManager.landedOnSameMap(e, f.bot(), f.map()));
+        try (RouteStub route = new RouteStub((from, to, maxHops, options, blocked) -> null)) {
+            BotTravelManager.tickTravel(e, f.bot(), 540000000, 30, true, true);
+        }
+        assertNotEquals("warp-no-land", e.followTravelGiveUpReason);
+        assertEquals(0L, e.followTravelEnteredAtMs);
+
+        // Still standing on the portal: the teleport never fired, which is a real failure.
+        when(f.bot().getPosition()).thenReturn(new Point(-1060, -2475));
+        assertFalse(BotTravelManager.landedOnSameMap(e, f.bot(), f.map()));
+        // A cross map hop never counts as a same map landing.
+        e.followTravelNextHopMapId = 103000000;
+        when(f.bot().getPosition()).thenReturn(new Point(425, 180));
+        assertFalse(BotTravelManager.landedOnSameMap(e, f.bot(), f.map()));
     }
 
     @Test
@@ -401,6 +431,36 @@ class BotTravelManagerTest {
             assertEquals(1, seams.scrollUses.size());
             assertTrue(f.entry().followTravelEnteredAtMs > 0); // warp in flight, land grace applies
             assertTrue(movement.steps.isEmpty()); // no walking — the scroll fires on the spot
+        }
+    }
+
+    @Test
+    void aReturnScrollHopRecordsTheMapItLeftNotTheTownItLandedIn() {
+        int deepMap = 105050100;
+        int lith = 104000000;
+        Fixture f = fixture(deepMap, lith, new Point(0, 0), List.of());
+        Character bot = f.bot();
+
+        try (MovementRecorder movement = new MovementRecorder();
+             ConsumableSeams seams = new ConsumableSeams();
+             RouteStub route = new RouteStub((from, to, maxHops, options, blocked) ->
+                     from == deepMap && options.withReturnScroll() ? List.of(HENESYS, lith) : null)) {
+            BotTravelManager.scrollTargetLookup = mapId -> mapId == deepMap ? HENESYS : -1;
+            BotTravelManager.returnScrollCount = b -> 1;
+            // The real scroll warps on the spot: the bot is in town before use() returns.
+            BotTravelManager.returnScrollUse = b -> {
+                when(bot.getMapId()).thenReturn(HENESYS);
+                return true;
+            };
+
+            assertTrue(BotTravelManager.tickTravel(f.entry(), bot, lith, 30, true, true));
+            assertEquals(deepMap, f.entry().followTravelFromMapId);
+
+            // Next tick, past the land grace, standing in town: a landing, not warp-no-land.
+            f.entry().lastMapId = HENESYS;
+            f.entry().followTravelEnteredAtMs = System.currentTimeMillis() - 20_000L;
+            BotTravelManager.tickTravel(f.entry(), bot, lith, 30, true, true);
+            assertNotEquals("warp-no-land", f.entry().followTravelGiveUpReason);
         }
     }
 
