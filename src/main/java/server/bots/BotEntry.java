@@ -625,6 +625,10 @@ public class BotEntry {
     Runnable pendingBotTradeRetry = null;
     int pendingBotTradeRetryMs = 0;
 
+    // Work handed in from another thread (fleet ops' sampler) to run at the start of this bot's next
+    // tick, so it can't race the tick that moves the bot. One slot: a newer task replaces an unrun one.
+    volatile Runnable nextTickTask = null;
+
     // Trade queue
     String pendingTradeCategory = null;
     List<Item> pendingTradeItems = null;
