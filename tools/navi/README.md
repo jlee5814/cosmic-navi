@@ -56,6 +56,8 @@ The service runs on the host, outside the game server. It holds the email creden
 
 Navi also whispers you first, once per incident, when one of your bots stands still for 10 minutes while it means to grind or travel, starts a third errand to the same map within 45 minutes, or stays busy for 30 minutes without gaining EXP (a bot touring shops with a full bag moves but never fights). A once a minute sampler in the game server keeps 90 minutes of history per bot for this and saves it to `cache/fleet-ops/samples.tsv`, so a restart keeps the history and does not repeat a whisper for an incident already reported.
 
+Navi also rescues on its own, the same way `navi rescue` does, when a bot stays frozen for 20 minutes or stays busy on its own map for 45 minutes with no EXP. An errand loop is left alone, since a scroll only restarts it. Each bot gets at most 2 auto rescues in 2 hours; if it freezes again after that, Navi whispers once that the spot needs a fix. Waiting for or riding a ferry doesn't count as stalled. You hear about every auto rescue when you are online.
+
 To revoke access, delete the app password in your Google account or run `security delete-generic-password -s navi-gmail`.
 
 ## Tests

@@ -3396,6 +3396,7 @@ public class BotManager {
         long startedAt = System.nanoTime();
         BotPerformanceMonitor.beginTickTrace();
         try {
+            runNextTickTask(entry);
             tickCore(entry, ownerCharId, botCharId);
             settleIdleIfUnbroadcast(entry);
             resetBotTickFailures(entry);
@@ -3408,6 +3409,21 @@ public class BotManager {
             }
             BotPerformanceMonitor.noteTickStall(entry, elapsedNs);
             BotPerformanceMonitor.endTickTrace();
+        }
+    }
+
+    /** Runs work another thread queued for this bot ({@link BotEntry#nextTickTask}); a failure is logged and
+     *  never counts against the tick. */
+    static void runNextTickTask(BotEntry entry) {
+        Runnable task = entry == null ? null : entry.nextTickTask;
+        if (task == null) {
+            return;
+        }
+        entry.nextTickTask = null;
+        try {
+            task.run();
+        } catch (RuntimeException e) {
+            log.warn("next tick task for {} failed", entry.bot != null ? entry.bot.getName() : "?", e);
         }
     }
 

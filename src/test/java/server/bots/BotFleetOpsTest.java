@@ -135,6 +135,63 @@ class BotFleetOpsTest {
     }
 
     @Test
+    void aBotFrozenTwentyMinutesIsRescuedThenTheClockStartsOver() {
+        BotFleetOps.Track t = new BotFleetOps.Track();
+        for (int i = 0; i <= 19; i++) {
+            BotFleetOps.record(t, still(i * MIN, 5_000));
+            assertNull(BotFleetOps.autoRescue(t, i * MIN), "not before 20 min, at " + i);
+        }
+        BotFleetOps.record(t, still(20 * MIN, 5_000));
+        assertEquals(new BotFleetOps.AutoRescue(true, "frozen 20 min"), BotFleetOps.autoRescue(t, 20 * MIN));
+        // Still on the spot a minute later (the scroll waits for the bot's tick): no second decision.
+        BotFleetOps.record(t, still(21 * MIN, 5_000));
+        assertNull(BotFleetOps.autoRescue(t, 21 * MIN));
+        assertEquals(MIN, BotFleetOps.frozenForMs(t), "the clock restarted at the rescue");
+        assertTrue(BotFleetOps.expPerHour(t, 21 * MIN) != null, "the EXP history is kept");
+    }
+
+    @Test
+    void aSpotThatKeepsRefreezingGetsTwoRescuesThenOneWhisperAndStops() {
+        BotFleetOps.Track t = new BotFleetOps.Track();
+        int rescues = 0;
+        int gaveUp = 0;
+        for (int i = 0; i <= 100; i++) {
+            BotFleetOps.record(t, still(i * MIN, 5_000));
+            BotFleetOps.AutoRescue ar = BotFleetOps.autoRescue(t, i * MIN);
+            if (ar != null && ar.rescue()) rescues++;
+            if (ar != null && !ar.rescue()) gaveUp++;
+        }
+        assertEquals(BotFleetOps.AUTO_RESCUE_MAX, rescues);
+        assertEquals(1, gaveUp);
+    }
+
+    @Test
+    void noExpRescuesOnlyABotOnItsOwnMapPlanNotOneOnAnErrand() {
+        BotFleetOps.Track grinding = new BotFleetOps.Track();
+        BotFleetOps.Track errand = new BotFleetOps.Track();
+        for (int i = 0; i <= 45; i++) {
+            // SipsBuddy26 on 800030000: walking the map, through its portals, never killing.
+            BotFleetOps.record(grinding, new BotFleetOps.Sample(i * MIN, 800030000, (i % 2) * 300, 0, 8_000, true, -1));
+            BotFleetOps.record(errand, new BotFleetOps.Sample(i * MIN, 101000300 + i % 3, i * 40, 0, 8_000, true, 101000300));
+        }
+        assertEquals(new BotFleetOps.AutoRescue(true, "busy 45 min with no EXP"), BotFleetOps.autoRescue(grinding, 45 * MIN));
+        assertNull(BotFleetOps.autoRescue(errand, 45 * MIN), "a scroll would only restart an errand loop");
+    }
+
+    @Test
+    void aTaskQueuedForTheNextTickRunsOnceAndAFailureStaysContained() {
+        BotEntry entry = org.mockito.Mockito.mock(BotEntry.class);
+        int[] runs = {0};
+        entry.nextTickTask = () -> runs[0]++;
+        BotManager.runNextTickTask(entry);
+        BotManager.runNextTickTask(entry);
+        assertEquals(1, runs[0]);
+        entry.nextTickTask = () -> { throw new IllegalStateException("boom"); };
+        BotManager.runNextTickTask(entry);
+        assertNull(entry.nextTickTask);
+    }
+
+    @Test
     void samplesSurviveARestartAndOngoingIncidentsStayQuiet(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) {
         java.nio.file.Path previousStore = BotFleetOps.store;
         BotFleetOps.store = dir.resolve("fleet-ops").resolve("samples.tsv");
