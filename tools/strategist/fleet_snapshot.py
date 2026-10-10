@@ -55,7 +55,8 @@ def motion(samples):
     (x0, y0), (x1, y1) = first["detail"]["pos"], last["detail"]["pos"]
     gain = max(0, last["detail"]["exp"] - first["detail"]["exp"]) if last["lvl"] == first["lvl"] else None
     seconds = last["_t"] - first["_t"]
-    info = {"seconds": seconds, "dx": x1 - x0, "dy": y1 - y0, "exp_gain": gain}
+    # pos is where the bot ended the window: the spot a stuck flag points at (stuck_tracker.py groups by it).
+    info = {"seconds": seconds, "pos": [x1, y1], "dx": x1 - x0, "dy": y1 - y0, "exp_gain": gain}
     flags = []
     ys = [s["detail"]["pos"][1] for s in samples]
     if seconds > 0 and all(b > a for a, b in zip(ys, ys[1:])) and (y1 - y0) / seconds > 400:
