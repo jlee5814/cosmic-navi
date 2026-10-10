@@ -24,6 +24,7 @@ import java.util.function.IntUnaryOperator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
@@ -408,6 +409,23 @@ class BotShopManagerTest {
         }
 
         return entry.shopVisitPending;
+    }
+
+    @Test
+    void theShopNpcNearestTheChosenSpotWinsOverOneListedFirst() {
+        // New Leaf City: the general store 9201058 sits 272 px from the spear seller 9201059.
+        NPC general = shopNpc(new Point(3555, 261));
+        NPC spears = shopNpc(new Point(3684, 501));
+        NPC noShop = mock(NPC.class);
+        when(noShop.hasShop()).thenReturn(false);
+        when(noShop.getPosition()).thenReturn(new Point(3684, 501));
+        Character bot = mock(Character.class);
+        MapleMap map = mock(MapleMap.class);
+        when(bot.getMap()).thenReturn(map);
+        when(map.getMapObjectsInRange(any(Point.class), anyDouble(), any())).thenReturn(List.of(general, noShop, spears));
+
+        assertSame(spears, BotShopManager.findNpcNear(bot, new Point(3684, 501)));
+        assertSame(general, BotShopManager.findNpcNear(bot, new Point(3555, 261)));
     }
 
     private static NPC shopNpc(Point position) {
