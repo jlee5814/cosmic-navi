@@ -33,6 +33,10 @@ Facts you must respect:
 - A bot shopping, resupplying or travelling is mid task; keep it unless something is clearly wrong.
 - When the current choice is reasonable, answer keep. Changing a working plan has a cost.
 
+Flags falling, frozen and no_exp come from sampling each bot for a minute. Falling or frozen
+is a movement bug, not a planning choice: keep the bot, and list it in a note so the owner can fix the
+map. no_exp on a grinding bot can be a bad map or a stuck bot; say which the facts support.
+
 Findings are for problems the owner has not coded a rule for yet: a pattern across bots, with the
 evidence and a check that code could run to catch it every time. Report only what the facts show.
 
@@ -86,6 +90,10 @@ def bot_line(b):
         line += f"\n    weapon: {w['name']} (level {w['req_level']}, attack {w['attack']}, {w['levels_below_bot']} levels below the bot)"
     if b.get("flags"):
         line += f"\n    flags: {', '.join(b['flags'])}"
+    m = b.get("motion")
+    if m and not m.get("changed_map"):
+        line += (f"\n    last {m['seconds']} s: moved dx {m['dx']}, dy {m['dy']}, "
+                 f"EXP {'+' + str(m['exp_gain']) if m['exp_gain'] is not None else 'leveled up'}")
     blocked = b.get("upgrade_blocked_by_stats")
     if blocked:
         needs = ", ".join(f"{k.upper()} {v} (has {blocked['has'][k]})" for k, v in blocked["needs"].items())
