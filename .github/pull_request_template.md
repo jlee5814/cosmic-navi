@@ -1,3 +1,11 @@
+<!-- Title: [Area] then an imperative summary, e.g. [Shop][Nav] Skip a weapon shop the trip could not buy from.
+     Areas, at most two, main one first; add the matching GitHub label:
+     [Nav] movement, physics, travel, nav graph   [Autopilot] grind picks, errands, training plan, GrindAdvisor
+     [Shop] buying, selling, ammo, gear           [Combat] damage, skills, targeting, HP and deaths
+     [Strategist] tools/strategist                [Navi] Navi owner tools and fleet ops
+     [Chat] bot chat and its SGLang serving       [Bench] load tests, evals, measurements
+     [Docs] docs only -->
+
 ## Motivation
 
 <!-- What is wrong or missing today, with evidence (live bot state, logs, data). Link the issue or prior PR.
