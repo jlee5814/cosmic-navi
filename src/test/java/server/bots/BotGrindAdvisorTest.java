@@ -17,6 +17,20 @@ class BotGrindAdvisorTest {
     private static final double[] SAMPLES = {10.0, 12.0, 14.0, 16.0};
 
     @Test
+    void killTimeCountsTheHitChanceOnce() {
+        // 100 expected damage per attack already includes a 50% hit chance: 1,000 HP takes 10 attacks.
+        double[] k = BotGrindAdvisor.killSeconds(100.0, true, 1000.0, 0.5);
+        assertEquals(10 * 0.72, k[0], 1e-9);
+        assertEquals(5 * 0.72, k[1], 1e-9); // accuracy blind: every swing lands
+        // The basic swing fallback is not discounted yet, so the hit chance applies here.
+        double[] fallback = BotGrindAdvisor.killSeconds(100.0, false, 1000.0, 0.5);
+        assertEquals(20 * 0.72, fallback[0], 1e-9);
+        assertEquals(10 * 0.72, fallback[1], 1e-9);
+        // Never faster than one attack cycle.
+        assertEquals(0.72, BotGrindAdvisor.killSeconds(5000.0, true, 10.0, 1.0)[0], 1e-9);
+    }
+
+    @Test
     void shouldValueEmptySlotAtTheFullSampleMean() {
         assertEquals(13.0, BotGrindAdvisor.expectedImprovement(SAMPLES, 0.0), 1e-9);
     }
