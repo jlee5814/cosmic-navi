@@ -335,6 +335,7 @@ public class BotEntry {
     // The in-town rest clock reuses breakUntilMs, started on arrival.
     boolean restErrand = false;
     long autopilotNextErrandAtMs = 0L;
+    long capIdleSinceMs = 0L;         // when a roster bot started idling at its training cap; 0 = not idling
     long weaponUpgradeCheckAtMs = 0L; // next time BotShopManager.weaponUpgradeShopMap reruns its shop search
     int weaponUpgradeShopMapId = -1;  // cached nearest map selling a worthwhile weapon upgrade; -1 none
     long autopilotLastErrandLogAtMs = 0L; // throttle for the "couldn't start errand" diagnostic log
