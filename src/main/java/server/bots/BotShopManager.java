@@ -154,8 +154,11 @@ final class BotShopManager {
         boolean needsMpPots = pots[1] < potTrigger && findPotionItem(match.shop, bot, false) != null;
         boolean needsPreferredWeapon = findNeededPreferredWeaponItem(bot, match.shop) != null
                 || findWeaponUpgradeItem(bot, match.shop) != null;
+        // Low on return scrolls is a reason to stop on its own: the scroll run's errand lands here.
+        boolean needsReturnScrolls = countReturnScrolls(bot) < RETURN_SCROLL_LOW_QTY
+                && findReturnScrollItem(match.shop) != null;
         if (!needsRecharge && !needsAmmoForShop && !needsHpPots && !needsMpPots
-                && !needsPreferredWeapon && !wantsSellTrash) {
+                && !needsPreferredWeapon && !wantsSellTrash && !needsReturnScrolls) {
             return;
         }
 
@@ -606,7 +609,7 @@ final class BotShopManager {
         if (pots[1] < BotManager.cfg.POT_LOW_WARN * 5 && findPotionItem(shop, bot, false) != null) {
             return true;
         }
-        return false;
+        return countReturnScrolls(bot) < RETURN_SCROLL_LOW_QTY && findReturnScrollItem(shop) != null;
     }
 
     private static void executePurchases(BotEntry entry, Character bot, Point npcPos) {
