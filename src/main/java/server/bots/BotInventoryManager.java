@@ -2023,12 +2023,17 @@ class BotInventoryManager {
         List<Item> ownAmmo = new ArrayList<>();
         List<Item> otherAmmo = new ArrayList<>();
         List<Item> buffs = new ArrayList<>();
+        List<Item> returnScrolls = new ArrayList<>();
         List<Item> shelf = new ArrayList<>(); // surplus ammo, misc -> kept unless cramped
 
         for (Item item : all) {
             int id = item.getItemId();
             if (isUseJunk(bot, id)) {
                 out.put(item, new UseClass(UseTier.JUNK, 0, 0, junkReason(bot, id)));
+                continue;
+            }
+            if (id == BotShopManager.RETURN_SCROLL_NEAREST_TOWN) {
+                returnScrolls.add(item);
                 continue;
             }
             WeaponType ammoType = ammoWeaponType(id);
@@ -2059,8 +2064,20 @@ class BotInventoryManager {
 
         classifyOwnAmmoRunway(ownAmmo, out, shelf);
         classifyBuffRunway(buffs, bot, out, shelf);
+        classifyReturnScrollRunway(returnScrolls, out, shelf);
         rankUseShelf(bot, shelf, out);
         return out;
+    }
+
+    // Every shop visit tops return scrolls up to BotShopManager's target, so the fullest stack is
+    // runway: shelving it let a cramped visit sell the scrolls and the next visit buy them back,
+    // which kept a bot touring shops without ever freeing a slot. Extra stacks stay on the shelf.
+    private static void classifyReturnScrollRunway(List<Item> scrolls, Map<Item, UseClass> out, List<Item> shelf) {
+        scrolls.sort(Comparator.comparingInt(Item::getQuantity).reversed());
+        for (int i = 0; i < scrolls.size(); i++) {
+            if (i == 0) out.put(scrolls.get(i), new UseClass(UseTier.RUNWAY, 0, 0, "return-scroll-runway"));
+            else shelf.add(scrolls.get(i));
+        }
     }
 
     // Recovery runway sized to the RESUPPLY target so a cramped trip never sheds pots the bot would
@@ -2327,7 +2344,11 @@ class BotInventoryManager {
             if (exclude != null && exclude.contains(item)) continue;
             if (e.getValue().keepValue() >= USE_NEVER_SELL_MESO) continue;
             if (item.getQuantity() <= 0) continue;
-            if (sellPrice.price(item.getItemId(), item.getQuantity()) <= 0) continue;
+            // NPC shops take a 0 meso sale and still clear the slot. Worthless ammo (basic arrows and
+            // bolts price at 0) must be sheddable this way, or a bag full of it never frees a slot
+            // and the cramped visit falls through to the next sellable stack instead.
+            boolean worthlessAmmo = ammoWeaponType(item.getItemId()) != null && e.getValue().keepValue() <= 0;
+            if (!worthlessAmmo && sellPrice.price(item.getItemId(), item.getQuantity()) <= 0) continue;
             shelf.add(e);
         }
         // Worst shelf rank first: shelfRank already folds in keep-worth then the ammo WATK tiebreak
