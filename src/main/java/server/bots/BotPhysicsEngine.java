@@ -2363,8 +2363,10 @@ final class BotPhysicsEngine {
         }
 
         AirCollision best = mapSideBoundaryCollision(map, previousPos, nextPos);
+        Map<Integer, Foothold> chainLookup = standing != null ? footholdsById(map) : null;
         for (Foothold foothold : collisionIndex(map).collidableWalls()) {
-            AirCollision collision = wallCollision(foothold, previousPos, nextPos, allowWalkableGroundEndpoint, standing);
+            AirCollision collision = wallCollision(foothold, previousPos, nextPos, allowWalkableGroundEndpoint,
+                    standing, chainLookup);
             if (collision.type() == AirCollisionType.WALL && collision.progress() < best.progress()) {
                 best = collision;
             }
@@ -2677,7 +2679,8 @@ final class BotPhysicsEngine {
                                               Point previousPos,
                                               Point nextPos,
                                               boolean allowWalkableGroundEndpoint,
-                                              Foothold standing) {
+                                              Foothold standing,
+                                              Map<Integer, Foothold> chainLookup) {
         int wallX = wall.getX1();
         int startX = previousPos.x;
         int endX = nextPos.x;
@@ -2702,7 +2705,7 @@ final class BotPhysicsEngine {
             return AirCollision.none();
         }
         if (allowWalkableGroundEndpoint && standing != null && Math.abs(yAtWall - maxY) < 0.001
-                && !wallFootJoins(wall, standing)) {
+                && !wallJoinsChain(wall, standing, chainLookup)) {
             return AirCollision.none(); // only the wall's foot, and it stands on another chain
         }
 
@@ -2760,6 +2763,42 @@ final class BotPhysicsEngine {
         int footY = firstIsFoot ? wall.getY1() : wall.getY2();
         return (standing.getX1() == footX && standing.getY1() == footY)
                 || (standing.getX2() == footX && standing.getY2() == footY);
+    }
+
+    /** Most floor footholds a chain scan walks in each direction before it gives up. */
+    static final int WALL_CHAIN_SCAN_HOPS = 64;
+
+    /**
+     * {@link #wallFootJoins} over the standing foothold's whole floor chain, not just the standing segment. A
+     * one shot runway check (the graph builder's walk off drop) spans several footholds, so a wall rising from
+     * the chain's far end joins a neighbor of the end segment, not the segment the bot stands on. Checking
+     * only the standing segment let that wall pass, and the builder authored walk off drops into it: map
+     * 800030000 x 84 and map 800000000 x 4461 froze bots against the wall (issue #30). Live stepping already
+     * blocks there, because each 6 px step stands on the end segment. Walks prev and next floor links only,
+     * so a wall standing on another chain's floor (600020100, issue #20) still passes.
+     */
+    static boolean wallJoinsChain(Foothold wall, Foothold standing, Map<Integer, Foothold> footholdsById) {
+        if (wallFootJoins(wall, standing)) {
+            return true;
+        }
+        if (footholdsById == null || footholdsById.isEmpty()) {
+            return false;
+        }
+        for (int direction = 0; direction < 2; direction++) {
+            Foothold current = standing;
+            for (int hop = 0; hop < WALL_CHAIN_SCAN_HOPS; hop++) {
+                int linkId = direction == 0 ? current.getNext() : current.getPrev();
+                Foothold link = linkId == 0 ? null : footholdsById.get(linkId);
+                if (link == null || link.isWall() || link == standing) {
+                    break;
+                }
+                if (wallFootJoins(wall, link)) {
+                    return true;
+                }
+                current = link;
+            }
+        }
+        return false;
     }
 
     private static boolean isWalkableGroundWallEndpoint(double yAtWall, int minY, int maxY) {
