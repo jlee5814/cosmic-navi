@@ -90,8 +90,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
@@ -121,7 +123,7 @@ public class MapleMap {
     private final Map<String, Integer> environment = new LinkedHashMap<>();
     private final Map<MapItem, Long> droppedItems = new LinkedHashMap<>();
     private final LinkedList<WeakReference<MapObject>> registeredDrops = new LinkedList<>();
-    private final List<Runnable> statUpdateRunnables = new ArrayList(50);
+    private final Queue<Runnable> statUpdateRunnables = new ConcurrentLinkedQueue<>();
     private final List<Rectangle> areas = new ArrayList<>();
     private FootholdTree footholds = null;
     private final List<Rope> ropes = new ArrayList<>();
@@ -4398,13 +4400,16 @@ public class MapleMap {
     }
 
     public void runCharacterStatUpdate() {
-        if (!statUpdateRunnables.isEmpty()) {
-            List<Runnable> toRun = new ArrayList<>(statUpdateRunnables);
-            statUpdateRunnables.clear();
-
-            for (Runnable r : toRun) {
-                r.run();
+        // Characters register updates from packet and bot threads while this timer drains, so the
+        // old copy-then-clear on an ArrayList could copy a null slot (NPE) or clear an update added
+        // in between, including playerDead(). Take entries one at a time instead; the bound keeps
+        // updates registered mid-drain for the next tick, as before.
+        for (int pending = statUpdateRunnables.size(); pending > 0; pending--) {
+            Runnable r = statUpdateRunnables.poll();
+            if (r == null) {
+                break;
             }
+            r.run();
         }
     }
 
