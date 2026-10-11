@@ -174,7 +174,7 @@ server:
     DB_URL_FORMAT: "jdbc:mysql://%s:3306/cosmic" # If the docker ENV for DB_HOST is anything but "db", this string format should be changed from 3306 to 3307 (or whichever port it was changed to in docker) 
     DB_HOST: "localhost" 
     DB_USER: "root"
-    DB_PASS: "1234"
+    DB_PASS: "cosmic-local"
     INIT_CONNECTION_POOL_TIMEOUT: 90    # Seconds
 
     #Login Configuration
@@ -208,10 +208,10 @@ server:
     LOGIN_ATTEMPT_DURATION: 120         #Period in seconds the login attempt remains registered on the system.
 
     #Ip Configuration
-    HOST: 182.52.44.189                 #WAN IPv4 address
-    LANHOST: 192.168.50.10              #LAN IPv4 address
+    HOST: 127.0.0.1                    #Local Docker setup
+    LANHOST: 127.0.0.1                 #Local Docker setup
     LOCALHOST: 127.0.0.1            #Loopback IPv4 address
-    TAILSCALEHOST: 100.109.79.4         #Tailscale (100.64.0.0/10) IPv4 address
+    TAILSCALEHOST: 127.0.0.1            #Local Docker setup
     GMSERVER: false
 
     #Other configuration
