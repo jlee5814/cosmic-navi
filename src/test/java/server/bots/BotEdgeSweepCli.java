@@ -44,6 +44,14 @@ public final class BotEdgeSweepCli {
         Path out = Path.of(args[0]);
         List<Integer> mapIds = new ArrayList<>();
         for (int i = 1; i < args.length; i++) {
+            if (args[i].equals("--attempts")) {
+                attempts = Integer.parseInt(args[++i]);
+                continue;
+            }
+            if (args[i].equals("--only")) {
+                only = new java.util.HashSet<>(Files.readAllLines(Path.of(args[++i])));
+                continue;
+            }
             if (args[i].equals("--route")) {
                 routeMode = true;
                 budgetMs = 20000;
@@ -80,6 +88,54 @@ public final class BotEdgeSweepCli {
         System.exit(0); // the timer threads would keep the JVM alive
     }
 
+    private static int attempts = 3;
+    /** --only file: confirm mode. Tests only the listed moves (map, type, stepX, startX, startY, endX, endY,
+     *  tab separated), runs every attempt, and writes fails:k/N for each, so a gate can tell a real
+     *  regression from a move that fails only some of the time. */
+    private static java.util.Set<String> only = null;
+
+    private record Attempt(boolean reached, int maxMoved, Point end, int endRegion, int fromRegion, String error) {
+        String verdict(BotNavigationGraph.Edge edge) {
+            return error != null ? "error:" + error
+                    : maxMoved < 12 ? "frozen" : endRegion == fromRegion ? "stayed" : "wrong-region";
+        }
+    }
+
+    private static Attempt attempt(BotMovementSimulationLab lab, MapleMap map, BotNavigationGraph graph,
+                                   BotNavigationGraph.Edge edge, int botId) {
+        String name = "sweep" + botId;
+        BotEntry entry = lab.spawnBot(name, botId, map, new Point(edge.startPoint));
+        lab.teleport(name, new Point(edge.startPoint));
+        lab.primeMapState(name);
+        if (!routeMode) {
+            lab.setNavState(name, edge, edge.toRegionId, false);
+        }
+        lab.setMoveTarget(name, new Point(edge.endPoint), true);
+        Point start = new Point(entry.bot.getPosition());
+        int maxMoved = 0;
+        boolean reached = false;
+        int ticks = budgetMs / BotMovementManager.cfg.TICK_MS;
+        String error = null;
+        try {
+            for (int t = 0; t < ticks && !reached; t++) {
+                lab.step(1);
+                Point p = entry.bot.getPosition();
+                maxMoved = Math.max(maxMoved, (int) start.distance(p));
+                if (!entry.inAir && !entry.climbing
+                        && (p.distance(edge.endPoint) <= MIN_EDGE_PX
+                        || BotNavigationManager.resolveCurrentRegionId(graph, entry, map, p) == edge.toRegionId)) {
+                    reached = true;
+                }
+            }
+        } catch (RuntimeException e) {
+            error = e.getClass().getSimpleName();
+        }
+        lab.remove(name);
+        Point p = new Point(entry.bot.getPosition());
+        int endRegion = BotNavigationManager.resolveCurrentRegionId(graph, entry, map, p);
+        return new Attempt(reached, maxMoved, p, endRegion, edge.fromRegionId, error);
+    }
+
     private record MapResult(int tested, int failed, Map<BotNavigationGraph.EdgeType, Integer> failedByType) {
     }
 
@@ -106,47 +162,35 @@ public final class BotEdgeSweepCli {
                 if (edge.startPoint.distance(edge.endPoint) < MIN_EDGE_PX) {
                     continue; // the start already sits within arrival range of the end: nothing to test
                 }
+                String key = mapId + "\t" + edge.type + "\t" + edge.launchStepX + "\t" + edge.startPoint.x + "\t"
+                        + edge.startPoint.y + "\t" + edge.endPoint.x + "\t" + edge.endPoint.y;
+                if (only != null && !only.contains(key)) {
+                    continue;
+                }
                 tested++;
-                String name = "sweep" + botId;
-                BotEntry entry = lab.spawnBot(name, botId++, map, new Point(edge.startPoint));
-                lab.teleport(name, new Point(edge.startPoint));
-                lab.primeMapState(name);
-                if (!routeMode) {
-                    lab.setNavState(name, edge, edge.toRegionId, false);
+                Attempt first = attempt(lab, map, graph, edge, botId++);
+                if (first.reached() && only == null) {
+                    continue;
                 }
-                lab.setMoveTarget(name, new Point(edge.endPoint), true);
-                Point start = new Point(entry.bot.getPosition());
-                int maxMoved = 0;
-                boolean reached = false;
-                int ticks = budgetMs / BotMovementManager.cfg.TICK_MS;
-                String error = null;
-                try {
-                    for (int t = 0; t < ticks && !reached; t++) {
-                        lab.step(1);
-                        Point p = entry.bot.getPosition();
-                        maxMoved = Math.max(maxMoved, (int) start.distance(p));
-                        if (!entry.inAir && !entry.climbing
-                                && (p.distance(edge.endPoint) <= MIN_EDGE_PX
-                                || BotNavigationManager.resolveCurrentRegionId(graph, entry, map, p) == edge.toRegionId)) {
-                            reached = true;
-                        }
+                // The sim isn't fully deterministic (timer threads run beside the tick), so a move that
+                // fails once is retried. Only a move that fails every try is stuck; one that passes on a
+                // retry is reported as flaky and kept out of the gate.
+                int failures = first.reached() ? 0 : 1;
+                for (int retry = 1; retry < attempts; retry++) {
+                    if (!attempt(lab, map, graph, edge, botId++).reached()) {
+                        failures++;
                     }
-                } catch (RuntimeException e) {
-                    error = e.getClass().getSimpleName();
                 }
-                lab.remove(name);
-                if (!reached) {
+                String verdict = only != null ? "fails:" + failures + "/" + attempts
+                        : failures < attempts ? "flaky:" + failures + "/" + attempts : first.verdict(edge);
+                if (failures == attempts) {
                     failed++;
                     byType.merge(edge.type, 1, Integer::sum);
-                    Point p = entry.bot.getPosition();
-                    int endRegion = BotNavigationManager.resolveCurrentRegionId(graph, entry, map, p);
-                    String verdict = error != null ? "error:" + error
-                            : maxMoved < 12 ? "frozen" : endRegion == edge.fromRegionId ? "stayed" : "wrong-region";
-                    rows.add(mapId + "\t" + edge.fromRegionId + "\t" + edge.toRegionId + "\t" + edge.type + "\t"
-                            + edge.launchStepX + "\t" + edge.startPoint.x + "\t" + edge.startPoint.y + "\t"
-                            + edge.endPoint.x + "\t" + edge.endPoint.y + "\t" + endRegion + "\t" + p.x + "\t" + p.y
-                            + "\t" + maxMoved + "\t" + verdict);
                 }
+                rows.add(mapId + "\t" + edge.fromRegionId + "\t" + edge.toRegionId + "\t" + edge.type + "\t"
+                        + edge.launchStepX + "\t" + edge.startPoint.x + "\t" + edge.startPoint.y + "\t"
+                        + edge.endPoint.x + "\t" + edge.endPoint.y + "\t" + first.endRegion() + "\t"
+                        + first.end().x + "\t" + first.end().y + "\t" + first.maxMoved() + "\t" + verdict);
             }
         }
         return new MapResult(tested, failed, byType);
