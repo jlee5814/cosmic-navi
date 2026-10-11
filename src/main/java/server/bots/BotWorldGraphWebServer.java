@@ -668,11 +668,12 @@ public final class BotWorldGraphWebServer {
         return ids;
     }
 
-    /** Serve a worldmap's BaseImg PNG from {@code wz-WorldMap/<id>.png} (committed, sibling to wz/). */
+    /** Serve a worldmap's BaseImg PNG from {@code wz-WorldMap/<id>.png} (committed, sibling to wz/), or the Maple
+     *  World overview from {@code wz-WorldMap/overview.png}. */
     private static void serveWorldMapImg(HttpExchange ex) throws IOException {
         String path = ex.getRequestURI().getPath();
         String id = path.substring(path.lastIndexOf('/') + 1).replace(".png", "");
-        if (!id.matches("\\d+")) {
+        if (!id.matches("\\d+") && !id.equals("overview")) { // overview: the Maple World front page
             send(ex, 404, "text/plain", "bad id".getBytes(StandardCharsets.UTF_8));
             return;
         }
