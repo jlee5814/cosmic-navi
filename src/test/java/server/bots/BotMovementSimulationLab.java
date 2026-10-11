@@ -177,6 +177,13 @@ final class BotMovementSimulationLab {
         trace.add(TraceFrame.capture(trace.size(), elapsedMs, botName, entry, manager.captureTargetSnapshot(entry)));
     }
 
+    /** Drop a bot and the trace, so a sweep can reuse one lab (and its built graph) for many runs. */
+    void remove(String name) {
+        bots.remove(name);
+        actors.remove(name);
+        trace.clear();
+    }
+
     Character actor(String name) {
         return requireActor(name);
     }

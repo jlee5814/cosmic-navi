@@ -1,11 +1,38 @@
-## Description
-<!-- Describe your changes in detail -->
+<!-- Title: [Area] then an imperative summary, e.g. [Shop][Nav] Skip a weapon shop the trip could not buy from.
+     Areas, at most two, main one first; add the matching GitHub label:
+     [Nav] movement, physics, travel, nav graph   [Autopilot] grind picks, errands, training plan, GrindAdvisor
+     [Shop] buying, selling, ammo, gear           [Combat] damage, skills, targeting, HP and deaths
+     [Strategist] tools/strategist                [Navi] Navi owner tools and fleet ops
+     [Chat] bot chat and its SGLang serving       [Bench] load tests, evals, measurements
+     [Docs] docs only -->
 
-## Checklist before requesting a review
-<!-- Mark with "x" inside the square brackets -->
-- [ ] I have performed a self-review of my code
-- [ ] I have tested my changes
-- [ ] I have added unit tests that prove my changes work
+## Motivation
 
-## Screenshots
-<!-- If applicable, add screenshots to help explain your changes -->
+<!-- What is wrong or missing today, with evidence (live bot state, logs, data). Link the issue or prior PR.
+     If stacked, say what this builds on and the merge order. -->
+
+## Modifications
+
+<!-- One bullet per change: what changed and where (class or file), and why this shape. Name defaults and
+     opt-in switches, and what stays on the existing path. -->
+
+## Accuracy Tests
+
+<!-- Tests added and suites run, with counts. Say whether a new test fails without the change.
+     Live verification on the running server (bots, roster, logs). Known behavior differences. -->
+
+## Speed Tests and Profiling
+
+<!-- If performance or load matters: measured on (machine, memory), versions, baseline and candidate commits,
+     method (trials, warmup, fresh server), then before and after tables. Otherwise: Not applicable. -->
+
+## Known Limits
+
+<!-- What this does not do, what was not measured, and what to watch after merging. -->
+
+## Checklist
+
+- [ ] Focused unit tests pass; new tests fail without the change.
+- [ ] Deployed locally; live bots verified.
+- [ ] Measurements supplied with configuration, or marked not applicable.
+- [ ] Docs, roster record and kb updated where behavior changed.
