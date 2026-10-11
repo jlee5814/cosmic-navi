@@ -134,6 +134,57 @@ class BotShopManagerTest {
     }
 
     @Test
+    void aBotDownToItsLastReturnScrollMakesItsOwnTripAtMostOnceAnHour() {
+        // SipsBuddy26 (issue #30): no scroll, 398k meso, and auto rescue had nothing to use.
+        Character bot = bowBotWithArrows(5000);
+        org.mockito.Mockito.when(bot.getMeso()).thenReturn(398_180);
+        BotEntry entry = mock(BotEntry.class);
+        long now = 10 * BotShopManager.RETURN_SCROLL_RUN_RETRY_MS;
+
+        assertTrue(BotShopManager.wantsReturnScrollRun(entry, bot, now), "none left");
+        entry.returnScrollRunAtMs = now - 60_000L;
+        assertFalse(BotShopManager.wantsReturnScrollRun(entry, bot, now), "tried a minute ago");
+        entry.returnScrollRunAtMs = now - BotShopManager.RETURN_SCROLL_RUN_RETRY_MS;
+        assertTrue(BotShopManager.wantsReturnScrollRun(entry, bot, now), "an hour later it tries again");
+
+        bot.getInventory(InventoryType.USE).addItem(Items.itemWithQuantity(2030000, BotShopManager.RETURN_SCROLL_LOW_QTY));
+        assertFalse(BotShopManager.wantsReturnScrollRun(entry, bot, now), "two in the bag is enough to rescue");
+    }
+
+    @Test
+    void arrivingWithNoReturnScrollsStartsAVisitAtAShopThatSellsThem() {
+        // Live 2026-10-10: SipsBuddy26's first scroll run reached the Henesys shop and said restocked,
+        // heading back without buying, because low scrolls weren't a reason to stop.
+        Character bot = bowBotWithArrows(5000);
+        BotEntry entry = new BotEntry(bot, null, null);
+        NPC npc = shopNpc(new Point(20, 0));
+        Shop shop = mock(Shop.class);
+        when(bot.getMap().getMapObjectsInRange(any(Point.class), anyDouble(), any())).thenReturn(List.of(npc));
+        when(shop.getItems()).thenReturn(List.of(new server.ShopItem((short) 1000, 2030000, 400, 0)));
+
+        try (MockedStatic<BotAttackExecutionProvider> attacks =
+                     mockStatic(BotAttackExecutionProvider.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+             MockedStatic<BotPotionManager> potions = mockStatic(BotPotionManager.class);
+             MockedStatic<ShopFactory> shops = mockStatic(ShopFactory.class)) {
+            ShopFactory factory = mock(ShopFactory.class);
+            shops.when(ShopFactory::getInstance).thenReturn(factory);
+            when(factory.getShopForNPC(npc.getId())).thenReturn(shop);
+            attacks.when(() -> BotAttackExecutionProvider.getEquippedWeaponType(bot)).thenReturn(WeaponType.BOW);
+            potions.when(() -> BotPotionManager.countPotions(bot)).thenReturn(new int[]{9999, 9999});
+
+            BotShopManager.onMapChange(entry, bot);
+        }
+        assertTrue(entry.shopVisitPending, "no scrolls, and this shop sells them");
+    }
+
+    @Test
+    void aBrokeBotWithoutReturnScrollsDoesNotRunToABuyItCantMake() {
+        Character bot = bowBotWithArrows(5000);
+        org.mockito.Mockito.when(bot.getMeso()).thenReturn(0);
+        assertFalse(BotShopManager.wantsReturnScrollRun(mock(BotEntry.class), bot, 10 * BotShopManager.RETURN_SCROLL_RUN_RETRY_MS));
+    }
+
+    @Test
     void shouldNotWantReturnScrollsAtTen() {
         Character bot = bowBotWithArrows(5000);
         bot.getInventory(InventoryType.USE).addItem(Items.itemWithQuantity(2030000, 10));

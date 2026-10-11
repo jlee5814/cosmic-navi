@@ -154,8 +154,11 @@ final class BotShopManager {
         boolean needsMpPots = pots[1] < potTrigger && findPotionItem(match.shop, bot, false) != null;
         boolean needsPreferredWeapon = findNeededPreferredWeaponItem(bot, match.shop) != null
                 || findWeaponUpgradeItem(bot, match.shop) != null;
+        // Low on return scrolls is a reason to stop on its own: the scroll run's errand lands here.
+        boolean needsReturnScrolls = countReturnScrolls(bot) < RETURN_SCROLL_LOW_QTY
+                && findReturnScrollItem(match.shop) != null;
         if (!needsRecharge && !needsAmmoForShop && !needsHpPots && !needsMpPots
-                && !needsPreferredWeapon && !wantsSellTrash) {
+                && !needsPreferredWeapon && !wantsSellTrash && !needsReturnScrolls) {
             return;
         }
 
@@ -556,6 +559,9 @@ final class BotShopManager {
             if (potsLow(bot)) {
                 return true;
             }
+            if (countReturnScrolls(bot) < RETURN_SCROLL_LOW_QTY) {
+                return true; // a supply shop: 28 of the 32 potion shops also sell return scrolls
+            }
             WeaponType wt = BotAttackExecutionProvider.getEquippedWeaponType(bot);
             int ammoThreshold = ammoTriggerThreshold();
             return needsRechargeForShop(bot, wt, ammoThreshold)
@@ -603,7 +609,7 @@ final class BotShopManager {
         if (pots[1] < BotManager.cfg.POT_LOW_WARN * 5 && findPotionItem(shop, bot, false) != null) {
             return true;
         }
-        return false;
+        return countReturnScrolls(bot) < RETURN_SCROLL_LOW_QTY && findReturnScrollItem(shop) != null;
     }
 
     private static void executePurchases(BotEntry entry, Character bot, Point npcPos) {
@@ -996,6 +1002,18 @@ final class BotShopManager {
             return new BuyReport(0, 0, 0, ShortfallReason.NONE);
         }
         return buyFixedCostItem(bot, shop, ammo, 1, 1);
+    }
+
+    static final int RETURN_SCROLL_LOW_QTY = 2;
+    static final long RETURN_SCROLL_RUN_RETRY_MS = 60 * 60_000L;
+
+    /** Under RETURN_SCROLL_LOW_QTY return scrolls with the meso to restock: worth a shop trip of its own,
+     *  since auto rescue and navi rescue both depend on a scroll. SipsBuddy26 sat on 800030000 with none
+     *  and 398k meso (issue #30); scrolls were only ever bought on trips made for something else. At most one
+     *  such trip an hour, so a region whose shops don't stock them can't start a loop. */
+    static boolean wantsReturnScrollRun(BotEntry entry, Character bot, long now) {
+        return countReturnScrolls(bot) < RETURN_SCROLL_LOW_QTY && canAffordPotResupply(bot)
+                && now - entry.returnScrollRunAtMs >= RETURN_SCROLL_RUN_RETRY_MS;
     }
 
     static boolean shouldBuyReturnScrollWhileShopping(Character bot) {
