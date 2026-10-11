@@ -33,6 +33,7 @@
 ## Checklist
 
 - [ ] Focused unit tests pass; new tests fail without the change.
+- [ ] Nav gate passes (`tools/navgate/nav_gate.sh`) for any change to movement, navigation or the graph builder.
 - [ ] Deployed locally; live bots verified.
 - [ ] Measurements supplied with configuration, or marked not applicable.
 - [ ] Docs, roster record and kb updated where behavior changed.
