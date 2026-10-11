@@ -353,6 +353,24 @@ Bots can hold short casual conversations with the owner using a tiny local model
 | Beefy CPU or Has GPU | `ollama run gemma4:e4b` | ~10+ GB | The more RAM the merrier |
 3. Edit `src/main/java/server/bots/llm/BotLlmConfig.java`, set `enabled = true` and `model = xxxx` matching your selected model. Rebuild/Restart server.
 
+### Setup with SGLang (Apple Silicon)
+
+[SGLang](https://github.com/sgl-project/sglang) serves the model with batching and a prefix cache, so many bots can chat at once.
+
+1. Install SGLang for Apple Silicon (MLX backend) per its Apple Metal guide. Until the MLX memory fix lands upstream, serve from a checkout that has it (branch `mlx-right-size-request-kv` on jlee5814/sglang).
+2. `tools/botchat/install_sglang_agent.sh` runs it as a LaunchAgent on `127.0.0.1:30000` with a 1 GB MLX buffer cache cap and at most 8 requests at once (`SGLANG_SRC` and `SGLANG_PY` pick the checkout and Python).
+3. Point the server at it with environment variables (no rebuild needed to change them, only a restart):
+
+| Variable | Example | Meaning |
+|---|---|---|
+| `BOT_LLM_ENABLED` | `true` | turn bot chat on at startup |
+| `BOT_LLM_BACKEND` | `openai` | `/v1/chat/completions` (SGLang, vLLM, llama.cpp server); default `ollama` |
+| `BOT_LLM_ENDPOINT` | `http://host.docker.internal:30000` | server base URL, as seen from the game container |
+| `BOT_LLM_MODEL` | `default` | model name sent in requests; SGLang accepts `default` |
+| `BOT_LLM_MAX_CONCURRENT` | `8` | replies in flight at once; past about 8, SGLang only adds queueing on an M4 Pro |
+
+Prompts put the rules every bot shares first and the bot's own name, level and job in the user turn (`BotLlmConfig.sharedPrefixLayout`), so the prefix cache reuses the shared part: 11x more cached prompt tokens and a 30% faster first token in `tools/llm-bench/RESULTS.md`.
+
 ### Behavior
 - LLM only fires when a message is **directly addressed** to a specific bot by name (`Jason hi`, `Leroy how are you`).
 - Bots remember the last few recent chat turns in memory for short context. Persistent disk memory is off by default for speed; set `BotLlmConfig.memoryEnabled = true` if bots should remember conversations across restarts.

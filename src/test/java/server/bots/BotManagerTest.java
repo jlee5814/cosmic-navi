@@ -1671,6 +1671,51 @@ class BotManagerTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void registeredOwnerChatReachesTheLlmForSelfOwnedRosterBots() throws Exception {
+        BotManager manager = BotManager.getInstance();
+        Character speaker = mock(Character.class);
+        when(speaker.getId()).thenReturn(252);
+        Character rosterBot = mock(Character.class);
+        when(rosterBot.getId()).thenReturn(254);
+        when(rosterBot.getName()).thenReturn("SipsBuddy1");
+        BotEntry selfOwned = new BotEntry(rosterBot, rosterBot, null);
+        Character companionBot = mock(Character.class);
+        when(companionBot.getId()).thenReturn(255);
+        when(companionBot.getName()).thenReturn("Leroy");
+        Character otherOwner = mock(Character.class);
+        when(otherOwner.getId()).thenReturn(79);
+        BotEntry companion = new BotEntry(companionBot, otherOwner, null);
+
+        Map<Integer, List<BotEntry>> bots = (Map<Integer, List<BotEntry>>) field(BotManager.class, "bots").get(manager);
+        bots.put(254, List.of(selfOwned));
+        bots.put(79, List.of(companion));
+        boolean wasEnabled = server.bots.llm.BotLlmConfig.enabled;
+        server.bots.llm.BotLlmConfig.enabled = true;
+        BotOwnershipService ownership = mock(BotOwnershipService.class);
+        when(ownership.isAuthorizedOwner(254, 252)).thenReturn(true);
+        when(ownership.isAuthorizedOwner(255, 252)).thenReturn(true);
+        try (MockedStatic<BotOwnershipService> os = mockStatic(BotOwnershipService.class);
+             MockedStatic<server.bots.llm.BotLlmReplyManager> llm = mockStatic(server.bots.llm.BotLlmReplyManager.class)) {
+            os.when(BotOwnershipService::getInstance).thenReturn(ownership);
+
+            assertTrue(manager.maybeChatWithRegisteredBot(speaker, "SipsBuddy1 hows the grind", ReplyChannel.MAP));
+            llm.verify(() -> server.bots.llm.BotLlmReplyManager.maybeRespond(selfOwned, speaker, "hows the grind"));
+
+            // Someone else's companion keeps the owner/admin paths, even if registered to the speaker.
+            assertFalse(manager.maybeChatWithRegisteredBot(speaker, "Leroy hows the grind", ReplyChannel.MAP));
+            // A player not registered to the roster bot gets nothing here.
+            Character stranger = mock(Character.class);
+            when(stranger.getId()).thenReturn(600);
+            assertFalse(manager.maybeChatWithRegisteredBot(stranger, "SipsBuddy1 hows the grind", ReplyChannel.MAP));
+        } finally {
+            server.bots.llm.BotLlmConfig.enabled = wasEnabled;
+            bots.remove(254);
+            bots.remove(79);
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void nonGmNameTargetingForeignBotDoesNotRoute() throws Exception {
         // The gm6 gate lives in handleChat; resolveForeignAdminTarget itself still finds the
         // foreign bot, so the routing block must only be entered for gm6. Assert a non-gm speaker

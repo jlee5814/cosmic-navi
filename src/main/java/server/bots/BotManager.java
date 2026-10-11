@@ -1728,6 +1728,39 @@ public class BotManager {
      * Reuses {@link BotChatManager#handleChat} so the reply logic stays SSOT. Companions (owner != bot)
      * are skipped: they answer their own owner via the broadcast path, not strangers.
      */
+    /**
+     * Conversation from the player registered in bot_owners to one of their self-owned roster bots,
+     * addressed by name ("SipsBuddy1 hows the grind"). Those bots play on their own autopilot, so
+     * this path never runs commands; it only hands the line to the LLM. Name matching is in memory;
+     * the one ownership lookup happens only after a self-owned bot was named.
+     */
+    boolean maybeChatWithRegisteredBot(Character speaker, String message, ReplyChannel channel) {
+        if (!server.bots.llm.BotLlmConfig.enabled || speaker == null || message == null
+                || speaker.getClient() instanceof BotClient) {
+            return false;
+        }
+        List<BotEntry> selfOwned = new ArrayList<>();
+        for (List<BotEntry> ownerEntries : bots.values()) {
+            for (BotEntry entry : ownerEntries) {
+                if (entry.owner != null && entry.owner == entry.bot) {
+                    selfOwned.add(entry);
+                }
+            }
+        }
+        BotCommandParser.TargetedBotMatch match = BotCommandParser.resolveTargetedBotByName(selfOwned, message);
+        BotEntry target = match.entry();
+        String text = match.commandText();
+        if (target == null || target.getBot() == null || text == null || text.isBlank()) {
+            return false;
+        }
+        if (!BotOwnershipService.getInstance().isAuthorizedOwner(target.getBot().getId(), speaker.getId())) {
+            return false;
+        }
+        target.replyChannel = channel;
+        server.bots.llm.BotLlmReplyManager.maybeRespond(target, speaker, text);
+        return true;
+    }
+
     private void maybeHandleProximityChat(Character speaker, String message, ReplyChannel channel) {
         if (channel != ReplyChannel.MAP || speaker == null || speaker.getMap() == null
                 || speaker.getClient() instanceof BotClient) {
@@ -1871,6 +1904,10 @@ public class BotManager {
                         foreign.debugCommanderFollow = true;
                     }
                     BotChatManager.handleChat(foreign, foreignMatch.commandText());
+                    // Same fallback as the owner path: chatter that matched no command goes to the LLM.
+                    if (server.bots.llm.BotLlmConfig.enabled && !BotChatManager.wasLastChatHandled()) {
+                        server.bots.llm.BotLlmReplyManager.maybeRespond(foreign, owner, foreignMatch.commandText());
+                    }
                     if (foreign.debugCommanderFollow) {
                         // Self-owned bots are each their own owner, so the per-owner formation loop
                         // never staggers them — assign slots across the GM's whole follow cohort here
@@ -1894,6 +1931,9 @@ public class BotManager {
         // bot, not just the speaker's companions. Non-consuming — the speaker's OWN companions still
         // answer through the owner broadcast below.
         maybeHandleProximityChat(owner, message, channel);
+        if (maybeChatWithRegisteredBot(owner, message, channel)) {
+            return;
+        }
 
         List<BotEntry> entries = bots.get(owner.getId());
         if (entries == null || entries.isEmpty()) return;

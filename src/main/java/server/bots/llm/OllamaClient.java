@@ -25,19 +25,8 @@ public final class OllamaClient {
 
     private OllamaClient() {}
 
-    public static Optional<String> generate(String prompt, String system) {
-        return send(prompt, system, BotLlmConfig.maxPredictTokens, BotLlmConfig.requestTimeoutMs);
-    }
-
-    /** Variant for non-chat calls (e.g. memory summarization) where we want a bigger
-     *  token budget and a proportionally longer timeout. */
-    public static Optional<String> generateLong(String prompt, String system, int numPredict) {
-        // Rough scale: small CPU produces ~10 tok/s, so allow numPredict*200ms + base.
-        int timeoutMs = Math.max(BotLlmConfig.requestTimeoutMs, 5000 + numPredict * 200);
-        return send(prompt, system, numPredict, timeoutMs);
-    }
-
-    private static Optional<String> send(String prompt, String system, int numPredict, int timeoutMs) {
+    /** Callers go through {@link LlmClient}, which picks the backend. */
+    static Optional<String> send(String prompt, String system, int numPredict, int timeoutMs) {
         String body = buildBody(prompt, system, numPredict);
         HttpRequest req;
         try {
@@ -107,8 +96,13 @@ public final class OllamaClient {
      * shape is: {"model":...,"response":"text",...}
      */
     static String extractResponseField(String json) {
+        return extractStringField(json, "response", 0);
+    }
+
+    /** The string value of the first {@code "key"} at or after {@code from}; null if absent or not a string. */
+    static String extractStringField(String json, String field, int from) {
         if (json == null) return null;
-        int key = json.indexOf("\"response\"");
+        int key = json.indexOf("\"" + field + "\"", from);
         if (key < 0) return null;
         int colon = json.indexOf(':', key);
         if (colon < 0) return null;
