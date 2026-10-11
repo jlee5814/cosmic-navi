@@ -80,6 +80,14 @@ The client renders regions/edges/npcs/portals once and repaints only `chars` on 
 region report backs the GM command **`!pos`** (`PosCommand` → `BotNavigationDebugOverlay.posReport`),
 which reports the region you're standing on using your own movement profile.
 
+### `/api/apdebug?id=<botCharId>[&maps=<mapId>,<mapId>]`
+Read-only plain text: the bot's full autopilot grind decision report (reachable maps, per candidate exp/h,
+gear value, travel and quest weights, the pick), the same report the in game `autopilot why` command and
+the ops console `grind` verb write to `logs/bot-grind/ap-debug-<name>.txt`. Scores candidates without
+applying a plan. `maps=` appends the raw candidate inputs for those maps (mob, kill time, spawns,
+kills and exp per hour, travel weight), which the top 15 list hides. Runs on the decide pool, so it can
+take a few seconds.
+
 ### `/api/botdebug[?id=<botCharId>]`
 Read-only per-bot autopilot internals for live debugging (party cohesion, follow, travel). No cache.
 Every row also includes `plannedJob` (terminal owner career goal, or empty), `trainingTarget`
@@ -198,6 +206,23 @@ Reachability uses the same verdict fields as `navprobe`: `reached:true` = genuin
 ```
 
 ## Settings API
+
+### `/api/fleetops?owner=<ownerCharId>`
+Plain text: the lines `navi fleet` whispers that owner (training bots, fleet EXP/h over the last hour, stuck,
+looping, no EXP, slowest, capped), for checking fleet ops without logging in. Read only. Backed by `BotFleetOps`,
+whose once a minute sampler keeps 90 minutes of history per bot in `cache/fleet-ops/samples.tsv` (the
+server-cache volume), so a restart picks up where it left off; only a first boot waits 10 minutes for EXP/h.
+
+### `/api/fleetops/incidents`
+JSON array of stalls a return scroll can't fix (`errand_loop`, `no_exp_on_errand`, `refreezing`,
+`no_exp_after_rescue`), each with the bot's map, errand, stall minutes, auto rescue and responder counts,
+status line, bag fill per tab and its top USE stacks with the sell rule that classifies each. Read only.
+Polled by [tools/responder](../../tools/responder/README.md).
+
+### `/api/fleetops/act` (POST)
+`{"bot":<char id>,"action":"rescue|hold_errands|sell_trash|park","arg":<minutes>,"reason":"..."}` runs one
+responder action on the bot's next tick and whispers its owner. At most 3 per bot in 2 hours. Not reachable
+through the LAN share, which passes GET only.
 
 ### `/api/settings` (GET + POST)
 Live admin/tuning surface behind `/admin`. Same SSOT as the GM commands: `BotConfigReflect` (the

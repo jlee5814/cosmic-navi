@@ -171,6 +171,7 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/mapinfo", BotWorldGraphWebServer::serveMapInfo);
             s.createContext("/api/command", BotWorldGraphWebServer::serveCommand);
             s.createContext("/api/botdebug", BotWorldGraphWebServer::serveBotDebug);
+            s.createContext("/api/apdebug", BotWorldGraphWebServer::serveAutopilotDecision);
             s.createContext("/api/bot/pathlog", BotWorldGraphWebServer::servePathLog);
             s.createContext("/api/perf", BotWorldGraphWebServer::servePerf);
             s.createContext("/api/spawnbot", BotWorldGraphWebServer::serveSpawnBot);
@@ -180,6 +181,9 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/pathfind", BotWorldGraphWebServer::servePathfind);
             s.createContext("/admin", BotWorldGraphWebServer::serveAdminPage);
             s.createContext("/api/settings", BotWorldGraphWebServer::serveSettings);
+            s.createContext("/api/fleetops", BotWorldGraphWebServer::serveFleetOps);
+            s.createContext("/api/fleetops/incidents", BotWorldGraphWebServer::serveFleetIncidents);
+            s.createContext("/api/fleetops/act", BotWorldGraphWebServer::serveFleetAct);
             s.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "bot-worldmap-web");
                 t.setDaemon(true);
@@ -194,6 +198,42 @@ public final class BotWorldGraphWebServer {
     }
 
     // --- HTTP handlers ---
+
+    /** GET /api/fleetops?owner=<owner char id>: the lines navi fleet whispers that owner, as plain text. */
+    private static void serveFleetOps(HttpExchange ex) throws IOException {
+        Map<String, String> q = queryParams(ex.getRequestURI().getRawQuery());
+        int owner;
+        try {
+            owner = Integer.parseInt(q.getOrDefault("owner", "").trim());
+        } catch (NumberFormatException e) {
+            send(ex, 400, "text/plain; charset=utf-8", "owner=<owner char id> required\n".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        String body = String.join("\n", BotFleetOps.fleetForOwner(owner)) + "\n";
+        send(ex, 200, "text/plain; charset=utf-8", body.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** GET /api/fleetops/incidents: stalls the rules don't settle, with each bot's state, for tools/responder. */
+    private static void serveFleetIncidents(HttpExchange ex) throws IOException {
+        send(ex, 200, "application/json", BotFleetOps.incidentsJson(System.currentTimeMillis())
+                .getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** POST /api/fleetops/act {"bot":id,"action":"rescue|hold_errands|sell_trash|park","arg":n,"reason":"..."}:
+     *  one responder action, run on the bot's next tick. Not reachable through the LAN share, which is GET only. */
+    private static void serveFleetAct(HttpExchange ex) throws IOException {
+        if (!"POST".equals(ex.getRequestMethod())) {
+            send(ex, 405, "text/plain; charset=utf-8", "POST only\n".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+        String action = jsonField(body, "action");
+        String reason = jsonField(body, "reason");
+        String result = BotFleetOps.act(jsonInt(body, "bot"), action == null ? "" : action, jsonInt(body, "arg"),
+                reason == null ? "" : reason, System.currentTimeMillis());
+        send(ex, result.startsWith("queued") ? 200 : 400, "text/plain; charset=utf-8",
+                (result + "\n").getBytes(StandardCharsets.UTF_8));
+    }
 
     private static final String LANDING_PAGE =
             "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Bot World</title><style>"
@@ -1093,6 +1133,39 @@ public final class BotWorldGraphWebServer {
             filterId = Integer.parseInt(queryParams(ex.getRequestURI().getRawQuery()).getOrDefault("id", "0").trim());
         } catch (NumberFormatException ignore) { /* 0 = all bots */ }
         send(ex, 200, "application/json", botDebugJson(filterId).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** {@code ?id=<botCharId>[&maps=<id>,<id>]}: the full autopilot grind decision report, the same text the in game
+     *  {@code autopilot why} / ops console {@code grind} command writes to logs/bot-grind. Read only:
+     *  it scores candidates without applying a plan. Runs on the decide pool like every decision. */
+    private static void serveAutopilotDecision(HttpExchange ex) throws IOException {
+        int id;
+        try {
+            id = Integer.parseInt(queryParams(ex.getRequestURI().getRawQuery()).getOrDefault("id", "").trim());
+        } catch (NumberFormatException e) {
+            send(ex, 400, "text/plain", "need ?id=<botCharId>".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        BotEntry e = lookupBotEntry(id);
+        if (e == null || e.bot == null || e.bot.getMap() == null) {
+            send(ex, 404, "text/plain", "no such online bot".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        String report;
+        try {
+            List<Integer> focus = new ArrayList<>();
+            for (String m : queryParams(ex.getRequestURI().getRawQuery()).getOrDefault("maps", "").split(",")) {
+                if (!m.isBlank()) {
+                    focus.add(Integer.parseInt(m.trim()));
+                }
+            }
+            report = BotGrindAdvisor.DECIDE_POOL.submit(() -> BotAutopilotDebug.buildReport(e, e.bot, focus))
+                    .get(120, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception err) {
+            send(ex, 500, "text/plain", ("decision report failed: " + err).getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        send(ex, 200, "text/plain; charset=utf-8", report.getBytes(StandardCharsets.UTF_8));
     }
 
     /** {@code ?id=<botCharId>} filters to one bot AND adds a {@code "detail"} block with live stats +
@@ -2169,7 +2242,7 @@ public final class BotWorldGraphWebServer {
         return xs == null || xs.isEmpty() ? "[]" : "[" + String.join(",", xs) + "]";
     }
 
-    private static String jsonStr(String s) {
+    static String jsonStr(String s) {
         StringBuilder b = new StringBuilder("\"");
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);

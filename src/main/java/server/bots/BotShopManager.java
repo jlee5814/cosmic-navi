@@ -138,6 +138,10 @@ final class BotShopManager {
         // the weapon upgrade, else the first that has anything needed. (SipsBuddy32 walked to New Leaf
         // City for a better spear and bought pants from the first NPC that matched.)
         NpcShopMatch match = findBestShop(bot.getMap(), shop -> findWeaponUpgradeItem(bot, shop) != null);
+        WeaponType wt = BotAttackExecutionProvider.getEquippedWeaponType(bot);
+        if (match == null && wantsAmmoStackShop(bot, wt)) {
+            match = findBestShop(bot.getMap(), shop -> findAmmoItem(shop, wt) != null);
+        }
         if (match == null) {
             match = findBestShop(entry, bot, wantsSellTrash);
         }
@@ -145,7 +149,6 @@ final class BotShopManager {
             return;
         }
 
-        WeaponType wt = BotAttackExecutionProvider.getEquippedWeaponType(bot);
         boolean needsRecharge = needsRechargeForShop(bot, wt, ammoTriggerThreshold());
         boolean needsAmmoForShop = needsFixedAmmoForShop(bot, match.shop, wt, ammoTriggerThreshold());
         int[] pots = BotPotionManager.countPotions(bot);
@@ -436,6 +439,15 @@ final class BotShopManager {
                 return upgradeMap;
             }
         }
+        // A claw or gun bot short of stacks, with pots to spare, goes where its ammo is sold: recharge works
+        // at any shop, but new stacks don't. Ludibrium's stars are in a shop room (220000002) one portal off
+        // the town map, so an errand to the town map refilled one stack and never bought more (SipsBuddy39).
+        if (entry != null) {
+            Integer ammoMap = nearestAmmoStackShopMap(bot);
+            if (ammoMap != null) {
+                return ammoMap;
+            }
+        }
         // Sell-trash trip => any shop; supply run => a potion-stocking shop (also carries ammo).
         Map<Integer, Integer> cache = allowAnyShop ? nearestAnyShopMapCache : nearestPotionShopMapCache;
         Integer cached = cache.get(from);
@@ -466,6 +478,19 @@ final class BotShopManager {
         }
         cache.put(from, found == null ? NO_SHOP_MAP : found);
         return found;
+    }
+
+    private static Integer nearestAmmoStackShopMap(Character bot) {
+        WeaponType wt;
+        try {
+            wt = BotAttackExecutionProvider.getEquippedWeaponType(bot);
+            if (!wantsAmmoStackShop(bot, wt)) {
+                return null;
+            }
+        } catch (RuntimeException ex) {
+            return null; // best effort: an unreadable bag falls through to the normal shop search
+        }
+        return findNearestUncachedShopMap(bot, shop -> findAmmoItem(shop, wt) != null);
     }
 
     private static Integer findNearestUncachedShopMap(Character bot, Predicate<Shop> accept) {
@@ -625,6 +650,12 @@ final class BotShopManager {
         // recharge step below then tops the new set up to slot-max in the same visit.
         if (shouldBuyStarterAmmoSet(bot, wt)) {
             actions.add((sequence, shop) -> appendBuyReport(sequence, buyStarterAmmoSet(bot, shop, wt),
+                    wt == WeaponType.GUN ? "bullets" : "throwing stars"));
+        }
+        // A claw or gun bot with one stack runs dry and walks to town every few hundred throws; while it
+        // is shopping anyway, top it up to RECHARGE_MIN_SETS stacks (the recharge below fills them).
+        if (shouldBuyExtraAmmoSetsWhileShopping(bot, wt)) {
+            actions.add((sequence, shop) -> appendBuyReport(sequence, buyExtraAmmoSets(bot, shop, wt),
                     wt == WeaponType.GUN ? "bullets" : "throwing stars"));
         }
         if (shouldRechargeWhileShopping(bot, wt)) {
@@ -992,6 +1023,63 @@ final class BotShopManager {
     static boolean shouldBuyStarterAmmoSet(Character bot, WeaponType wt) {
         return isRechargeWeaponType(wt) && bestRechargeAmmoId(bot, wt) < 0
                 && BotCombatManager.countAmmo(bot, wt) < ammoTargetThreshold();
+    }
+
+    /** Stacks of rechargeable ammo a claw or gun bot carries, so one emptying is not a town trip. */
+    static final int RECHARGE_MIN_SETS = 3;
+
+    /** Owns at least one set (else the starter set rule applies) but fewer than {@link #RECHARGE_MIN_SETS},
+     *  with room left in the USE tab for the new stacks plus two slots of slack. Bought only while the
+     *  bot is shopping anyway; it never triggers a trip by itself. */
+    /** New star and bullet stacks are sold only where the ammo is, while recharge works at any shop, so a
+     *  claw or gun bot short of stacks visits the NPC that sells its ammo. Not when pots are low: another
+     *  NPC may sell those, and pots come first. (SipsBuddy38 recharged its one stack at a Ludibrium NPC
+     *  that sells no stars, so the extra stacks were never bought.) */
+    static boolean wantsAmmoStackShop(Character bot, WeaponType wt) {
+        if (!shouldBuyStarterAmmoSet(bot, wt) && !shouldBuyExtraAmmoSetsWhileShopping(bot, wt)) {
+            return false;
+        }
+        int[] pots = BotPotionManager.countPotions(bot);
+        int potTrigger = BotManager.cfg.POT_LOW_WARN * POT_TRIGGER_THRESHOLD;
+        return pots[0] >= potTrigger && pots[1] >= potTrigger;
+    }
+
+    static boolean shouldBuyExtraAmmoSetsWhileShopping(Character bot, WeaponType wt) {
+        if (!isRechargeWeaponType(wt) || bestRechargeAmmoId(bot, wt) < 0) {
+            return false;
+        }
+        int missing = RECHARGE_MIN_SETS - rechargeSetCount(bot, wt);
+        return missing > 0 && bot.getInventory(InventoryType.USE).getNumFreeSlot() >= missing + 2;
+    }
+
+    private static int rechargeSetCount(Character bot, WeaponType wt) {
+        int sets = 0;
+        for (Item item : bot.getInventory(InventoryType.USE).list()) {
+            if (ItemConstants.isRechargeable(item.getItemId()) && matchesRechargeWeapon(item.getItemId(), wt)) {
+                sets++;
+            }
+        }
+        return sets;
+    }
+
+    /** Buy the missing stacks: the bot's best ammo if this shop sells it, else the cheapest matching set. */
+    private static BuyReport buyExtraAmmoSets(Character bot, Shop shop, WeaponType wt) {
+        int bestId = bestRechargeAmmoId(bot, wt);
+        ShopSlotItem ammo = null;
+        List<ShopItem> items = shop.getItems();
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).getItemId() == bestId && items.get(i).getPrice() > 0) {
+                ammo = new ShopSlotItem((short) i, items.get(i));
+                break;
+            }
+        }
+        if (ammo == null) {
+            ammo = findAmmoItem(shop, wt);
+        }
+        if (ammo == null) {
+            return new BuyReport(0, 0, 0, ShortfallReason.NONE);
+        }
+        return buyFixedCostItem(bot, shop, ammo, RECHARGE_MIN_SETS - rechargeSetCount(bot, wt), 1);
     }
 
     /** Buy one fresh set of the cheapest matching rechargeable ammo (a star/bullet stack). The
@@ -1395,6 +1483,7 @@ final class BotShopManager {
             sequence.bought().add(resolveItemName(upgrade.shopItem.getItemId(), "weapon"));
             BotEquipManager.autoEquip(bot, sequence.entry().owner, null, true);
             sequence.entry().weaponUpgradeCheckAtMs = 0L; // search again from the new weapon
+            sequence.entry().weaponUpgradeShopMapId = -1; // this trip is done: see weaponTripFailedHere
             return sequence;
         }
         return sequence.withFirstShortfall(new BuyReport(upgrade.shopItem.getItemId(), 0, 1, ShortfallReason.NO_MESO));
@@ -1404,7 +1493,7 @@ final class BotShopManager {
     static java.util.function.BiFunction<BotEntry, Character, Integer> weaponUpgradeShopMapSeam =
             BotShopManager::computeWeaponUpgradeShopMap;
 
-    /** Nearest reachable map, other than the current one, whose shop sells a worthwhile weapon upgrade;
+    /** Nearest reachable map (by ship too), other than the current one, whose shop sells a worthwhile weapon upgrade;
      *  null when none. Each bot runs the search at most once per {@link #WEAPON_UPGRADE_RECHECK_MS} and
      *  reuses the answer in between; a purchase resets the clock. */
     static Integer weaponUpgradeShopMap(BotEntry entry, Character bot) {
@@ -1421,6 +1510,90 @@ final class BotShopManager {
         }
     }
 
+    /** Route hops a weapon trip may take; the travel layer's own cap, ships and taxis included. */
+    static final int WEAPON_TRIP_MAX_HOPS = BotAutopilotManager.MAX_TRAVEL_HOPS;
+    private static volatile List<Integer> shopNpcIds;
+
+    /** Every NPC that runs a shop, read once from the shops table. */
+    private static List<Integer> shopNpcIds() {
+        List<Integer> ids = shopNpcIds;
+        if (ids != null) {
+            return ids;
+        }
+        List<Integer> loaded = new ArrayList<>();
+        try (java.sql.Connection con = tools.DatabaseConnection.getConnection();
+             java.sql.PreparedStatement ps = con.prepareStatement("SELECT DISTINCT npcid FROM shops");
+             java.sql.ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                loaded.add(rs.getInt(1));
+            }
+        } catch (java.sql.SQLException | RuntimeException e) {
+            log.warn("bot-shop: could not list shop NPCs; weapon trips fall back to the nearby map scan", e);
+            return List.of();
+        }
+        shopNpcIds = List.copyOf(loaded);
+        return shopNpcIds;
+    }
+
+    /** The map with the shortest route (portals, ships and taxis, danger gated) whose shop NPC passes
+     *  {@code accept}. Uses the shop catalog and the NPC placement index instead of loading maps, so it
+     *  can look across continents: the nearby scan stopped at six portals and never reached the Orbis or
+     *  El Nath stores that stock level 30 to 40 spears. Falls back to that scan if the catalog is empty. */
+    private static Integer nearestShopMapSelling(BotEntry entry, Character bot, Predicate<Shop> accept) {
+        List<Integer> npcs = shopNpcIds();
+        long now = System.currentTimeMillis();
+        if (npcs.isEmpty()) {
+            return findNearestUncachedShopMap(bot, accept);
+        }
+        int from = bot.getMapId();
+        BotWorldGraph.RouteOptions options = BotAutopilotManager.travelOptions(bot, true);
+        Integer best = null;
+        int bestHops = Integer.MAX_VALUE;
+        for (int npc : npcs) {
+            Shop shop = ShopFactory.getInstance().getShopForNPC(npc);
+            if (shop == null || !accept.test(shop)) {
+                continue;
+            }
+            for (int mapId : BotSpawnIndex.mapsWithNpc(npc)) {
+                if (entry != null && entry.unreachableShopUntilMs.getOrDefault(mapId, 0L) > now) {
+                    continue; // an errand there just failed; try the next nearest shop
+                }
+                if (mapId == from) {
+                    return mapId;
+                }
+                List<Integer> route = BotAutopilotManager.routeForBot(bot, from, mapId, WEAPON_TRIP_MAX_HOPS, options);
+                if (route != null && route.size() < bestHops) {
+                    best = mapId;
+                    bestHops = route.size();
+                }
+            }
+        }
+        return best;
+    }
+
+    /** How long the weapon upgrade search skips a shop map an errand could not reach. */
+    static final long UNREACHABLE_SHOP_RETRY_MS = 2 * 60 * 60_000L;
+
+    /** An errand to this map was dropped as unreachable. A route can exist on the world graph while the
+     *  travel layer cannot ride it: SipsBuddy29, 30, 31 and 32 picked Singapore CBD (540000000) for a Zeco,
+     *  failed the first hop with warp-no-land every ten minutes and never shopped. Skip the map for a while
+     *  and search again now, so the next errand goes to the next nearest shop. */
+    static void markShopMapUnreachable(BotEntry entry, int mapId, long nowMs) {
+        entry.unreachableShopUntilMs.put(mapId, nowMs + UNREACHABLE_SHOP_RETRY_MS);
+        if (entry.weaponUpgradeShopMapId == mapId) {
+            entry.weaponUpgradeShopMapId = -1;
+            entry.weaponUpgradeCheckAtMs = 0L;
+        }
+    }
+
+    /** A weapon trip reached its shop map and is heading home without the weapon: the shopkeeper was out of
+     *  reach or the visit timed out. SipsBuddy26 and 36 rode to New Leaf City every ten minutes all night and
+     *  never got to the spear seller. A purchase clears the target, so a target still pointing here means
+     *  nothing was bought. */
+    static boolean weaponTripFailedHere(BotEntry entry, Character bot) {
+        return entry.weaponUpgradeShopMapId != -1 && entry.weaponUpgradeShopMapId == bot.getMapId();
+    }
+
     /** True when {@link #weaponUpgradeShopMap} has somewhere to go: the errand gates ask this. */
     static boolean wantsWeaponUpgrade(BotEntry entry, Character bot) {
         return weaponUpgradeShopMap(entry, bot) != null;
@@ -1434,7 +1607,7 @@ final class BotShopManager {
         if (now >= entry.weaponUpgradeCheckAtMs) {
             entry.weaponUpgradeCheckAtMs = now + WEAPON_UPGRADE_RECHECK_MS;
             Integer found = preferredWeaponBudget(bot) <= 0 ? null
-                    : findNearestUncachedShopMap(bot, shop -> findWeaponUpgradeItem(bot, shop) != null);
+                    : nearestShopMapSelling(entry, bot, shop -> findWeaponUpgradeItem(bot, shop) != null);
             entry.weaponUpgradeShopMapId = found == null ? -1 : found;
         }
         int cached = entry.weaponUpgradeShopMapId;
@@ -1662,15 +1835,26 @@ final class BotShopManager {
     }
 
 
-    private static NPC findNpcNear(Character bot, Point pos) {
+    /** The shop NPC nearest {@code pos}: the visit stores the chosen shopkeeper's own position, so this is that
+     *  NPC. It used to return the first shop NPC in range, in the map's object order, so a bot that came to New
+     *  Leaf City for a Forked Spear (9201059) shopped at a neighbor 272 px away (9201058) and bought nothing,
+     *  every ten minutes all night (SipsBuddy26). */
+    static NPC findNpcNear(Character bot, Point pos) {
+        NPC nearest = null;
+        double nearestSq = Double.MAX_VALUE;
         for (MapObject obj : bot.getMap().getMapObjectsInRange(
                 pos, SHOP_NPC_SEARCH_DIST * SHOP_NPC_SEARCH_DIST,
                 Arrays.asList(MapObjectType.NPC))) {
             NPC npc = (NPC) obj;
-            if (npc.hasShop()) {
-                return npc;
+            if (!npc.hasShop() || npc.getPosition() == null) {
+                continue;
+            }
+            double d = npc.getPosition().distanceSq(pos);
+            if (d < nearestSq) {
+                nearest = npc;
+                nearestSq = d;
             }
         }
-        return null;
+        return nearest;
     }
 }

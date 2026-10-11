@@ -896,6 +896,7 @@ public class BotManager {
         if (!entry.personality.rosterRole().isBlank()) entry.apAuto = true;
         BotNavigationGraphProvider.warmGraphAsync(bot.getMap(), entry.movementProfile);
         maybeStartGraphEvictionSweep();
+        BotFleetOps.ensureStarted(); // Navi fleet ops sampler: navi fleet and the stuck whispers
         // Global dedup + atomic publish: a bot character has exactly one runtime owner. Remove any prior
         // entry for this bot under ANY owner key (relog, takeover, party re-register), not just
         // ownerCharId, then add ours — all under the lock so a concurrent register of the SAME id can't
@@ -3395,6 +3396,7 @@ public class BotManager {
         long startedAt = System.nanoTime();
         BotPerformanceMonitor.beginTickTrace();
         try {
+            runNextTickTask(entry);
             tickCore(entry, ownerCharId, botCharId);
             settleIdleIfUnbroadcast(entry);
             resetBotTickFailures(entry);
@@ -3407,6 +3409,21 @@ public class BotManager {
             }
             BotPerformanceMonitor.noteTickStall(entry, elapsedNs);
             BotPerformanceMonitor.endTickTrace();
+        }
+    }
+
+    /** Runs work another thread queued for this bot ({@link BotEntry#nextTickTask}); a failure is logged and
+     *  never counts against the tick. */
+    static void runNextTickTask(BotEntry entry) {
+        Runnable task = entry == null ? null : entry.nextTickTask;
+        if (task == null) {
+            return;
+        }
+        entry.nextTickTask = null;
+        try {
+            task.run();
+        } catch (RuntimeException e) {
+            log.warn("next tick task for {} failed", entry.bot != null ? entry.bot.getName() : "?", e);
         }
     }
 
@@ -3606,6 +3623,11 @@ public class BotManager {
             }
             return;
         }
+
+        // A capped bot is idle, and the idle fast path below consumes its tick before the autopilot tick
+        // runs, so the park check lives here where every bot reaches it. (SipsBuddy41 sat at 43 for
+        // 20 minutes after the first build because the check was inside the autopilot tick.)
+        BotTrainingPlan.parkIfIdleAtCap(entry, bot, BotTrainingPlan.complete(entry, bot), nowMs);
 
         // A scheduled logout must reach the tickLogout branch below even when the bot is otherwise
         // idle. The idle fast-path consumes the tick and returns, so without this guard a logging-out

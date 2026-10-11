@@ -24,6 +24,7 @@ import java.util.function.IntUnaryOperator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
@@ -394,8 +395,67 @@ class BotShopManagerTest {
         return bot;
     }
 
-    // Stub the ItemInformationProvider-backed seam: star 2070018 is the strongest, all stacks
-    // are well under slot-max so any partial stack counts as refillable. Restored on close.
+    @Test
+    void clawBotTopsUpToThreeStarStacksWhileShopping() {
+        try (Seam seam = withStarStats()) {
+            // One stack: the SipsBuddy38 case, dry every few hundred throws.
+            assertTrue(BotShopManager.shouldBuyExtraAmmoSetsWhileShopping(clawBotWithStars(632), WeaponType.CLAW));
+            assertTrue(BotShopManager.shouldBuyExtraAmmoSetsWhileShopping(clawBotWithStars(800, 800), WeaponType.CLAW));
+            assertFalse(BotShopManager.shouldBuyExtraAmmoSetsWhileShopping(clawBotWithStars(800, 800, 800), WeaponType.CLAW));
+            // No stack at all is the starter set rule's job, and bows don't recharge.
+            assertFalse(BotShopManager.shouldBuyExtraAmmoSetsWhileShopping(clawBotWithStars(), WeaponType.CLAW));
+            assertFalse(BotShopManager.shouldBuyExtraAmmoSetsWhileShopping(bowBotWithArrows(500), WeaponType.BOW));
+        }
+    }
+
+    @Test
+    void clawBotShortOfStacksVisitsTheNpcThatSellsStarsUnlessPotsAreLow() {
+        Character oneStack = clawBotWithStars(632);
+        Character threeStacks = clawBotWithStars(800, 800, 800);
+        try (Seam seam = withStarStats();
+             MockedStatic<BotPotionManager> potions = mockStatic(BotPotionManager.class)) {
+            potions.when(() -> BotPotionManager.countPotions(any())).thenReturn(new int[]{9999, 9999});
+            assertTrue(BotShopManager.wantsAmmoStackShop(oneStack, WeaponType.CLAW));
+            assertFalse(BotShopManager.wantsAmmoStackShop(threeStacks, WeaponType.CLAW));
+            // Low pots: the visit goes wherever pots are sold; stacks wait for a later trip.
+            potions.when(() -> BotPotionManager.countPotions(any())).thenReturn(new int[]{0, 9999});
+            assertFalse(BotShopManager.wantsAmmoStackShop(oneStack, WeaponType.CLAW));
+        }
+    }
+
+    @Test
+    void aWeaponTripThatLeavesTheShopMapEmptyHandedHasFailed() {
+        Character bot = mock(Character.class);
+        when(bot.getMapId()).thenReturn(600000000);
+        BotEntry entry = new BotEntry(bot, null, null);
+
+        entry.weaponUpgradeShopMapId = 600000000; // came to New Leaf City for a spear, bought nothing
+        assertTrue(BotShopManager.weaponTripFailedHere(entry, bot));
+        entry.weaponUpgradeShopMapId = 211000100; // the target shop is elsewhere: a pot stop, not this trip
+        assertFalse(BotShopManager.weaponTripFailedHere(entry, bot));
+        entry.weaponUpgradeShopMapId = -1; // a purchase clears the target
+        assertFalse(BotShopManager.weaponTripFailedHere(entry, bot));
+    }
+
+    @Test
+    void anUnreachableWeaponShopIsSkippedAndTheSearchRerunsNow() {
+        BotEntry entry = new BotEntry(mock(Character.class), null, null);
+        entry.weaponUpgradeShopMapId = 540000000;
+        entry.weaponUpgradeCheckAtMs = 9_999_999L;
+
+        BotShopManager.markShopMapUnreachable(entry, 540000000, 1_000L);
+
+        assertEquals(1_000L + BotShopManager.UNREACHABLE_SHOP_RETRY_MS, (long) entry.unreachableShopUntilMs.get(540000000));
+        assertEquals(-1, entry.weaponUpgradeShopMapId);
+        assertEquals(0L, entry.weaponUpgradeCheckAtMs);
+        // A pot errand that failed elsewhere leaves the weapon search alone.
+        entry.weaponUpgradeShopMapId = 211000100;
+        entry.weaponUpgradeCheckAtMs = 5L;
+        BotShopManager.markShopMapUnreachable(entry, 104000000, 1_000L);
+        assertEquals(211000100, entry.weaponUpgradeShopMapId);
+        assertEquals(5L, entry.weaponUpgradeCheckAtMs);
+    }
+
     @Test
     void weaponUpgradeNeedsAClearGainOverTheWornWeapon() {
         // Field Dagger to Cass is a big step; a sliver of gain is not worth a shop trip.
@@ -408,6 +468,8 @@ class BotShopManagerTest {
         assertTrue(BotShopManager.isWorthwhileWeaponUpgrade(0.0, 5.0));
     }
 
+    // Stub the ItemInformationProvider-backed seam: star 2070018 is the strongest, all stacks
+    // are well under slot-max so any partial stack counts as refillable. Restored on close.
     private static Seam withStarStats() {
         IntUnaryOperator prevWatk = BotShopManager.projectileWatk;
         BotShopManager.SlotMaxLookup prevSlot = BotShopManager.ammoSlotMax;
@@ -459,6 +521,23 @@ class BotShopManagerTest {
         }
 
         return entry.shopVisitPending;
+    }
+
+    @Test
+    void theShopNpcNearestTheChosenSpotWinsOverOneListedFirst() {
+        // New Leaf City: the general store 9201058 sits 272 px from the spear seller 9201059.
+        NPC general = shopNpc(new Point(3555, 261));
+        NPC spears = shopNpc(new Point(3684, 501));
+        NPC noShop = mock(NPC.class);
+        when(noShop.hasShop()).thenReturn(false);
+        when(noShop.getPosition()).thenReturn(new Point(3684, 501));
+        Character bot = mock(Character.class);
+        MapleMap map = mock(MapleMap.class);
+        when(bot.getMap()).thenReturn(map);
+        when(map.getMapObjectsInRange(any(Point.class), anyDouble(), any())).thenReturn(List.of(general, noShop, spears));
+
+        assertSame(spears, BotShopManager.findNpcNear(bot, new Point(3684, 501)));
+        assertSame(general, BotShopManager.findNpcNear(bot, new Point(3555, 261)));
     }
 
     private static NPC shopNpc(Point position) {

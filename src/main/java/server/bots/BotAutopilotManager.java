@@ -763,6 +763,10 @@ final class BotAutopilotManager {
                 }
                 // The auto shop visit (triggered by the map change) is over or never fired —
                 // errand done either way, head back to the grind map.
+                if (BotShopManager.weaponTripFailedHere(entry, bot)) {
+                    // Came for a weapon, leaving without it: try the next nearest shop next time.
+                    BotShopManager.markShopMapUnreachable(entry, bot.getMapId(), System.currentTimeMillis());
+                }
                 entry.autopilotErrandMapId = -1;
                 entry.autopilotReturningFromErrand = true;
                 reply.accept(entry, "restocked, heading back");
@@ -822,6 +826,8 @@ final class BotAutopilotManager {
         // give-up window). Never warp — grind whatever is here and re-decide on the timer;
         // travel retries by itself once the window passes.
         if (entry.autopilotErrandMapId != -1) {
+            logErrandDropped(entry, bot, entry.autopilotErrandMapId);
+            BotShopManager.markShopMapUnreachable(entry, entry.autopilotErrandMapId, System.currentTimeMillis());
             entry.autopilotErrandMapId = -1; // unreachable errand: forget it, the cooldown gates retries
             entry.autopilotReturningFromErrand = false;
             // A rest-errand whose town is UNREACHABLE must also drop restErrand. Otherwise line ~578
@@ -986,6 +992,17 @@ final class BotAutopilotManager {
         String name = bot != null ? bot.getName() : "?";
         log.info("bot-errand: {} wanted a town errand but couldn't start one: {} (grinding={}, active={})",
                 name, reason, entry.grinding, isActive(entry));
+    }
+
+    /** Why an errand was dropped as unreachable: the travel give up that blocked it, when recent. Weapon trips
+     *  announced every ten minutes and never left (SipsBuddy30 and 31), and nothing said which leg failed. */
+    private static void logErrandDropped(BotEntry entry, Character bot, int errandMapId) {
+        long ageMs = System.currentTimeMillis() - entry.followTravelGiveUpAtMs;
+        boolean recent = entry.followTravelGiveUpAtMs > 0 && ageMs < 5 * 60_000L;
+        log.info("bot-errand: {} dropped its errand to {} from {}: {}", bot.getName(), errandMapId, bot.getMapId(),
+                recent ? "travel gave up (" + entry.followTravelGiveUpReason + ", " + entry.followTravelGiveUpHop
+                        + ", target " + entry.followTravelGiveUpTargetMapId + ", " + ageMs / 1000 + " s ago)"
+                        : "no route found");
     }
 
     static String resupplyErrandMessage(BotEntry entry, Character bot) {
