@@ -1,0 +1,4 @@
+['claude-opus-5-5']
+**move 103000200**
+
+At level 39 a Pig gives only 15 EXP; a level 35 Jr. Wraith gives 70 EXP, 4.7 times as much, and with 3,130,342 mesos the bot can buy the Cass (attack 45, 42,000 mesos) at the nearby Kerning store next to help with the Wraiths' 1,200 HP and defense 90.

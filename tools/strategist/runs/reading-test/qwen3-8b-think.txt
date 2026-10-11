@@ -1,0 +1,2 @@
+move 103000200  
+The bot is overleveled on Pig (level 7) and can efficiently farm Jr. Wraith (level 35) for 70 EXP per kill, which is significantly better than 15 EXP from Pig.

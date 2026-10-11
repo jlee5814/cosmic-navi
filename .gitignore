@@ -49,3 +49,4 @@ dashboard-share.conf
 
 # Python bytecode
 __pycache__/
+tools/strategist/runs/nightly/

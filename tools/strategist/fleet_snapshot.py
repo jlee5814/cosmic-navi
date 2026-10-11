@@ -16,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "llm-bench/bot_eval
 import make_fixtures as mf  # noqa: E402  (WZ name lookups and the EXP table)
 from prompt import job_label  # noqa: E402
 
+import gear_options  # noqa: E402  (weapon facts, weapon gap flag, EXP per second options)
+
 DASH = "http://127.0.0.1:8089"
 
 
@@ -66,6 +68,10 @@ def main():
     skill_names = mf.string_names("Skill.img.xml")
     for f in fleet:
         f["top_skills"] = [f"{skill_names.get(k, k)} {v}" for k, v in f["top_skills"]]
+    worn = gear_options.worn_weapons([b["id"] for b in bots])
+    shop = gear_options.shop_weapons(mf.string_names("Npc.img.xml"))
+    for b, f in zip(bots, fleet):
+        gear_options.enrich(b, f, list(maps.values()), eqp, worn, shop)
     out = {"taken_at": time.strftime("%Y-%m-%d %H:%M"), "bots": fleet, "maps": list(maps.values())}
     Path(sys.argv[1]).write_text(json.dumps(out, indent=1))
     print(f"{len(fleet)} bots, {len(maps)} maps -> {sys.argv[1]}")

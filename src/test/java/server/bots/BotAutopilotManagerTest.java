@@ -86,6 +86,8 @@ class BotAutopilotManagerTest {
         private final BotAutopilotManager.BagFull previousBagFull = BotAutopilotManager.bagFull;
         private final java.util.function.IntPredicate previousEquipStatsExist = BotAutopilotManager.equipStatsExist;
         private final java.util.function.Predicate<Character> previousNeedsPreferredWeapon = BotShopManager.needsPreferredWeaponForCurrentJobSeam;
+        private final java.util.function.BiFunction<BotEntry, Character, Integer> previousWeaponUpgradeShopMap =
+                BotShopManager.weaponUpgradeShopMapSeam;
 
         Seams(Recommendation recommendation) {
             this(recommendation, recommendation);
@@ -112,6 +114,8 @@ class BotAutopilotManagerTest {
             // Default: no preferred-weapon need, so neither the pre-travel gate nor needsToBuySupplies
             // calls needsPreferredWeaponForCurrentJob -> ItemInformationProvider in tests.
             BotShopManager.needsPreferredWeaponForCurrentJobSeam = bot -> false;
+            // Default: no weapon upgrade in reach, so the upgrade errand gates skip the real shop search.
+            BotShopManager.weaponUpgradeShopMapSeam = (entry, bot) -> null;
         }
 
         @Override
@@ -127,6 +131,30 @@ class BotAutopilotManagerTest {
             BotAutopilotManager.bagFull = previousBagFull;
             BotAutopilotManager.equipStatsExist = previousEquipStatsExist;
             BotShopManager.needsPreferredWeaponForCurrentJobSeam = previousNeedsPreferredWeapon;
+            BotShopManager.weaponUpgradeShopMapSeam = previousWeaponUpgradeShopMap;
+        }
+    }
+
+    @Test
+    void shouldDetourMidGrindForAWorthwhileWeaponUpgrade() {
+        // On site and grinding, but a reachable shop sells a much better weapon: run the errand now
+        // instead of waiting for supplies to run low (bandits wore level 15 daggers at level 39).
+        Fixture f = fixture(HUNTING_GROUND);
+        f.entry().autopilotMapId = HUNTING_GROUND;
+        f.entry().autopilotNextDecisionAtMs = Long.MAX_VALUE;
+        f.entry().grinding = true;
+        MapleMap town = mock(MapleMap.class);
+        when(town.getId()).thenReturn(TOWN);
+        when(f.bot().getMap().getReturnMap()).thenReturn(town);
+
+        try (Seams seams = new Seams(null)) {
+            assertFalse(BotAutopilotManager.tick(f.entry(), f.bot(), true));
+            assertEquals(-1, f.entry().autopilotErrandMapId, "no upgrade in reach: keep grinding");
+
+            BotShopManager.weaponUpgradeShopMapSeam = (entry, bot) -> TOWN;
+            BotAutopilotManager.tick(f.entry(), f.bot(), true);
+            assertEquals(TOWN, f.entry().autopilotErrandMapId);
+            assertTrue(seams.replies.stream().anyMatch(r -> r.contains("going for a better")), seams.replies.toString());
         }
     }
 
