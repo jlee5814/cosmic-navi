@@ -442,6 +442,11 @@ final class BotPotionManager {
             // (ungated by pot-meso, like the sell branch): the visit sells trash to fund the refill.
             // But only if the trip can actually re-arm us (canRecoverAmmo) - a truly-broke bot with
             // nothing to sell stays and farms with the degenerate close-range swing to earn meso first.
+        } else if (BotAutopilotManager.isActive(entry)
+                && BotShopManager.wantsReturnScrollRun(entry, bot, System.currentTimeMillis())
+                && BotAutopilotManager.requestResupplyErrand(entry, bot)) {
+            // Out of return scrolls: every rescue needs one, so restock before a stall finds it empty.
+            entry.returnScrollRunAtMs = System.currentTimeMillis();
         } else if (pots[0] < BotManager.cfg.POT_STOP && bot.getHp() < bot.getMaxHp() * 0.4f
                 && BotManager.canWalkToOwner(entry)) {
             // canWalkToOwner is false for autopilot / self-owned / owner-offline bots, so an
