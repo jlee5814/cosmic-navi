@@ -1470,4 +1470,44 @@ class BotEquipManagerTest {
         for (Equip e : items) set.add(e);
         return set;
     }
+
+    private static Equip pruneWeapon(BotEquipManager.SelfReserveHooks ii, int itemId, WeaponType type, int watk) {
+        Equip e = mock(Equip.class);
+        when(e.getItemId()).thenReturn(itemId);
+        when(e.getWatk()).thenReturn((short) watk);
+        when(ii.getWeaponType(itemId)).thenReturn(type);
+        return e;
+    }
+
+    private static BotEquipManager.SelfReserveHooks pruneIi() {
+        BotEquipManager.SelfReserveHooks ii = mock(BotEquipManager.SelfReserveHooks.class);
+        when(ii.getEquipLevelReq(org.mockito.ArgumentMatchers.anyInt())).thenReturn(10);
+        when(ii.getEquipStats(org.mockito.ArgumentMatchers.anyInt())).thenReturn(Map.of("reqJob", 8, "reqDEX", 25));
+        return ii;
+    }
+
+    @Test
+    void candidatePruningKeepsTheClawEvenWhenADaggerOutStatsIt() {
+        // Live repro: Assassins wore the Beginner Thief's short sword (28 att) because it pruned the
+        // Beginner Thief Wrist Guard (11 att, same reqs) before weapon-type ranking ever saw it.
+        BotEquipManager.SelfReserveHooks ii = pruneIi();
+        Equip dagger = pruneWeapon(ii, 1332063, WeaponType.DAGGER_THIEVES, 28);
+        Equip claw = pruneWeapon(ii, 1472061, WeaponType.CLAW, 11);
+
+        List<Equip> kept = BotEquipManager.pruneDominatedWithReqs(ii, List.of(dagger, claw), Job.ASSASSIN, new boolean[4]);
+
+        assertTrue(kept.contains(claw), "the only wearable claw must survive pruning");
+        assertTrue(kept.contains(dagger));
+    }
+
+    @Test
+    void candidatePruningStillDropsAWorseWeaponOfTheSameType() {
+        BotEquipManager.SelfReserveHooks ii = pruneIi();
+        Equip weakClaw = pruneWeapon(ii, 1472061, WeaponType.CLAW, 11);
+        Equip strongClaw = pruneWeapon(ii, 1472030, WeaponType.CLAW, 20);
+
+        List<Equip> kept = BotEquipManager.pruneDominatedWithReqs(ii, List.of(weakClaw, strongClaw), Job.ASSASSIN, new boolean[4]);
+
+        assertEquals(List.of(strongClaw), kept);
+    }
 }
