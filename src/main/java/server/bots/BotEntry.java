@@ -631,6 +631,9 @@ public class BotEntry {
     // tick, so it can't race the tick that moves the bot. One slot: a newer task replaces an unrun one.
     volatile Runnable nextTickTask = null;
 
+    // Last time this bot set out to restock return scrolls on their own (BotShopManager.wantsReturnScrollRun).
+    long returnScrollRunAtMs = 0L;
+
     // Trade queue
     String pendingTradeCategory = null;
     List<Item> pendingTradeItems = null;
