@@ -1,10 +1,10 @@
 name,tier,role,job,goal_job_id,first_job_id,second_job_id,level_target,training_stop_level,active
 SipsBuddy1,main,"Main farmer, Blizzard, map clearing",Ice/Lightning Arch Mage,222,200,220,120+,0,True
 SipsBuddy2,main,"Holy Symbol, Genesis, support",Bishop,232,200,230,120+,0,True
-SipsBuddy3,main,Second Holy Symbol support character,Priest,231,200,230,81,81,False
+SipsBuddy3,main,Second Holy Symbol support character,Priest,231,200,230,81,81,True
 SipsBuddy4,cleric quests,Quest farmer A01,Cleric,230,200,230,35,43,False
 SipsBuddy5,cleric quests,Quest farmer A02,Cleric,230,200,230,35,43,False
-SipsBuddy6,cleric quests,Quest farmer A03,Cleric,230,200,230,35,43,False
+SipsBuddy6,cleric quests,Quest farmer A03,Cleric,230,200,230,35,43,True
 SipsBuddy7,cleric quests,Quest farmer A04,Cleric,230,200,230,35,43,True
 SipsBuddy8,cleric quests,Quest farmer A05,Cleric,230,200,230,35,43,True
 SipsBuddy9,cleric quests,Quest farmer A06,Cleric,230,200,230,35,43,False

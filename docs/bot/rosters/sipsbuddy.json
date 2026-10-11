@@ -35,7 +35,7 @@
       "second_job_id": 230,
       "level_target": "81",
       "training_stop_level": 81,
-      "active": false
+      "active": true
     },
     {
       "name": "SipsBuddy4",
@@ -71,7 +71,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": false
+      "active": true
     },
     {
       "name": "SipsBuddy7",

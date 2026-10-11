@@ -268,6 +268,12 @@ final class BotPhysicsEngine {
         return area != null && area.height > 0 ? area.y + area.height + 600 : Integer.MAX_VALUE;
     }
 
+    /** True once {@code p} has fallen past {@link #mapFloorY}: no foothold can catch it any more.
+     *  The live airborne watchdog uses the same bound as the fall simulations. */
+    static boolean isBelowMapFloor(MapleMap map, Point p) {
+        return p != null && p.y > mapFloorY(map);
+    }
+
     static float jumpForcePerTick() {
         return cfg.JUMP_SPEED_PXS * tickS();
     }
@@ -2552,10 +2558,18 @@ final class BotPhysicsEngine {
     }
 
     /**
-     * Bot-side drop-in for {@code FootholdTree.findBelow}: identical selection math (including
-     * the original's trig-flavored slope interpolation and int truncation) over a per-column
-     * bucket instead of a tree walk with per-query allocation and sorting. Graphgen and the
-     * airborne integrator issue tens of millions of these probes on big maps.
+     * Bot-side drop-in for {@code FootholdTree.findBelow}: the same slope interpolation (the
+     * original's trig-flavored math and int truncation) over a per-column bucket instead of a
+     * tree walk with per-query allocation and sorting. Graphgen and the airborne integrator
+     * issue tens of millions of these probes on big maps.
+     *
+     * <p>Returns the NEAREST foothold at or below {@code p}, not the first one in sorted order.
+     * {@link Foothold#compareTo} orders by y-extent and calls two footholds equal whenever their
+     * y ranges overlap, so a long steep slope ties with every flat platform beside it and the
+     * sort leaves them in insertion order. Taking the first match then skips the surface the
+     * bot actually meets: map 682000100's stair rail (fh30, y 276..568) loses to the step under
+     * it, so falls pass through the rail and jumps pass through the 325 floor above it, the
+     * graph never gets the rail-to-floor JUMP, and a bot on the lower floor has no path up.
      */
     static Foothold findBelowIndexed(MapleMap map, Point p) {
         if (map == null || map.getFootholds() == null) {
@@ -2565,18 +2579,18 @@ final class BotPhysicsEngine {
         if (index == UNINDEXABLE) {
             return map.getFootholds().findBelow(p); // stubbed tree — original query path
         }
+        Foothold nearest = null;
+        int nearestY = Integer.MAX_VALUE;
         for (Foothold fh : index.groundBucketAt(p.x)) {
             if (fh.getX1() <= p.x && fh.getX2() >= p.x) {
-                if (fh.getY1() != fh.getY2()) {
-                    if (slopeYAt(fh, p.x) >= p.y) {
-                        return fh;
-                    }
-                } else if (fh.getY1() >= p.y) {
-                    return fh;
+                int y = fh.getY1() != fh.getY2() ? slopeYAt(fh, p.x) : fh.getY1();
+                if (y >= p.y && y < nearestY) {
+                    nearest = fh;
+                    nearestY = y;
                 }
             }
         }
-        return null;
+        return nearest;
     }
 
     /** Bot-side drop-in for {@code MapleMap.getPointBelow} (calcPointBelow), same math. */

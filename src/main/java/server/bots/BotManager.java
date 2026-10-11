@@ -5753,6 +5753,12 @@ public class BotManager {
      * logs/bot-nav/pathlog-Clawer-2026-06-10T094813.txt, stuck 3px under the OOB recovery
      * threshold). Regular stuck handling skips airborne bots, so catch it here and teleport
      * to the active goal's ground.
+     *
+     * <p>Also catches the opposite case, a bot falling through a floorless column (map
+     * 221023300: the side wall sits at fh43's tip, x=562, past the bottom floor's end at 549).
+     * Its position changes every tick, so the frozen check never trips, and the 600px OOB
+     * recovery measures distance to the owner, which is the bot itself for a self-owned bot.
+     * Once the fall passes the map floor bound no foothold can catch it, so recover the same way.
      */
     private static void tickFrozenAirborneWatchdog(BotEntry entry) {
         if (!entry.inAir || entry.climbing) {
@@ -5761,6 +5767,12 @@ public class BotManager {
             return;
         }
         Point pos = entry.bot.getPosition();
+        if (BotPhysicsEngine.isBelowMapFloor(entry.bot.getMap(), pos)) {
+            entry.airStuckTicks = 0;
+            entry.airStuckX = Integer.MIN_VALUE;
+            recoverAirborne(entry, pos);
+            return;
+        }
         if (pos.x != entry.airStuckX || pos.y != entry.airStuckY) {
             entry.airStuckTicks = 0;
             entry.airStuckX = pos.x;
@@ -5772,7 +5784,11 @@ public class BotManager {
         }
         entry.airStuckTicks = 0;
         entry.airStuckX = Integer.MIN_VALUE;
+        recoverAirborne(entry, pos);
+    }
 
+    /** Teleport a stranded airborne bot to the ground of its active goal (else the nearest portal). */
+    private static void recoverAirborne(BotEntry entry, Point pos) {
         Point goal = entry.moveTarget != null ? entry.moveTarget : entry.navTargetPos;
         if (goal == null && entry.bot.getMap() != null) {
             var portal = entry.bot.getMap().findClosestPortal(pos);
