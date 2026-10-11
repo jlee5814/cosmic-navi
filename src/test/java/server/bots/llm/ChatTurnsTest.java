@@ -20,6 +20,7 @@ class ChatTurnsTest {
         when(c.getName()).thenReturn("SipsBuddy1");
         when(c.getJob()).thenReturn(Job.IL_WIZARD);
         when(c.getLevel()).thenReturn(50);
+        when(c.getMeso()).thenReturn(19_021_749);
         BotEntry entry = mock(BotEntry.class);
         when(entry.getBot()).thenReturn(c);
         return entry;
@@ -57,6 +58,7 @@ class ChatTurnsTest {
                 "what job are you", "", List.of());
         assertTrue(chat.get(chat.size() - 1).content().contains("Job: ice/lightning wizard (magician class)"),
                 chat.get(chat.size() - 1).content());
+        assertTrue(chat.get(chat.size() - 1).content().contains("Mesos: 19,021,749"), chat.get(chat.size() - 1).content());
     }
 
     @Test

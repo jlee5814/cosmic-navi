@@ -1,0 +1,123 @@
+[
+ {
+  "id": 254,
+  "name": "SipsBuddy1",
+  "job_id": 220,
+  "level": 51,
+  "exp_pct": 48,
+  "meso": 19021749,
+  "map": "Sky Terrace<1>",
+  "street": "Ludibrium",
+  "status": "grinding",
+  "mobs": "Brown Teddy lv30 x23, Pink Teddy lv32 x13",
+  "gear": [
+   "White Bandana",
+   "Sapphire Earrings",
+   "Red-Striped T-Shirt",
+   "Grey / Brown Training Pants",
+   "Leather Sandals",
+   "Maple Shield",
+   "Maple Lama Staff"
+  ],
+  "skills": [
+   "Thunder Bolt 30/30",
+   "Magic Claw 20/20",
+   "Magic Guard 20/20",
+   "Meditation 20/20",
+   "Improved MP Recovery 16/16",
+   "MP Eater 13/20",
+   "Improved MaxMP Increase 10/10",
+   "Energy Bolt 1/20"
+  ]
+ },
+ {
+  "id": 297,
+  "name": "SipsBuddy44",
+  "job_id": 410,
+  "level": 42,
+  "exp_pct": 30,
+  "meso": 6902827,
+  "map": "Station<Ludibrium>",
+  "street": "Orbis",
+  "status": "grinding",
+  "mobs": "",
+  "gear": [
+   "White Bandana",
+   "Gold Earrings",
+   "Pink Qi Pao",
+   "Purple Qi Pao Skirt",
+   "Bronze Aroa Boots",
+   "Work Gloves",
+   "Maple Claw"
+  ],
+  "skills": [
+   "Critical Throw 30/30",
+   "Lucky Seven 20/20",
+   "Dark Sight 20/20",
+   "Nimble Body 10/20",
+   "Keen Eyes 8/8",
+   "Claw Mastery 5/20",
+   "Disorder 3/20",
+   "Claw Booster 2/20"
+  ]
+ },
+ {
+  "id": 277,
+  "name": "SipsBuddy24",
+  "job_id": 130,
+  "level": 42,
+  "exp_pct": 81,
+  "meso": 9151731,
+  "map": "Tree Dungeon, Forest Up North II",
+  "street": "Victoria Road",
+  "status": "grinding",
+  "mobs": "Dark Stump lv10 x17",
+  "gear": [
+   "Old Wisconsin",
+   "Weighted Earrings",
+   "Green Hwarang Shirt",
+   "White Martial Arts Shorts",
+   "Maroon Jangoon Shoes",
+   "Dark Knuckle",
+   "Zeco"
+  ],
+  "skills": [
+   "Power Strike 20/20",
+   "Slash Blast 20/20",
+   "Spear Mastery 20/20",
+   "Spear Booster 17/20",
+   "Improved HP Recovery 11/16",
+   "Improved MaxHP Increase 10/10"
+  ]
+ },
+ {
+  "id": 264,
+  "name": "SipsBuddy11",
+  "job_id": 230,
+  "level": 38,
+  "exp_pct": 84,
+  "meso": 2660800,
+  "map": "Line 1 <Area 2>",
+  "street": "Kerning City Subway",
+  "status": "grinding",
+  "mobs": "Stirge lv20 x21, Jr. Wraith lv35 x70",
+  "gear": [
+   "White Bandana",
+   "Sapphire Earrings",
+   "Grey / Brown Training Shirt",
+   "Blue Jean Shorts",
+   "Leather Sandals",
+   "Work Gloves",
+   "Stolen Fence",
+   "Maple Staff"
+  ],
+  "skills": [
+   "Heal 25/30",
+   "Magic Claw 20/20",
+   "Magic Guard 20/20",
+   "Improved MP Recovery 16/16",
+   "Improved MaxMP Increase 10/10",
+   "Energy Bolt 1/20"
+  ]
+ }
+]
