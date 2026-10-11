@@ -138,6 +138,10 @@ final class BotShopManager {
         // the weapon upgrade, else the first that has anything needed. (SipsBuddy32 walked to New Leaf
         // City for a better spear and bought pants from the first NPC that matched.)
         NpcShopMatch match = findBestShop(bot.getMap(), shop -> findWeaponUpgradeItem(bot, shop) != null);
+        WeaponType wt = BotAttackExecutionProvider.getEquippedWeaponType(bot);
+        if (match == null && wantsAmmoStackShop(bot, wt)) {
+            match = findBestShop(bot.getMap(), shop -> findAmmoItem(shop, wt) != null);
+        }
         if (match == null) {
             match = findBestShop(entry, bot, wantsSellTrash);
         }
@@ -145,7 +149,6 @@ final class BotShopManager {
             return;
         }
 
-        WeaponType wt = BotAttackExecutionProvider.getEquippedWeaponType(bot);
         boolean needsRecharge = needsRechargeForShop(bot, wt, ammoTriggerThreshold());
         boolean needsAmmoForShop = needsFixedAmmoForShop(bot, match.shop, wt, ammoTriggerThreshold());
         int[] pots = BotPotionManager.countPotions(bot);
@@ -433,6 +436,15 @@ final class BotShopManager {
                 return upgradeMap;
             }
         }
+        // A claw or gun bot short of stacks, with pots to spare, goes where its ammo is sold: recharge works
+        // at any shop, but new stacks don't. Ludibrium's stars are in a shop room (220000002) one portal off
+        // the town map, so an errand to the town map refilled one stack and never bought more (SipsBuddy39).
+        if (entry != null) {
+            Integer ammoMap = nearestAmmoStackShopMap(bot);
+            if (ammoMap != null) {
+                return ammoMap;
+            }
+        }
         // Sell-trash trip => any shop; supply run => a potion-stocking shop (also carries ammo).
         Map<Integer, Integer> cache = allowAnyShop ? nearestAnyShopMapCache : nearestPotionShopMapCache;
         Integer cached = cache.get(from);
@@ -463,6 +475,19 @@ final class BotShopManager {
         }
         cache.put(from, found == null ? NO_SHOP_MAP : found);
         return found;
+    }
+
+    private static Integer nearestAmmoStackShopMap(Character bot) {
+        WeaponType wt;
+        try {
+            wt = BotAttackExecutionProvider.getEquippedWeaponType(bot);
+            if (!wantsAmmoStackShop(bot, wt)) {
+                return null;
+            }
+        } catch (RuntimeException ex) {
+            return null; // best effort: an unreadable bag falls through to the normal shop search
+        }
+        return findNearestUncachedShopMap(bot, shop -> findAmmoItem(shop, wt) != null);
     }
 
     private static Integer findNearestUncachedShopMap(Character bot, Predicate<Shop> accept) {
@@ -619,6 +644,12 @@ final class BotShopManager {
         // recharge step below then tops the new set up to slot-max in the same visit.
         if (shouldBuyStarterAmmoSet(bot, wt)) {
             actions.add((sequence, shop) -> appendBuyReport(sequence, buyStarterAmmoSet(bot, shop, wt),
+                    wt == WeaponType.GUN ? "bullets" : "throwing stars"));
+        }
+        // A claw or gun bot with one stack runs dry and walks to town every few hundred throws; while it
+        // is shopping anyway, top it up to RECHARGE_MIN_SETS stacks (the recharge below fills them).
+        if (shouldBuyExtraAmmoSetsWhileShopping(bot, wt)) {
+            actions.add((sequence, shop) -> appendBuyReport(sequence, buyExtraAmmoSets(bot, shop, wt),
                     wt == WeaponType.GUN ? "bullets" : "throwing stars"));
         }
         if (shouldRechargeWhileShopping(bot, wt)) {
@@ -986,6 +1017,63 @@ final class BotShopManager {
     static boolean shouldBuyStarterAmmoSet(Character bot, WeaponType wt) {
         return isRechargeWeaponType(wt) && bestRechargeAmmoId(bot, wt) < 0
                 && BotCombatManager.countAmmo(bot, wt) < ammoTargetThreshold();
+    }
+
+    /** Stacks of rechargeable ammo a claw or gun bot carries, so one emptying is not a town trip. */
+    static final int RECHARGE_MIN_SETS = 3;
+
+    /** Owns at least one set (else the starter set rule applies) but fewer than {@link #RECHARGE_MIN_SETS},
+     *  with room left in the USE tab for the new stacks plus two slots of slack. Bought only while the
+     *  bot is shopping anyway; it never triggers a trip by itself. */
+    /** New star and bullet stacks are sold only where the ammo is, while recharge works at any shop, so a
+     *  claw or gun bot short of stacks visits the NPC that sells its ammo. Not when pots are low: another
+     *  NPC may sell those, and pots come first. (SipsBuddy38 recharged its one stack at a Ludibrium NPC
+     *  that sells no stars, so the extra stacks were never bought.) */
+    static boolean wantsAmmoStackShop(Character bot, WeaponType wt) {
+        if (!shouldBuyStarterAmmoSet(bot, wt) && !shouldBuyExtraAmmoSetsWhileShopping(bot, wt)) {
+            return false;
+        }
+        int[] pots = BotPotionManager.countPotions(bot);
+        int potTrigger = BotManager.cfg.POT_LOW_WARN * POT_TRIGGER_THRESHOLD;
+        return pots[0] >= potTrigger && pots[1] >= potTrigger;
+    }
+
+    static boolean shouldBuyExtraAmmoSetsWhileShopping(Character bot, WeaponType wt) {
+        if (!isRechargeWeaponType(wt) || bestRechargeAmmoId(bot, wt) < 0) {
+            return false;
+        }
+        int missing = RECHARGE_MIN_SETS - rechargeSetCount(bot, wt);
+        return missing > 0 && bot.getInventory(InventoryType.USE).getNumFreeSlot() >= missing + 2;
+    }
+
+    private static int rechargeSetCount(Character bot, WeaponType wt) {
+        int sets = 0;
+        for (Item item : bot.getInventory(InventoryType.USE).list()) {
+            if (ItemConstants.isRechargeable(item.getItemId()) && matchesRechargeWeapon(item.getItemId(), wt)) {
+                sets++;
+            }
+        }
+        return sets;
+    }
+
+    /** Buy the missing stacks: the bot's best ammo if this shop sells it, else the cheapest matching set. */
+    private static BuyReport buyExtraAmmoSets(Character bot, Shop shop, WeaponType wt) {
+        int bestId = bestRechargeAmmoId(bot, wt);
+        ShopSlotItem ammo = null;
+        List<ShopItem> items = shop.getItems();
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).getItemId() == bestId && items.get(i).getPrice() > 0) {
+                ammo = new ShopSlotItem((short) i, items.get(i));
+                break;
+            }
+        }
+        if (ammo == null) {
+            ammo = findAmmoItem(shop, wt);
+        }
+        if (ammo == null) {
+            return new BuyReport(0, 0, 0, ShortfallReason.NONE);
+        }
+        return buyFixedCostItem(bot, shop, ammo, RECHARGE_MIN_SETS - rechargeSetCount(bot, wt), 1);
     }
 
     /** Buy one fresh set of the cheapest matching rechargeable ammo (a star/bullet stack). The
