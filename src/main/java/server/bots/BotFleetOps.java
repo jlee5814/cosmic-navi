@@ -407,25 +407,30 @@ final class BotFleetOps {
         }
     }
 
-    /** True when every sample in the last {@code windowMs} is on the newest sample's map: the bot is stuck on a
-     *  map, not crossing several on a long walk, where a scroll would only send it back to town. */
+    static final double ONE_MAP_SHARE = 0.8;
+
+    /** True when at least {@link #ONE_MAP_SHARE} of the samples in the last {@code windowMs} are on the newest
+     *  sample's map: the bot is stuck on a map, not crossing several on a long walk, where a scroll would only
+     *  send it back to town. Not all of them: SipsBuddy3 wandered two maps over for four minutes and came back
+     *  to the same spot on 682000100. */
     static boolean onOneMapFor(Track t, long now, long windowMs) {
         synchronized (t) {
             Sample last = t.samples.peekLast();
             if (last == null) {
                 return false;
             }
-            boolean any = false;
+            int in = 0;
+            int on = 0;
             for (Sample s : t.samples) {
                 if (now - s.t() > windowMs) {
                     continue;
                 }
-                if (s.mapId() != last.mapId()) {
-                    return false;
+                in++;
+                if (s.mapId() == last.mapId()) {
+                    on++;
                 }
-                any = true;
             }
-            return any;
+            return in > 0 && on >= ONE_MAP_SHARE * in;
         }
     }
 

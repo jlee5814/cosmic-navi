@@ -196,7 +196,13 @@ class BotFleetOpsTest {
             assertNull(tick(t, new BotFleetOps.Sample(m * MIN, 682010202, m * 37, 100, exp, true, -1), 0));
         }
         for (int m = 31; m <= 80; m++, exp += 183) {
-            BotFleetOps.AutoRescue ar = tick(t, new BotFleetOps.Sample(m * MIN, 682000100, 200 + (m % 2) * 20, 79, exp, true, -1), 0);
+            // Minutes 40 to 42 it wandered two maps over and came back, as it did live at 19:55. A rule that
+            // wanted every sample on one map would wait until minute 73 to act.
+            int map = m >= 40 && m <= 42 ? 682000400 : 682000100;
+            BotFleetOps.AutoRescue ar = tick(t, new BotFleetOps.Sample(m * MIN, map, 200 + (m % 2) * 20, 79, exp, true, -1), 0);
+            if (map != 682000100) {
+                continue; // the frozen check restarts on a new map; only the spot matters below
+            }
             assertEquals(0L, BotFleetOps.frozenForMs(t), "twitching 20 px is not frozen");
             assertTrue(BotFleetOps.noExpForMs(t) < BotFleetOps.NO_EXP_LIST_MS, "it keeps earning a little");
             if (ar != null && rescuedAt == -1) {
