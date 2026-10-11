@@ -188,7 +188,7 @@ Whisper a bot you own. Answers come back by whisper and only to the bot's regist
 | Whisper | Effect |
 |---|---|
 | `navi email` / `navi check my email` / `navi inbox` | Unread Gmail Primary count plus the newest three senders and subjects (read only) |
-| `navi fleet` / `navi why <bot>` / `navi rescue <bot>` / `navi park <bot>` | Fleet ops for your own bots, from the game server itself; see [tools/navi](tools/navi/README.md#use). Navi also whispers you when a bot freezes for 10 minutes or loops an errand |
+| `navi fleet` / `navi why <bot>` / `navi rescue <bot>` / `navi park <bot>` | Fleet ops for your own bots, from the game server itself; see [tools/navi](tools/navi/README.md#use). Navi also whispers you when a bot freezes for 10 minutes, loops an errand, or stays busy 30 minutes with no EXP |
 | `navi` | Lists what Navi can do |
 
 ### Quests

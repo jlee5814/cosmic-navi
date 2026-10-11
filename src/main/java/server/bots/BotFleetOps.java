@@ -8,6 +8,11 @@ import org.slf4j.LoggerFactory;
 import server.TimerManager;
 import server.maps.MapFactory;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -28,7 +33,10 @@ import java.util.regex.Pattern;
  * history. From it: a bot is <b>frozen</b> when it means to grind, travel or run an errand but has not
  * moved or earned EXP for {@link #FROZEN_ALERT_MS}; a bot is <b>looping</b> when it starts an errand to
  * the same map {@link #LOOP_REPEATS} times within {@link #LOOP_WINDOW_MS} (SipsBuddy26 rode to New Leaf
- * City every ten minutes all night). Either one whispers the bot's registered owner once per incident.
+ * City every ten minutes all night); a bot <b>earns nothing</b> when it stays busy for
+ * {@link #NO_EXP_ALERT_MS} without gaining EXP, wherever it goes. Each one whispers the bot's registered
+ * owner once per incident. Samples are saved to {@link #store} every minute and reloaded at start, so a
+ * deploy neither blanks the history nor repeats a whisper.
  *
  * <p>Commands, whispered to any bot the speaker owns: {@code navi fleet}, {@code navi why <bot>},
  * {@code navi rescue <bot>} (a town return scroll, the legal way out, then back to autopilot) and
@@ -49,7 +57,13 @@ final class BotFleetOps {
     static final long LOOP_ALERT_COOLDOWN_MS = 2 * 60 * 60_000L;
     static final long RATE_WINDOW_MS = 60 * 60_000L;
     static final long MIN_RATE_SPAN_MS = 10 * 60_000L;
+    static final long NO_EXP_ALERT_MS = 30 * 60_000L;
+    static final long NO_EXP_LIST_MS = 15 * 60_000L;  // shown by navi fleet before it is worth an alert
+    static final long FORGET_OFFLINE_MS = 15 * 60_000L;
     static final int MAX_LINE = 90;
+
+    /** Seam: where samples survive a restart (the server-cache volume outlives a rebuild). */
+    static Path store = Path.of("cache", "fleet-ops", "samples.tsv");
 
     private static final Pattern FLEET = Pattern.compile("^(?:fleet|status|bots)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern ACTION = Pattern.compile("^(why|rescue|unstick|park)\\s+(\\S+)$", Pattern.CASE_INSENSITIVE);
@@ -62,6 +76,7 @@ final class BotFleetOps {
         final ArrayDeque<Sample> samples = new ArrayDeque<>();
         final ArrayDeque<long[]> errandStarts = new ArrayDeque<>(); // {startedAtMs, mapId}
         boolean frozenAlerted;
+        boolean noExpAlerted;
         final Map<Integer, Long> loopAlertedAtMs = new HashMap<>();
     }
 
@@ -74,6 +89,7 @@ final class BotFleetOps {
     /** Start the once a minute sampler (idempotent); called when bots register, so TimerManager is up. */
     static void ensureStarted() {
         if (started.compareAndSet(false, true)) {
+            load(System.currentTimeMillis());
             TimerManager.getInstance().register(BotFleetOps::sampleAllSafely, SAMPLE_MS, SAMPLE_MS);
         }
     }
@@ -98,7 +114,87 @@ final class BotFleetOps {
                 log.debug("fleet ops: sampling {} failed", entry.bot != null ? entry.bot.getName() : "?", e);
             }
         }
-        tracks.keySet().removeIf(id -> BotManager.getInstance().getEntryByBotCharId(id) == null);
+        // A bot still logging in after a restart keeps its loaded history for a while.
+        tracks.entrySet().removeIf(e -> BotManager.getInstance().getEntryByBotCharId(e.getKey()) == null
+                && now - lastSampleAt(e.getValue()) > FORGET_OFFLINE_MS);
+        save();
+    }
+
+    private static long lastSampleAt(Track track) {
+        synchronized (track) {
+            Sample last = track.samples.peekLast();
+            return last == null ? 0L : last.t();
+        }
+    }
+
+    // ---- surviving a restart -----------------------------------------------------------------------
+
+    /** Write every track's samples, one per line: bot id, time, map, x, y, total EXP, busy, errand map. */
+    static void save() {
+        StringBuilder sb = new StringBuilder();
+        for (var e : tracks.entrySet()) {
+            synchronized (e.getValue()) {
+                for (Sample s : e.getValue().samples) {
+                    sb.append(e.getKey()).append('\t').append(s.t()).append('\t').append(s.mapId()).append('\t')
+                            .append(s.x()).append('\t').append(s.y()).append('\t').append(s.totalExp()).append('\t')
+                            .append(s.busy() ? 1 : 0).append('\t').append(s.errandMapId()).append('\n');
+                }
+            }
+        }
+        try {
+            Files.createDirectories(store.getParent());
+            Path tmp = store.resolveSibling(store.getFileName() + ".tmp");
+            Files.writeString(tmp, sb, StandardCharsets.UTF_8);
+            Files.move(tmp, store, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException | RuntimeException e) {
+            log.debug("fleet ops: saving samples failed", e);
+        }
+    }
+
+    /** Reload samples younger than the history window, so a deploy doesn't blank navi fleet for ten
+     *  minutes or reset a bot's stuck clock. Incidents already under way count as already whispered. */
+    static void load(long now) {
+        if (!Files.isRegularFile(store)) {
+            return;
+        }
+        Map<Integer, List<Sample>> byBot = new HashMap<>();
+        try {
+            for (String line : Files.readAllLines(store, StandardCharsets.UTF_8)) {
+                String[] f = line.split("\t");
+                if (f.length != 8) {
+                    continue;
+                }
+                Sample s = new Sample(Long.parseLong(f[1]), Integer.parseInt(f[2]), Integer.parseInt(f[3]),
+                        Integer.parseInt(f[4]), Long.parseLong(f[5]), "1".equals(f[6]), Integer.parseInt(f[7]));
+                if (now - s.t() <= KEEP_SAMPLES * SAMPLE_MS) {
+                    byBot.computeIfAbsent(Integer.parseInt(f[0]), id -> new ArrayList<>()).add(s);
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            log.debug("fleet ops: loading samples failed", e);
+            return;
+        }
+        for (var e : byBot.entrySet()) {
+            Track track = tracks.computeIfAbsent(e.getKey(), id -> new Track());
+            e.getValue().sort(Comparator.comparingLong(Sample::t));
+            e.getValue().forEach(s -> record(track, s));
+            primeAlerts(track, now);
+        }
+        log.info("fleet ops: restored samples for {} bots", byBot.size());
+    }
+
+    private static void primeAlerts(Track track, long now) {
+        long frozen = frozenForMs(track);
+        long noExp = noExpForMs(track);
+        int loopMap = lastErrandMap(track);
+        int starts = loopMap == -1 ? 0 : errandStarts(track, loopMap, now);
+        synchronized (track) {
+            track.frozenAlerted = frozen >= FROZEN_ALERT_MS;
+            track.noExpAlerted = noExp >= NO_EXP_ALERT_MS;
+            if (starts >= LOOP_REPEATS) {
+                track.loopAlertedAtMs.put(loopMap, now);
+            }
+        }
     }
 
     private static Sample sampleOf(BotEntry entry, Character bot, long now) {
@@ -138,6 +234,27 @@ final class BotFleetOps {
                 Sample s = it.next();
                 if (!s.busy() || s.mapId() != last.mapId() || s.totalExp() != last.totalExp()
                         || Math.abs(s.x() - last.x()) > STILL_PX || Math.abs(s.y() - last.y()) > STILL_PX) {
+                    break;
+                }
+                since = s.t();
+            }
+            return last.t() - since;
+        }
+    }
+
+    /** How long the newest sample's bot has been busy without gaining EXP, wherever it went; 0 when it
+     *  isn't busy. Catches a bot that keeps moving but never fights (SipsBuddy1 toured four shops for an
+     *  hour with a full bag), which the frozen and loop checks both miss. A death's loss is no gain. */
+    static long noExpForMs(Track track) {
+        synchronized (track) {
+            Sample last = track.samples.peekLast();
+            if (last == null || !last.busy()) {
+                return 0L;
+            }
+            long since = last.t();
+            for (var it = track.samples.descendingIterator(); it.hasNext(); ) {
+                Sample s = it.next();
+                if (!s.busy() || s.totalExp() < last.totalExp()) {
                     break;
                 }
                 since = s.t();
@@ -210,6 +327,20 @@ final class BotFleetOps {
                         + " (x " + last.x() + ", y " + last.y() + "). navi rescue " + shortName));
             } else if (frozen == 0) {
                 track.frozenAlerted = false;
+            }
+        }
+        long noExp = noExpForMs(track);
+        synchronized (track) {
+            if (noExp >= NO_EXP_ALERT_MS && !track.noExpAlerted) {
+                track.noExpAlerted = true;
+                // A frozen bot earns nothing either, and its owner already heard about it.
+                if (!track.frozenAlerted) {
+                    Sample last = track.samples.peekLast();
+                    out.add(clip(botName + " busy " + noExp / 60_000 + " min with no EXP, now at "
+                            + mapName(last.mapId()) + ". navi why " + shortName));
+                }
+            } else if (noExp == 0) {
+                track.noExpAlerted = false;
             }
         }
         int loopMap = lastErrandMap(track);
@@ -319,6 +450,7 @@ final class BotFleetOps {
         boolean warming = false;
         List<String> stuck = new ArrayList<>();
         List<String> looping = new ArrayList<>();
+        List<String> earningNothing = new ArrayList<>();
         List<String> capped = new ArrayList<>();
         List<Map.Entry<String, Double>> rates = new ArrayList<>();
         for (BotEntry e : mine) {
@@ -343,6 +475,11 @@ final class BotFleetOps {
             long frozen = frozenForMs(t);
             if (frozen >= FROZEN_LIST_MS) {
                 stuck.add(bot.getName() + " " + mapName(bot.getMapId()) + " " + frozen / 60_000 + " min");
+            } else {
+                long noExp = noExpForMs(t);
+                if (noExp >= NO_EXP_LIST_MS) {
+                    earningNothing.add(bot.getName() + " " + noExp / 60_000 + " min");
+                }
             }
             int loopMap = lastErrandMap(t);
             int starts = loopMap == -1 ? 0 : errandStarts(t, loopMap, now);
@@ -355,6 +492,7 @@ final class BotFleetOps {
                 : fmt(fleetRate) + " EXP/h last hour") + (capped.isEmpty() ? "" : ", " + capped.size() + " capped"));
         out.add(clip("Stuck: " + (stuck.isEmpty() ? "none" : String.join("; ", stuck))));
         out.add(clip("Looping: " + (looping.isEmpty() ? "none" : String.join("; ", looping))));
+        out.add(clip("No EXP: " + (earningNothing.isEmpty() ? "none" : String.join("; ", earningNothing))));
         if (!rates.isEmpty()) {
             rates.sort(Map.Entry.comparingByValue());
             List<String> slow = rates.stream().limit(2).map(r -> r.getKey() + " " + fmt(r.getValue())).toList();
@@ -375,10 +513,12 @@ final class BotFleetOps {
         if (t != null) {
             Double rate = expPerHour(t, now);
             long frozen = frozenForMs(t);
+            long noExp = noExpForMs(t);
             int loopMap = lastErrandMap(t);
             int starts = loopMap == -1 ? 0 : errandStarts(t, loopMap, now);
             out.add(clip((rate == null ? "EXP/h not known yet" : fmt(rate) + " EXP/h last hour")
-                    + (frozen >= FROZEN_LIST_MS ? ", still for " + frozen / 60_000 + " min" : "")
+                    + (frozen >= FROZEN_LIST_MS ? ", still for " + frozen / 60_000 + " min"
+                    : noExp >= NO_EXP_LIST_MS ? ", no EXP for " + noExp / 60_000 + " min" : "")
                     + (starts >= 2 ? ", " + starts + " errands to " + mapName(loopMap) + " in 45 min" : "")));
         }
         return out;

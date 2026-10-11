@@ -105,4 +105,58 @@ class BotFleetOpsTest {
         assertTrue(BotFleetOps.isHelp("help"));
         assertNull(BotFleetOps.handle(null, "email"));
     }
+
+    @Test
+    void aBusyBotThatMovesButEarnsNothingForHalfAnHourAlertsOnce() {
+        // SipsBuddy1: a different shop map every few minutes, never frozen, never the same errand thrice.
+        BotFleetOps.Track t = new BotFleetOps.Track();
+        int[] shops = {103000000, 200000111, 670000100, 600000000};
+        for (int m = 0; m <= 30; m++) {
+            BotFleetOps.record(t, new BotFleetOps.Sample(m * MIN, shops[(m / 4) % 4], m * 40, 0, 9_000, true, -1));
+        }
+        assertEquals(0L, BotFleetOps.frozenForMs(t));
+        assertEquals(30 * MIN, BotFleetOps.noExpForMs(t));
+        assertEquals(List.of("SipsBuddy1 busy 30 min with no EXP, now at New Leaf City. navi why 1"),
+                BotFleetOps.alerts(t, 30 * MIN, "SipsBuddy1", "1"));
+        BotFleetOps.record(t, new BotFleetOps.Sample(31 * MIN, 103000000, 0, 0, 9_000, true, -1));
+        assertTrue(BotFleetOps.alerts(t, 31 * MIN, "SipsBuddy1", "1").isEmpty(), "one whisper per incident");
+        BotFleetOps.record(t, new BotFleetOps.Sample(32 * MIN, 103000000, 0, 0, 9_400, true, -1));
+        assertEquals(0L, BotFleetOps.noExpForMs(t), "any gain ends the incident");
+    }
+
+    @Test
+    void aFrozenBotIsNotWhisperedTwiceForEarningNothing() {
+        BotFleetOps.Track t = new BotFleetOps.Track();
+        for (int i = 0; i <= 30; i++) {
+            BotFleetOps.record(t, still(i * MIN, 5_000));
+            List<String> alerts = BotFleetOps.alerts(t, i * MIN, "SipsBuddy26", "26");
+            assertTrue(alerts.stream().noneMatch(a -> a.contains("no EXP")), alerts.toString());
+        }
+    }
+
+    @Test
+    void samplesSurviveARestartAndOngoingIncidentsStayQuiet(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) {
+        java.nio.file.Path previousStore = BotFleetOps.store;
+        BotFleetOps.store = dir.resolve("fleet-ops").resolve("samples.tsv");
+        try {
+            BotFleetOps.tracks.clear();
+            long now = 100 * MIN;
+            BotFleetOps.Track t = BotFleetOps.tracks.computeIfAbsent(254, id -> new BotFleetOps.Track());
+            for (int i = 0; i <= 40; i++) {
+                BotFleetOps.record(t, still(now - (40 - i) * MIN, 9_000));
+            }
+            BotFleetOps.save();
+            BotFleetOps.tracks.clear();
+
+            BotFleetOps.load(now + MIN);
+            BotFleetOps.Track restored = BotFleetOps.tracks.get(254);
+            assertEquals(41, restored.samples.size());
+            assertEquals(40 * MIN, BotFleetOps.frozenForMs(restored));
+            assertTrue(BotFleetOps.alerts(restored, now + MIN, "SipsBuddy1", "1").isEmpty(),
+                    "the owner heard about it before the restart");
+        } finally {
+            BotFleetOps.tracks.clear();
+            BotFleetOps.store = previousStore;
+        }
+    }
 }
