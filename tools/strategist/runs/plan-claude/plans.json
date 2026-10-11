@@ -1,0 +1,465 @@
+{
+ "plans": {
+  "SipsBuddy1": {
+   "action": "party",
+   "target_map": 682010202,
+   "partner": "SipsBuddy3",
+   "reason": "At lv51 the lv20 Skeletons give poor exp; lv50 Dead Scarecrow with SipsBuddy3 (lv48) shares exp.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy2": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Uncapped support getting steady Brown Teddy exp.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy3": {
+   "action": "party",
+   "target_map": 682010202,
+   "partner": "SipsBuddy1",
+   "reason": "Same foyer, 3 levels apart, same target map.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy4": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy5": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy6": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Travelling to an uncrowded lv34 to 36 map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy7": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Gear farm on a fitting map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy8": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Travelling to a gear farm on an uncrowded map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy9": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy10": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Good exp at lv32.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy11": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Working grind, only bot on the map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy12": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Gear farm, only bot on the map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy13": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy14": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy15": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy16": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Travelling to a fitting Panda Teddy map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy17": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy18": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy19": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy20": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy21": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy22": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy23": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy24": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy25": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Gear farm on a fitting map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy26": {
+   "action": "move",
+   "target_map": 105050300,
+   "partner": null,
+   "reason": "At lv28, lv8 Orange Mushrooms are weak exp; Ant Tunnel IV has 42 Horny Mushrooms (lv22) and no bots once SipsBuddy8 leaves.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy27": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy28": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Travelling to a gear farm.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy29": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Gear farm, only bot on the map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy30": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Gear farm on a fitting map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy31": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Targeted Fish Spear farm.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy32": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Travelling to a targeted Fish Spear farm.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy33": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Resupplying, mid task.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy34": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Travelling to a gear farm.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy35": {
+   "action": "party",
+   "target_map": 600020200,
+   "partner": "SipsBuddy36",
+   "reason": "Both lv32 on the same map; party up on Killa Bee x44.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy36": {
+   "action": "party",
+   "target_map": 600020200,
+   "partner": "SipsBuddy35",
+   "reason": "At lv32, lv15 Green Mushrooms are weak; Soul Corridor with SipsBuddy35 is next door.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy37": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "One level from cap and gear farming; not worth moving.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy38": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Gear farm on a fitting map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy39": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Travelling to a fitting map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy40": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy41": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Resupplied and heading back, mid task.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy42": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Gear farm, only bot on the map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy43": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Cap 43 reached; idle by design.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy44": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Travelling to a fitting map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy45": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Solid exp, only bot on the map.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy46": {
+   "action": "party",
+   "target_map": 103000200,
+   "partner": "SipsBuddy49",
+   "reason": "At lv39, lv7 Pigs are weak; 83 Jr. Wraiths (lv35) and only capped bots there.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy47": {
+   "action": "party",
+   "target_map": 103000200,
+   "partner": "SipsBuddy49",
+   "reason": "At lv38, lv2 Blue Snails are near zero exp; join the Jr. Wraith party.",
+   "confidence": "high",
+   "problem": null
+  },
+  "SipsBuddy48": {
+   "action": "party",
+   "target_map": 103000103,
+   "partner": "SipsBuddy50",
+   "reason": "At lv35, lv6 Slimes are weak; 70 Jr. Wraiths (lv35) and only a capped bot there.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy49": {
+   "action": "party",
+   "target_map": 103000200,
+   "partner": "SipsBuddy47",
+   "reason": "At lv38, lv8 mobs are weak; party with SipsBuddy46 and SipsBuddy47, all within 1 level.",
+   "confidence": "medium",
+   "problem": null
+  },
+  "SipsBuddy50": {
+   "action": "party",
+   "target_map": 103000103,
+   "partner": "SipsBuddy48",
+   "reason": "At lv36, lv6 Slimes are weak; party with SipsBuddy48 (lv35) on Jr. Wraith.",
+   "confidence": "medium",
+   "problem": null
+  }
+ },
+ "notes": [
+  {
+   "note": "Bandits lv35 to 39 are on lv2 to 8 mobs (Blue Snail, Pig, Slime, Cynical Orange Mushroom), far below their level.",
+   "bots": [
+    "SipsBuddy46",
+    "SipsBuddy47",
+    "SipsBuddy48",
+    "SipsBuddy49",
+    "SipsBuddy50"
+   ]
+  },
+  {
+   "note": "Both Kerning subway Jr. Wraith maps (lv35, x83 and x70) hold only capped idle bots; nobody is training there.",
+   "bots": [
+    "SipsBuddy4",
+    "SipsBuddy17",
+    "SipsBuddy19"
+   ]
+  },
+  {
+   "note": "SipsBuddy1 (lv51) and SipsBuddy3 (lv48) are both at 682000100 in separate parties; SipsBuddy1 is heading to lv20 mobs.",
+   "bots": [
+    "SipsBuddy1",
+    "SipsBuddy3"
+   ]
+  },
+  {
+   "note": "SipsBuddy35 and SipsBuddy36 are both lv32 at 600020100 in separate parties.",
+   "bots": [
+    "SipsBuddy35",
+    "SipsBuddy36"
+   ]
+  },
+  {
+   "note": "17 bots sit at cap 43 and idle; that is by design, so no action.",
+   "bots": [
+    "SipsBuddy4",
+    "SipsBuddy5",
+    "SipsBuddy9",
+    "SipsBuddy13",
+    "SipsBuddy14",
+    "SipsBuddy15",
+    "SipsBuddy17",
+    "SipsBuddy18",
+    "SipsBuddy19",
+    "SipsBuddy20",
+    "SipsBuddy21",
+    "SipsBuddy22",
+    "SipsBuddy23",
+    "SipsBuddy24",
+    "SipsBuddy27",
+    "SipsBuddy40",
+    "SipsBuddy43"
+   ]
+  }
+ ],
+ "usage": {
+  "total_cost_usd": 1.36072,
+  "duration_ms": 53635,
+  "num_turns": 2
+ }
+}

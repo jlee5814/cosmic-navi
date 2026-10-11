@@ -35,7 +35,7 @@
       "second_job_id": 230,
       "level_target": "81",
       "training_stop_level": 81,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy4",
@@ -47,7 +47,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy5",
@@ -59,7 +59,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy6",
@@ -71,7 +71,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy7",
@@ -107,7 +107,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy10",
@@ -155,7 +155,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy14",
@@ -167,7 +167,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy15",
@@ -179,7 +179,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy16",
@@ -203,7 +203,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy18",
@@ -215,7 +215,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy19",
@@ -227,7 +227,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy20",
@@ -239,7 +239,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy21",
@@ -251,7 +251,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy22",
@@ -263,7 +263,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy23",
@@ -275,7 +275,7 @@
       "second_job_id": 230,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy24",
@@ -287,7 +287,7 @@
       "second_job_id": 130,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy25",
@@ -323,7 +323,7 @@
       "second_job_id": 130,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy28",
@@ -479,7 +479,7 @@
       "second_job_id": 410,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy41",
@@ -515,7 +515,7 @@
       "second_job_id": 410,
       "level_target": "35",
       "training_stop_level": 43,
-      "active": true
+      "active": false
     },
     {
       "name": "SipsBuddy44",

@@ -123,6 +123,7 @@ def main():
     ap.add_argument("--seeds", type=int, default=5)
     ap.add_argument("--out", default=str(here / "results"))
     ap.add_argument("--label", default="")
+    ap.add_argument("--concurrency", type=int, default=8)
     ap.add_argument("--variant", default="baseline", choices=sorted(prompt.VARIANTS))
     ap.add_argument("--rescore", help="re-judge a saved replies.jsonl without calling the model")
     args = ap.parse_args()
@@ -155,7 +156,7 @@ def main():
                 "seed": seed, "raw": raw, "reply": reply, "label": label, "pass": ok, "ms": ms}
 
     t0 = time.time()
-    with ThreadPoolExecutor(8) as ex:
+    with ThreadPoolExecutor(args.concurrency) as ex:
         rows = list(ex.map(run, jobs))
     out = Path(args.out) / time.strftime("%Y%m%d-%H%M%S")
     out.mkdir(parents=True, exist_ok=True)

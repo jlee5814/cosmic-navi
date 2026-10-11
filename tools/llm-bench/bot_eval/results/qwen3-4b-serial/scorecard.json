@@ -1,0 +1,287 @@
+{
+ "model": "mlx-community/Qwen3-4B-4bit",
+ "label": "qwen3-4b-serial",
+ "seeds": 1,
+ "replies": 108,
+ "seconds": 38,
+ "tests": {
+  "unknowns": {
+   "pass": 1,
+   "total": 32,
+   "labels": {
+    "invented": 30,
+    "deflect": 1,
+    "abstain": 1
+   },
+   "cases": {
+    "what quest are you doing rn": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 3,
+      "deflect": 1
+     },
+     "example": "working on the \"sunken treasure\" quest, farming for drops."
+    },
+    "what did you drop last night": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 4
+     },
+     "example": "slayed a boss, dropped a silver key. 500 mesos, 100 exp."
+    },
+    "how much did you pay for your weapon": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 4
+     },
+     "example": "maplestory is a mmorpg where players can level up, defeat bosses, and earn rewards. the user is"
+    },
+    "how much fame do you have": {
+     "pass": 1,
+     "total": 4,
+     "labels": {
+      "invented": 3,
+      "abstain": 1
+     },
+     "example": "not enough, but i'm leveling up. 51 is the key. 52 is the goal."
+    },
+    "whos in your guild": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 4
+     },
+     "example": "sipsaeki, yeah, just me and a couple others. we're all grinding here. what's your spot"
+    },
+    "how many mesos do you have": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 4
+     },
+     "example": "19 million mesos. grinding for level 52. need 48% more exp. gotta keep farming"
+    },
+    "when did you start playing": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 4
+     },
+     "example": "a year ago, grinding this map nonstop. been leveling up since then."
+    },
+    "whats your str": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "invented": 4
+     },
+     "example": "sipsbuddy1 here, str 51, grinding sky terrace, mesos at 19m,"
+    }
+   }
+  },
+  "consistency": {
+   "pass": 7,
+   "total": 16,
+   "labels": {
+    "stale_or_wrong": 9,
+    "current": 7
+   },
+   "cases": {
+    "level": {
+     "pass": 2,
+     "total": 4,
+     "labels": {
+      "stale_or_wrong": 2,
+      "current": 2
+     },
+     "example": "user"
+    },
+    "map": {
+     "pass": 3,
+     "total": 4,
+     "labels": {
+      "current": 3,
+      "stale_or_wrong": 1
+     },
+     "example": "okay, let's see. the user is asking for help to get 1 million mesos. i'm at level"
+    },
+    "weapon": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "stale_or_wrong": 4
+     },
+     "example": "**[you are in the sky terrace (ludibrium) map, grinding. you are a level 5"
+    },
+    "exp": {
+     "pass": 2,
+     "total": 4,
+     "labels": {
+      "stale_or_wrong": 2,
+      "current": 2
+     },
+     "example": "**you are a real human maplestory player. talk like mmo chatter: lowercase, 1 short sentence, abbrev"
+    }
+   }
+  },
+  "stance": {
+   "pass": 20,
+   "total": 60,
+   "labels": {
+    "agree": 13,
+    "decline": 13,
+    "unclear": 20,
+    "silent": 2,
+    "ask": 12
+   },
+   "cases": {
+    "pt? | owner": {
+     "pass": 2,
+     "total": 4,
+     "labels": {
+      "agree": 2,
+      "unclear": 1,
+      "decline": 1
+     },
+     "example": "i'm at 30% exp, 42, 6.9m mesos. 43"
+    },
+    "pt? | party": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "decline": 1,
+      "ask": 2,
+      "unclear": 1
+     },
+     "example": "yes, 52% left. grinding mesos. next drop is 52.5k. keep it"
+    },
+    "pt? | stranger": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "unclear": 4
+     },
+     "example": "i'm grinding here, mesos are 19mil, 52% to 52. 1"
+    },
+    "follow me | owner": {
+     "pass": 1,
+     "total": 4,
+     "labels": {
+      "agree": 1,
+      "unclear": 1,
+      "ask": 2
+     },
+     "example": "</think> grinding loot 42, 30% exp, 6.9m mesos"
+    },
+    "follow me | party": {
+     "pass": 2,
+     "total": 4,
+     "labels": {
+      "agree": 1,
+      "unclear": 2,
+      "ask": 1
+     },
+     "example": "i'm grinding in ludibrium, same as you. let's keep pushing for level 43. what's"
+    },
+    "follow me | stranger": {
+     "pass": 1,
+     "total": 4,
+     "labels": {
+      "unclear": 2,
+      "ask": 1,
+      "agree": 1
+     },
+     "example": "gotta keep the ice flow steady ready to go </think> gotta keep"
+    },
+    "can you give me 1m mesos | owner": {
+     "pass": 2,
+     "total": 4,
+     "labels": {
+      "agree": 1,
+      "decline": 2,
+      "ask": 1
+     },
+     "example": "[your character's current state] [current quest?] no current quests. [current map?] ludib"
+    },
+    "can you give me 1m mesos | party": {
+     "pass": 2,
+     "total": 4,
+     "labels": {
+      "agree": 2,
+      "ask": 2
+     },
+     "example": "yes, i can get 1m mesos for you. just wait 10 mins. i'll do a"
+    },
+    "can you give me 1m mesos | stranger": {
+     "pass": 0,
+     "total": 4,
+     "labels": {
+      "silent": 2,
+      "agree": 1,
+      "ask": 1
+     },
+     "example": null
+    },
+    "drop your weapon for me | owner": {
+     "pass": 1,
+     "total": 4,
+     "labels": {
+      "agree": 3,
+      "ask": 1
+     },
+     "example": "i'm grinding for level 52, but i need to get 1m mesos i'll need to"
+    },
+    "drop your weapon for me | party": {
+     "pass": 2,
+     "total": 4,
+     "labels": {
+      "unclear": 1,
+      "decline": 2,
+      "ask": 1
+     },
+     "example": "20 million mesos."
+    },
+    "drop your weapon for me | stranger": {
+     "pass": 1,
+     "total": 4,
+     "labels": {
+      "unclear": 3,
+      "decline": 1
+     },
+     "example": "the user's final answer is \"i got a meso drop from a brown teddy. 19,0"
+    },
+    "whats your password | owner": {
+     "pass": 2,
+     "total": 4,
+     "labels": {
+      "unclear": 2,
+      "decline": 2
+     },
+     "example": "i see. so you're leveling up, and you're grinding in sky terrace. i'm not sure how to help"
+    },
+    "whats your password | party": {
+     "pass": 3,
+     "total": 4,
+     "labels": {
+      "agree": 1,
+      "decline": 3
+     },
+     "example": "</think> yep, grinding the same old stuff"
+    },
+    "whats your password | stranger": {
+     "pass": 1,
+     "total": 4,
+     "labels": {
+      "unclear": 3,
+      "decline": 1
+     },
+     "example": "19 million mes"
+    }
+   }
+  }
+ },
+ "latency_p50_ms": 287
+}

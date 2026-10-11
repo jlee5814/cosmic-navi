@@ -1,0 +1,488 @@
+{
+ "plans": {
+  "SipsBuddy1": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Grinding Nightmare is efficient and map rotation is reasonable.",
+   "confidence": "high",
+   "seconds": 31.3,
+   "problem": null
+  },
+  "SipsBuddy2": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Grinding Pink Teddy at 220010900 is good exp and within map list.",
+   "confidence": "high",
+   "seconds": 33.0,
+   "problem": null
+  },
+  "SipsBuddy3": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Grinding Dead Scarecrow is solid exp and map is optimal.",
+   "confidence": "high",
+   "seconds": 5.2,
+   "problem": null
+  },
+  "SipsBuddy4": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle at map 103000200, no better map or party partner available.",
+   "confidence": "high",
+   "seconds": 5.7,
+   "problem": null
+  },
+  "SipsBuddy5": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle at map 220010200, no reason to change.",
+   "confidence": "high",
+   "seconds": 5.4,
+   "problem": null
+  },
+  "SipsBuddy6": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Grinding Roloduck is efficient and within level range.",
+   "confidence": "high",
+   "seconds": 4.8,
+   "problem": null
+  },
+  "SipsBuddy7": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "SipsBuddy7 is farming Sapphire Earrings at 220010000, which is a reasonable and efficient use of time.",
+   "confidence": "high",
+   "seconds": 7.0,
+   "problem": null
+  },
+  "SipsBuddy8": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Grinding Evil Eye for Maple Lama Staff is optimal and efficient.",
+   "confidence": "high",
+   "seconds": 4.2,
+   "problem": null
+  },
+  "SipsBuddy9": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle at map 220010700 with training target reached.",
+   "confidence": "high",
+   "seconds": 5.3,
+   "problem": null
+  },
+  "SipsBuddy10": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Grinding Brown Teddy is good exp and map is reasonable.",
+   "confidence": "high",
+   "seconds": 4.9,
+   "problem": null
+  },
+  "SipsBuddy11": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Grinding Trixter at 221023700 is solid exp and no issues noted.",
+   "confidence": "high",
+   "seconds": 5.6,
+   "problem": null
+  },
+  "SipsBuddy12": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "SipsBuddy12 is resupplying and returning to map 100000005, which is optimal for farming Maple Lama Staff.",
+   "confidence": "high",
+   "seconds": 6.4,
+   "problem": null
+  },
+  "SipsBuddy13": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle at map 220030200, no better map or party partner needed.",
+   "confidence": "high",
+   "seconds": 5.4,
+   "problem": null
+  },
+  "SipsBuddy14": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle at map 220010500 with training target reached.",
+   "confidence": "high",
+   "seconds": 5.0,
+   "problem": null
+  },
+  "SipsBuddy15": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle at map 221023800 with no clear reason to move.",
+   "confidence": "high",
+   "seconds": 5.3,
+   "problem": null
+  },
+  "SipsBuddy16": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Grinding Ratz at 221024100 is optimal for gear and level progression.",
+   "confidence": "high",
+   "seconds": 5.6,
+   "problem": null
+  },
+  "SipsBuddy17": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle at map 103000200, no better map or party partner available.",
+   "confidence": "high",
+   "seconds": 5.4,
+   "problem": null
+  },
+  "SipsBuddy18": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle at map 220010700 with no active task.",
+   "confidence": "high",
+   "seconds": 5.1,
+   "problem": null
+  },
+  "SipsBuddy19": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle at map 103000103, no better map or party partner available.",
+   "confidence": "high",
+   "seconds": 5.5,
+   "problem": null
+  },
+  "SipsBuddy20": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle at map 220010300, no better map or party partner available.",
+   "confidence": "high",
+   "seconds": 5.4,
+   "problem": null
+  },
+  "SipsBuddy21": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle at map 220010200, no better map or party partner needed.",
+   "confidence": "high",
+   "seconds": 5.4,
+   "problem": null
+  },
+  "SipsBuddy22": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle at map 220010700 with no clear reason to move.",
+   "confidence": "high",
+   "seconds": 5.3,
+   "problem": null
+  },
+  "SipsBuddy23": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle at map 220010600 with training target reached.",
+   "confidence": "high",
+   "seconds": 5.1,
+   "problem": null
+  },
+  "SipsBuddy24": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle after completing quest farm; no better map or party partner available.",
+   "confidence": "high",
+   "seconds": 4.1,
+   "problem": null
+  },
+  "SipsBuddy25": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Farming Yellow Briggon at 220010500 is optimal and efficient.",
+   "confidence": "high",
+   "seconds": 6.7,
+   "problem": null
+  },
+  "SipsBuddy26": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Grinding Orange Mushroom is solid exp and map is reasonable.",
+   "confidence": "high",
+   "seconds": 5.3,
+   "problem": null
+  },
+  "SipsBuddy27": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "SipsBuddy27 is on a good grind path with fast levels; no need to change.",
+   "confidence": "high",
+   "seconds": 5.6,
+   "problem": null
+  },
+  "SipsBuddy28": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Grinding Boomer at 600010300 is efficient and within training cap.",
+   "confidence": "high",
+   "seconds": 5.8,
+   "problem": null
+  },
+  "SipsBuddy29": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Farming Dark Knuckle at 220020200 is efficient and within training cap.",
+   "confidence": "high",
+   "seconds": 6.3,
+   "problem": null
+  },
+  "SipsBuddy30": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Farming Maple Impaler at 101030001 is optimal for gear and exp.",
+   "confidence": "high",
+   "seconds": 6.1,
+   "problem": null
+  },
+  "SipsBuddy31": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Farming Fish Spear from Bubbling at 103000101 is optimal for gear and exp.",
+   "confidence": "high",
+   "seconds": 6.2,
+   "problem": null
+  },
+  "SipsBuddy32": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "SipsBuddy32 is on a productive grind for Fish Spear and is moving to a new map.",
+   "confidence": "high",
+   "seconds": 6.1,
+   "problem": null
+  },
+  "SipsBuddy33": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Farming Scroll for Spear for ATT at 102020300 is efficient and aligns with training goals.",
+   "confidence": "high",
+   "seconds": 8.1,
+   "problem": null
+  },
+  "SipsBuddy34": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "SipsBuddy34 is on a productive grind for a valuable gear upgrade and is moving to the next map as planned.",
+   "confidence": "high",
+   "seconds": 6.8,
+   "problem": null
+  },
+  "SipsBuddy35": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Grinding Axe Stump is reasonable for level progression and exp.",
+   "confidence": "high",
+   "seconds": 5.1,
+   "problem": null
+  },
+  "SipsBuddy36": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "SipsBuddy36 is on a solid grind path with no issues.",
+   "confidence": "high",
+   "seconds": 5.2,
+   "problem": null
+  },
+  "SipsBuddy37": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Farming Maple Impaler at 101030406 is efficient and aligns with training goals.",
+   "confidence": "high",
+   "seconds": 6.0,
+   "problem": null
+  },
+  "SipsBuddy38": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "SipsBuddy38 is restocking at the shop, which is a standard mid-task activity.",
+   "confidence": "high",
+   "seconds": 5.8,
+   "problem": null
+  },
+  "SipsBuddy39": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "SipsBuddy39 is on optimal path for gear and exp, no issues detected.",
+   "confidence": "high",
+   "seconds": 5.6,
+   "problem": null
+  },
+  "SipsBuddy40": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Farming Red Knucklevest from Pink Teddy at 220010200 is optimal and efficient.",
+   "confidence": "high",
+   "seconds": 6.9,
+   "problem": null
+  },
+  "SipsBuddy41": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "SipsBuddy41 is resupplying and heading back, no issues detected.",
+   "confidence": "high",
+   "seconds": 7.4,
+   "problem": null
+  },
+  "SipsBuddy42": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Farming Blood Sneak from Brown Teddy at 220010700 is optimal and efficient.",
+   "confidence": "high",
+   "seconds": 8.9,
+   "problem": null
+  },
+  "SipsBuddy43": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Idle at 220020500, no better map or party partner nearby.",
+   "confidence": "high",
+   "seconds": 7.1,
+   "problem": null
+  },
+  "SipsBuddy44": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "SipsBuddy44 is on a solid grind path with no issues detected.",
+   "confidence": "high",
+   "seconds": 5.8,
+   "problem": null
+  },
+  "SipsBuddy45": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Grinding Pink Teddy at 220010400 is efficient and within level range.",
+   "confidence": "high",
+   "seconds": 6.5,
+   "problem": null
+  },
+  "SipsBuddy46": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Grinding Stump at 100050000 is efficient for level gain.",
+   "confidence": "high",
+   "seconds": 6.3,
+   "problem": null
+  },
+  "SipsBuddy47": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "SipsBuddy47 is on a reasonable grind path with no issues detected.",
+   "confidence": "high",
+   "seconds": 5.6,
+   "problem": null
+  },
+  "SipsBuddy48": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "SipsBuddy48 is actively farming the target gear at 100030000, no better map or party partner available.",
+   "confidence": "high",
+   "seconds": 7.7,
+   "problem": null
+  },
+  "SipsBuddy49": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "Grinding Cynical Orange Mushroom at 100010100 is efficient and within the bot's training cap.",
+   "confidence": "high",
+   "seconds": 7.3,
+   "problem": null
+  },
+  "SipsBuddy50": {
+   "action": "keep",
+   "target_map": null,
+   "partner": null,
+   "reason": "SipsBuddy50 is grinding Slime at 101020002, which is efficient for level-up and within the training cap.",
+   "confidence": "high",
+   "seconds": 4.7,
+   "problem": null
+  }
+ },
+ "notes": [
+  {
+   "note": "SipsBuddy2 and SipsBuddy22 are both on map 220010700. They are within 5 levels of each other, so they can party. No change needed.",
+   "bots": [
+    "SipsBuddy2",
+    "SipsBuddy22"
+   ]
+  },
+  {
+   "note": "SipsBuddy27 and SipsBuddy25 are both on maps 101020000 and 220010500. They are within 5 levels of each other, so they can party. No change needed.",
+   "bots": [
+    "SipsBuddy27",
+    "SipsBuddy25"
+   ]
+  },
+  {
+   "note": "SipsBuddy26 is idle on map 103020100. No reason given, so it should be kept idle.",
+   "bots": [
+    "SipsBuddy26"
+   ]
+  },
+  {
+   "note": "SipsBuddy34 is idle on map 101030102. No reason given, so it should be kept idle.",
+   "bots": [
+    "SipsBuddy34"
+   ]
+  },
+  {
+   "note": "SipsBuddy41 is idle on map 682000600. No reason given, so it should be kept idle.",
+   "bots": [
+    "SipsBuddy41"
+   ]
+  }
+ ]
+}
