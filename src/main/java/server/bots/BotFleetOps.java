@@ -60,6 +60,10 @@ final class BotFleetOps {
     static final long NO_EXP_ALERT_MS = 30 * 60_000L;
     static final long NO_EXP_LIST_MS = 15 * 60_000L;  // shown by navi fleet before it is worth an alert
     static final long FORGET_OFFLINE_MS = 15 * 60_000L;
+    static final long AUTO_RESCUE_FROZEN_MS = 20 * 60_000L;
+    static final long AUTO_RESCUE_NO_EXP_MS = 45 * 60_000L;
+    static final int AUTO_RESCUE_MAX = 2;
+    static final long AUTO_RESCUE_WINDOW_MS = 2 * 60 * 60_000L;
     static final int MAX_LINE = 90;
 
     /** Seam: where samples survive a restart (the server-cache volume outlives a rebuild). */
@@ -77,6 +81,9 @@ final class BotFleetOps {
         final ArrayDeque<long[]> errandStarts = new ArrayDeque<>(); // {startedAtMs, mapId}
         boolean frozenAlerted;
         boolean noExpAlerted;
+        long resetAtMs;                                         // a rescue starts the stall clocks over
+        final ArrayDeque<Long> autoRescuesAtMs = new ArrayDeque<>();
+        boolean autoRescueGaveUpAlerted;
         final Map<Integer, Long> loopAlertedAtMs = new HashMap<>();
     }
 
@@ -106,7 +113,15 @@ final class BotFleetOps {
                 }
                 Track track = tracks.computeIfAbsent(bot.getId(), id -> new Track());
                 record(track, sampleOf(entry, bot, now));
-                List<String> alerts = alerts(track, now, bot.getName(), shortName(bot.getName()));
+                List<String> alerts = new ArrayList<>(alerts(track, now, bot.getName(), shortName(bot.getName())));
+                AutoRescue ar = autoRescue(track, now);
+                if (ar != null && ar.rescue()) {
+                    entry.nextTickTask = () -> runAutoRescue(entry, ar.why());
+                } else if (ar != null) {
+                    alerts.add(clip(bot.getName() + " " + ar.why() + " at " + mapName(bot.getMapId()) + " after "
+                            + AUTO_RESCUE_MAX + " auto rescues in " + AUTO_RESCUE_WINDOW_MS / 3_600_000
+                            + " h; it needs a fix. navi why " + shortName(bot.getName())));
+                }
                 if (!alerts.isEmpty()) {
                     notifyOwner(entry, bot, alerts);
                 }
@@ -200,7 +215,8 @@ final class BotFleetOps {
     private static Sample sampleOf(BotEntry entry, Character bot, long now) {
         boolean busy = (entry.grinding || BotAutopilotManager.isActive(entry) || entry.autopilotErrandMapId != -1)
                 && entry.operatorCmd == null && !entry.loggingOut && !entry.restErrand && now >= entry.breakUntilMs
-                && !BotTrainingPlan.complete(entry, bot);
+                && !BotTrainingPlan.complete(entry, bot)
+                && !BotFerryManager.isWaitingOrRiding(entry, bot); // standing on a dock or a deck is the plan
         java.awt.Point p = bot.getPosition();
         return new Sample(now, bot.getMapId(), p.x, p.y, totalExp(bot.getLevel(), bot.getExp()), busy,
                 entry.autopilotErrandMapId);
@@ -232,7 +248,7 @@ final class BotFleetOps {
             long since = last.t();
             for (var it = track.samples.descendingIterator(); it.hasNext(); ) {
                 Sample s = it.next();
-                if (!s.busy() || s.mapId() != last.mapId() || s.totalExp() != last.totalExp()
+                if (s.t() < track.resetAtMs || !s.busy() || s.mapId() != last.mapId() || s.totalExp() != last.totalExp()
                         || Math.abs(s.x() - last.x()) > STILL_PX || Math.abs(s.y() - last.y()) > STILL_PX) {
                     break;
                 }
@@ -254,7 +270,7 @@ final class BotFleetOps {
             long since = last.t();
             for (var it = track.samples.descendingIterator(); it.hasNext(); ) {
                 Sample s = it.next();
-                if (!s.busy() || s.totalExp() < last.totalExp()) {
+                if (s.t() < track.resetAtMs || !s.busy() || s.totalExp() < last.totalExp()) {
                     break;
                 }
                 since = s.t();
@@ -524,17 +540,84 @@ final class BotFleetOps {
         return out;
     }
 
+    /** Town return scroll, then back to the bot's own plan from town; the stall clocks start over. False
+     *  when it has no scroll it can use here. */
+    private static boolean scrollOut(BotEntry entry, long now) {
+        Character bot = entry.bot;
+        if (!BotManager.getInstance().tryUseReturnScroll(bot)) {
+            return false;
+        }
+        BotManager.getInstance().resumeFromOperatorCommand(entry);
+        Track t = tracks.get(bot.getId());
+        if (t != null) {
+            synchronized (t) {
+                t.resetAtMs = now; // keep the EXP history; only the stall clocks restart
+            }
+        }
+        return true;
+    }
+
+    // ---- auto rescue -------------------------------------------------------------------------------
+
+    /** What the sampler should do about a stalled bot: scroll it out, or tell the owner it gave up. */
+    record AutoRescue(boolean rescue, String why) {}
+
+    /** Decide, once a minute, whether to scroll a bot out without waiting for {@code navi rescue}: frozen for
+     *  {@link #AUTO_RESCUE_FROZEN_MS}, or busy on its own map plan (not an errand) with no EXP for
+     *  {@link #AUTO_RESCUE_NO_EXP_MS}. An errand loop is left alone, since a scroll only restarts it. At most
+     *  {@link #AUTO_RESCUE_MAX} per {@link #AUTO_RESCUE_WINDOW_MS}; past that it says so once and stops, since a
+     *  spot that refreezes the bot needs a code fix, not more scrolls. */
+    static AutoRescue autoRescue(Track track, long now) {
+        long frozen = frozenForMs(track);
+        long noExp = noExpForMs(track);
+        synchronized (track) {
+            Sample last = track.samples.peekLast();
+            String why = frozen >= AUTO_RESCUE_FROZEN_MS ? "frozen " + frozen / 60_000 + " min"
+                    : noExp >= AUTO_RESCUE_NO_EXP_MS && last != null && last.errandMapId() == -1
+                    ? "busy " + noExp / 60_000 + " min with no EXP" : null;
+            if (why == null) {
+                track.autoRescueGaveUpAlerted = false;
+                return null;
+            }
+            while (!track.autoRescuesAtMs.isEmpty() && now - track.autoRescuesAtMs.peekFirst() > AUTO_RESCUE_WINDOW_MS) {
+                track.autoRescuesAtMs.removeFirst();
+            }
+            if (track.autoRescuesAtMs.size() >= AUTO_RESCUE_MAX) {
+                if (track.autoRescueGaveUpAlerted) {
+                    return null;
+                }
+                track.autoRescueGaveUpAlerted = true;
+                return new AutoRescue(false, why);
+            }
+            track.autoRescuesAtMs.addLast(now);
+            track.resetAtMs = now; // no second decision while the scroll waits for the bot's tick
+            return new AutoRescue(true, why);
+        }
+    }
+
+    /** Runs on the bot's own tick (via {@link BotEntry#nextTickTask}), so the scroll can't race its movement. */
+    static void runAutoRescue(BotEntry entry, String why) {
+        Character bot = entry.bot;
+        if (bot == null || bot.getMap() == null || entry.operatorCmd != null || entry.loggingOut) {
+            return; // the owner or a logout took over since the decision
+        }
+        String from = mapName(bot.getMapId());
+        String name = bot.getName();
+        if (scrollOut(entry, System.currentTimeMillis())) {
+            log.info("fleet ops: auto rescued {} ({}) from {} by return scroll", name, why, from);
+            notifyOwner(entry, bot, List.of(clip(name + " was " + why + " at " + from + "; navi scrolled it to "
+                    + mapName(bot.getMapId()))));
+        } else {
+            log.info("fleet ops: couldn't auto rescue {} ({}) at {}: no usable return scroll", name, why, from);
+            notifyOwner(entry, bot, List.of(clip(name + " is " + why + " at " + from
+                    + " with no usable return scroll. navi rescue " + shortName(name))));
+        }
+    }
+
     private static List<String> rescue(BotEntry entry) {
         Character bot = entry.bot;
         String from = mapName(bot.getMapId());
-        if (BotManager.getInstance().tryUseReturnScroll(bot)) {
-            BotManager.getInstance().resumeFromOperatorCommand(entry); // back to its own plan, from town
-            Track t = tracks.get(bot.getId());
-            if (t != null) {
-                synchronized (t) {
-                    t.samples.clear(); // a fresh start: don't flag it stuck from before the scroll
-                }
-            }
+        if (scrollOut(entry, System.currentTimeMillis())) {
             log.info("fleet ops: rescued {} from {} by return scroll", bot.getName(), from);
             return List.of(clip(bot.getName() + " scrolled from " + from + " to " + mapName(bot.getMapId())));
         }
