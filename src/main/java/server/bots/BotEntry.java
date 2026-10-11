@@ -624,6 +624,9 @@ public class BotEntry {
     Runnable pendingBotTradeRetry = null;
     int pendingBotTradeRetryMs = 0;
 
+    // Last time this bot set out to restock return scrolls on their own (BotShopManager.wantsReturnScrollRun).
+    long returnScrollRunAtMs = 0L;
+
     // Trade queue
     String pendingTradeCategory = null;
     List<Item> pendingTradeItems = null;
