@@ -67,6 +67,10 @@ town by itself. You see only what that can't settle:
 - no_exp_on_errand: busy on an errand for 30 minutes or more without gaining EXP.
 - refreezing: frozen again after two auto rescues in two hours, so the spot itself traps it.
 - no_exp_after_rescue: still earning nothing after an auto rescue.
+- low_exp_on_errand: on an errand for 30 minutes while earning under a fifth of its usual EXP per hour
+  (expPerHourLast30Min against usualExpPerHour).
+- low_exp_after_rescue: still under a fifth of its usual pace after an auto rescue, often a spot or a map
+  that keeps it from fighting.
 
 Pick exactly one action. Each runs through the game's own code and safety checks:
 - rescue: town return scroll, then back to its own plan. Useless for an errand loop (the loop restarts).

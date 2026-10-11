@@ -64,6 +64,15 @@ final class BotFleetOps {
     static final long AUTO_RESCUE_NO_EXP_MS = 45 * 60_000L;
     static final int AUTO_RESCUE_MAX = 2;
     static final long AUTO_RESCUE_WINDOW_MS = 2 * 60 * 60_000L;
+    // Low EXP: earning something, but under a fifth of its usual pace for half an hour. The usual pace is
+    // the bot's best recent 30 minute rate, a peak that halves every 6 hours, never below half its level
+    // band's median, so a bot that was slow since it logged in still has a bar.
+    static final long PACE_WINDOW_MS = 30 * 60_000L;
+    static final double LOW_EXP_FRACTION = 0.2;
+    static final long LOW_EXP_LIST_MS = 15 * 60_000L;
+    static final long LOW_EXP_ACT_MS = 30 * 60_000L;
+    static final long PACE_HALF_LIFE_MS = 6 * 60 * 60_000L;
+    static final int PACE_BAND_LEVELS = 5;
     static final int MAX_LINE = 90;
 
     /** Seam: where samples survive a restart (the server-cache volume outlives a rebuild). */
@@ -85,6 +94,13 @@ final class BotFleetOps {
         final ArrayDeque<Long> autoRescuesAtMs = new ArrayDeque<>();
         boolean autoRescueGaveUpAlerted;
         final ArrayDeque<Long> responderActsAtMs = new ArrayDeque<>();
+        int level;
+        double paceExpPerHour;      // usual pace: best recent 30 min rate, halving every 6 h
+        long paceAtMs;
+        double expectedExpPerHour;  // the bar a low rate is measured against
+        Double recentExpPerHour;    // the last 30 minutes, or null without a full busy window
+        long lowSinceMs;            // 0 when not low
+        boolean lowAlerted;
         final Map<Integer, Long> loopAlertedAtMs = new HashMap<>();
     }
 
@@ -114,6 +130,7 @@ final class BotFleetOps {
                 }
                 Track track = tracks.computeIfAbsent(bot.getId(), id -> new Track());
                 record(track, sampleOf(entry, bot, now));
+                updatePace(track, now, bot.getLevel(), bandMedian(bot.getLevel(), bot.getId(), tracks));
                 List<String> alerts = new ArrayList<>(alerts(track, now, bot.getName(), shortName(bot.getName())));
                 AutoRescue ar = autoRescue(track, now);
                 if (ar != null && ar.rescue()) {
@@ -155,6 +172,13 @@ final class BotFleetOps {
                             .append(s.x()).append('\t').append(s.y()).append('\t').append(s.totalExp()).append('\t')
                             .append(s.busy() ? 1 : 0).append('\t').append(s.errandMapId()).append('\n');
                 }
+                // P lines: the usual pace outlives the 90 minute window, so a slow spell after a restart
+                // is still measured against the bot's real pace.
+                Track t = e.getValue();
+                if (t.paceAtMs > 0) {
+                    sb.append("P\t").append(e.getKey()).append('\t').append(Math.round(t.paceExpPerHour)).append('\t')
+                            .append(t.paceAtMs).append('\t').append(t.level).append('\n');
+                }
             }
         }
         try {
@@ -177,6 +201,15 @@ final class BotFleetOps {
         try {
             for (String line : Files.readAllLines(store, StandardCharsets.UTF_8)) {
                 String[] f = line.split("\t");
+                if (f.length == 5 && "P".equals(f[0])) {
+                    Track t = tracks.computeIfAbsent(Integer.parseInt(f[1]), id -> new Track());
+                    synchronized (t) {
+                        t.paceExpPerHour = Double.parseDouble(f[2]);
+                        t.paceAtMs = Long.parseLong(f[3]);
+                        t.level = Integer.parseInt(f[4]);
+                    }
+                    continue;
+                }
                 if (f.length != 8) {
                     continue;
                 }
@@ -200,6 +233,15 @@ final class BotFleetOps {
     }
 
     private static void primeAlerts(Track track, long now) {
+        int level;
+        synchronized (track) {
+            level = track.level;
+        }
+        updatePace(track, now, level, 0);
+        long low = lowExpForMs(track, now);
+        synchronized (track) {
+            track.lowAlerted = low >= LOW_EXP_ACT_MS;
+        }
         long frozen = frozenForMs(track);
         long noExp = noExpForMs(track);
         int loopMap = lastErrandMap(track);
@@ -277,6 +319,125 @@ final class BotFleetOps {
                 since = s.t();
             }
             return last.t() - since;
+        }
+    }
+
+    /** EXP per hour over the last {@link #PACE_WINDOW_MS} of one unbroken busy stretch since the last rescue;
+     *  null until that stretch spans nearly the whole window. */
+    static Double recentRate(Track t, long now) {
+        synchronized (t) {
+            Sample last = t.samples.peekLast();
+            if (last == null || !last.busy()) {
+                return null;
+            }
+            Sample first = null;
+            Sample prev = null;
+            long gain = 0;
+            for (Sample s : t.samples) {
+                if (s.t() < t.resetAtMs || now - s.t() > PACE_WINDOW_MS) {
+                    continue;
+                }
+                if (!s.busy()) { // a break or a ferry ride splits the stretch
+                    first = null;
+                    prev = null;
+                    gain = 0;
+                    continue;
+                }
+                if (first == null) {
+                    first = s;
+                }
+                if (prev != null) {
+                    gain += Math.max(0L, s.totalExp() - prev.totalExp());
+                }
+                prev = s;
+            }
+            if (first == null || last.t() - first.t() < PACE_WINDOW_MS - 2 * SAMPLE_MS) {
+                return null;
+            }
+            return gain * 3_600_000.0 / (last.t() - first.t());
+        }
+    }
+
+    /** Median usual pace of the other bots within {@link #PACE_BAND_LEVELS} levels, or 0 with fewer than two. */
+    static double bandMedian(int level, int selfId, Map<Integer, Track> all) {
+        List<Double> paces = new ArrayList<>();
+        for (var e : all.entrySet()) {
+            if (e.getKey() == selfId) {
+                continue;
+            }
+            Track o = e.getValue();
+            synchronized (o) {
+                if (o.level > 0 && Math.abs(o.level - level) <= PACE_BAND_LEVELS && o.paceExpPerHour > 0) {
+                    paces.add(o.paceExpPerHour);
+                }
+            }
+        }
+        if (paces.size() < 2) {
+            return 0;
+        }
+        paces.sort(null);
+        return paces.get(paces.size() / 2);
+    }
+
+    /** Once a minute: refresh the usual pace and the low EXP clock. Zero EXP is the no EXP check's job, so
+     *  low means earning something, but under {@link #LOW_EXP_FRACTION} of the bar. */
+    static void updatePace(Track t, long now, int level, double bandMedian) {
+        Double r = recentRate(t, now);
+        synchronized (t) {
+            t.level = level;
+            double decayed = t.paceAtMs == 0 ? 0
+                    : t.paceExpPerHour * Math.pow(0.5, Math.max(0, now - t.paceAtMs) / (double) PACE_HALF_LIFE_MS);
+            t.paceExpPerHour = r == null ? decayed : Math.max(decayed, r);
+            t.paceAtMs = now;
+            t.recentExpPerHour = r;
+            t.expectedExpPerHour = Math.max(t.paceExpPerHour, bandMedian / 2);
+            boolean low = r != null && r > 0 && r < LOW_EXP_FRACTION * t.expectedExpPerHour;
+            if (!low) {
+                t.lowSinceMs = 0;
+            } else if (t.lowSinceMs == 0) {
+                t.lowSinceMs = now - PACE_WINDOW_MS; // the whole window just measured was already low
+            }
+        }
+    }
+
+    /** How long the bot has earned under a fifth of its usual pace; 0 when it isn't. */
+    static long lowExpForMs(Track t, long now) {
+        synchronized (t) {
+            return t.lowSinceMs == 0 ? 0 : now - t.lowSinceMs;
+        }
+    }
+
+    static final double ONE_MAP_SHARE = 0.8;
+
+    /** True when at least {@link #ONE_MAP_SHARE} of the samples in the last {@code windowMs} are on the newest
+     *  sample's map: the bot is stuck on a map, not crossing several on a long walk, where a scroll would only
+     *  send it back to town. Not all of them: SipsBuddy3 wandered two maps over for four minutes and came back
+     *  to the same spot on 682000100. */
+    static boolean onOneMapFor(Track t, long now, long windowMs) {
+        synchronized (t) {
+            Sample last = t.samples.peekLast();
+            if (last == null) {
+                return false;
+            }
+            int in = 0;
+            int on = 0;
+            for (Sample s : t.samples) {
+                if (now - s.t() > windowMs) {
+                    continue;
+                }
+                in++;
+                if (s.mapId() == last.mapId()) {
+                    on++;
+                }
+            }
+            return in > 0 && on >= ONE_MAP_SHARE * in;
+        }
+    }
+
+    /** "11k EXP/h, usual 220k" for whispers and navi fleet. */
+    private static String lowDetail(Track t) {
+        synchronized (t) {
+            return fmt(t.recentExpPerHour == null ? 0 : t.recentExpPerHour) + " EXP/h, usual " + fmt(t.expectedExpPerHour);
         }
     }
 
@@ -358,6 +519,18 @@ final class BotFleetOps {
                 }
             } else if (noExp == 0) {
                 track.noExpAlerted = false;
+            }
+        }
+        long low = lowExpForMs(track, nowMs);
+        String lowDetail = lowDetail(track);
+        synchronized (track) {
+            if (low >= LOW_EXP_ACT_MS && !track.lowAlerted) {
+                track.lowAlerted = true;
+                Sample last = track.samples.peekLast();
+                out.add(clip(botName + " earning " + lowDetail + ", for " + low / 60_000 + " min at "
+                        + mapName(last.mapId()) + ". navi why " + shortName));
+            } else if (low == 0) {
+                track.lowAlerted = false;
             }
         }
         int loopMap = lastErrandMap(track);
@@ -468,6 +641,7 @@ final class BotFleetOps {
         List<String> stuck = new ArrayList<>();
         List<String> looping = new ArrayList<>();
         List<String> earningNothing = new ArrayList<>();
+        List<String> earningLittle = new ArrayList<>();
         List<String> capped = new ArrayList<>();
         List<Map.Entry<String, Double>> rates = new ArrayList<>();
         for (BotEntry e : mine) {
@@ -494,8 +668,11 @@ final class BotFleetOps {
                 stuck.add(bot.getName() + " " + mapName(bot.getMapId()) + " " + frozen / 60_000 + " min");
             } else {
                 long noExp = noExpForMs(t);
+                long low = lowExpForMs(t, now);
                 if (noExp >= NO_EXP_LIST_MS) {
                     earningNothing.add(bot.getName() + " " + noExp / 60_000 + " min");
+                } else if (low >= LOW_EXP_LIST_MS) {
+                    earningLittle.add(bot.getName() + " " + lowDetail(t) + ", " + low / 60_000 + " min");
                 }
             }
             int loopMap = lastErrandMap(t);
@@ -510,6 +687,7 @@ final class BotFleetOps {
         out.add(clip("Stuck: " + (stuck.isEmpty() ? "none" : String.join("; ", stuck))));
         out.add(clip("Looping: " + (looping.isEmpty() ? "none" : String.join("; ", looping))));
         out.add(clip("No EXP: " + (earningNothing.isEmpty() ? "none" : String.join("; ", earningNothing))));
+        out.add(clip("Low EXP: " + (earningLittle.isEmpty() ? "none" : String.join("; ", earningLittle))));
         if (!rates.isEmpty()) {
             rates.sort(Map.Entry.comparingByValue());
             List<String> slow = rates.stream().limit(2).map(r -> r.getKey() + " " + fmt(r.getValue())).toList();
@@ -535,7 +713,8 @@ final class BotFleetOps {
             int starts = loopMap == -1 ? 0 : errandStarts(t, loopMap, now);
             out.add(clip((rate == null ? "EXP/h not known yet" : fmt(rate) + " EXP/h last hour")
                     + (frozen >= FROZEN_LIST_MS ? ", still for " + frozen / 60_000 + " min"
-                    : noExp >= NO_EXP_LIST_MS ? ", no EXP for " + noExp / 60_000 + " min" : "")
+                    : noExp >= NO_EXP_LIST_MS ? ", no EXP for " + noExp / 60_000 + " min"
+                    : lowExpForMs(t, now) >= LOW_EXP_LIST_MS ? ", earning " + lowDetail(t) : "")
                     + (starts >= 2 ? ", " + starts + " errands to " + mapName(loopMap) + " in 45 min" : "")));
         }
         return out;
@@ -565,17 +744,24 @@ final class BotFleetOps {
 
     /** Decide, once a minute, whether to scroll a bot out without waiting for {@code navi rescue}: frozen for
      *  {@link #AUTO_RESCUE_FROZEN_MS}, or busy on its own map plan (not an errand) with no EXP for
-     *  {@link #AUTO_RESCUE_NO_EXP_MS}. An errand loop is left alone, since a scroll only restarts it. At most
-     *  {@link #AUTO_RESCUE_MAX} per {@link #AUTO_RESCUE_WINDOW_MS}; past that it says so once and stops, since a
-     *  spot that refreezes the bot needs a code fix, not more scrolls. */
+     *  {@link #AUTO_RESCUE_NO_EXP_MS}, or earning under a fifth of its usual pace for {@link #LOW_EXP_ACT_MS} while
+     *  on one map (SipsBuddy3 hovered on Haunted House 682000100 at 11k EXP/h against its usual 220k). An errand
+     *  loop is left alone, since a scroll only restarts it. At most {@link #AUTO_RESCUE_MAX} per
+     *  {@link #AUTO_RESCUE_WINDOW_MS}; past that it says so once and stops, since a spot that refreezes the bot
+     *  needs a code fix, not more scrolls. */
     static AutoRescue autoRescue(Track track, long now) {
         long frozen = frozenForMs(track);
         long noExp = noExpForMs(track);
+        long low = lowExpForMs(track, now);
+        boolean oneMap = onOneMapFor(track, now, PACE_WINDOW_MS);
+        String lowDetail = lowDetail(track);
         synchronized (track) {
             Sample last = track.samples.peekLast();
+            boolean ownPlan = last != null && last.errandMapId() == -1;
             String why = frozen >= AUTO_RESCUE_FROZEN_MS ? "frozen " + frozen / 60_000 + " min"
-                    : noExp >= AUTO_RESCUE_NO_EXP_MS && last != null && last.errandMapId() == -1
-                    ? "busy " + noExp / 60_000 + " min with no EXP" : null;
+                    : noExp >= AUTO_RESCUE_NO_EXP_MS && ownPlan ? "busy " + noExp / 60_000 + " min with no EXP"
+                    : low >= LOW_EXP_ACT_MS && ownPlan && oneMap
+                    ? "earning " + lowDetail + ", for " + low / 60_000 + " min" : null;
             if (why == null) {
                 track.autoRescueGaveUpAlerted = false;
                 return null;
@@ -626,6 +812,7 @@ final class BotFleetOps {
      *  bot earning nothing on an errand, and a bot past its auto rescues needs another idea. */
     static String incidentKind(Track t, long now) {
         long noExp = noExpForMs(t);
+        long low = lowExpForMs(t, now);
         int loopMap = lastErrandMap(t);
         int starts = loopMap == -1 ? 0 : errandStarts(t, loopMap, now);
         synchronized (t) {
@@ -644,6 +831,12 @@ final class BotFleetOps {
             }
             if (noExp >= NO_EXP_ALERT_MS && !t.autoRescuesAtMs.isEmpty()) {
                 return "no_exp_after_rescue";
+            }
+            if (low >= LOW_EXP_ACT_MS && last.errandMapId() != -1) {
+                return "low_exp_on_errand";
+            }
+            if (low >= LOW_EXP_ACT_MS && !t.autoRescuesAtMs.isEmpty()) {
+                return "low_exp_after_rescue";
             }
             return null;
         }
@@ -693,6 +886,9 @@ final class BotFleetOps {
                 .append(",\"errandMapName\":").append(js(errand == -1 ? "" : mapName(errand)))
                 .append(",\"noExpMin\":").append(noExpForMs(t) / 60_000)
                 .append(",\"frozenMin\":").append(frozenForMs(t) / 60_000)
+                .append(",\"lowExpMin\":").append(lowExpForMs(t, now) / 60_000)
+                .append(",\"expPerHourLast30Min\":").append(Math.round(t.recentExpPerHour == null ? 0 : t.recentExpPerHour))
+                .append(",\"usualExpPerHour\":").append(Math.round(t.expectedExpPerHour))
                 .append(",\"errandStartsLast45Min\":").append(loopMap == -1 ? 0 : errandStarts(t, loopMap, now))
                 .append(",\"lastErrandMapName\":").append(js(loopMap == -1 ? "" : mapName(loopMap)))
                 .append(",\"autoRescuesLast2h\":").append(rescues)

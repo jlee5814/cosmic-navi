@@ -178,6 +178,76 @@ class BotFleetOpsTest {
         assertNull(BotFleetOps.autoRescue(errand, 45 * MIN), "a scroll would only restart an errand loop");
     }
 
+    /** Feed one sample a minute and refresh the pace, as the sampler does. */
+    private static BotFleetOps.AutoRescue tick(BotFleetOps.Track t, BotFleetOps.Sample s, double bandMedian) {
+        BotFleetOps.record(t, s);
+        BotFleetOps.updatePace(t, s.t(), 52, bandMedian);
+        return BotFleetOps.autoRescue(t, s.t());
+    }
+
+    @Test
+    void aBotHoveringFarUnderItsUsualPaceIsRescuedThoughItNeverFreezesOrStopsEarning() {
+        // SipsBuddy3 on 2026-10-10: about 220k EXP/h, then 11k EXP/h twitching 20 px on Haunted House 682000100.
+        BotFleetOps.Track t = new BotFleetOps.Track();
+        long exp = 7_000_000;
+        int rescuedAt = -1;
+        String why = null;
+        for (int m = 0; m <= 30; m++, exp += 3_667) {
+            assertNull(tick(t, new BotFleetOps.Sample(m * MIN, 682010202, m * 37, 100, exp, true, -1), 0));
+        }
+        for (int m = 31; m <= 80; m++, exp += 183) {
+            // Minutes 40 to 42 it wandered two maps over and came back, as it did live at 19:55. A rule that
+            // wanted every sample on one map would wait until minute 73 to act.
+            int map = m >= 40 && m <= 42 ? 682000400 : 682000100;
+            BotFleetOps.AutoRescue ar = tick(t, new BotFleetOps.Sample(m * MIN, map, 200 + (m % 2) * 20, 79, exp, true, -1), 0);
+            if (map != 682000100) {
+                continue; // the frozen check restarts on a new map; only the spot matters below
+            }
+            assertEquals(0L, BotFleetOps.frozenForMs(t), "twitching 20 px is not frozen");
+            assertTrue(BotFleetOps.noExpForMs(t) < BotFleetOps.NO_EXP_LIST_MS, "it keeps earning a little");
+            if (ar != null && rescuedAt == -1) {
+                rescuedAt = m;
+                why = ar.why();
+            }
+        }
+        assertTrue(rescuedAt >= 45 && rescuedAt <= 65, "rescued at minute " + rescuedAt);
+        assertTrue(why.startsWith("earning ") && why.contains("usual 2"), why);
+    }
+
+    @Test
+    void zeroEarningIsTheNoExpChecksJobAndASlowStartUsesTheLevelBand() {
+        BotFleetOps.Track idle = new BotFleetOps.Track();
+        BotFleetOps.Track slowSinceLogin = new BotFleetOps.Track();
+        long exp = 5_000_000;
+        BotFleetOps.AutoRescue slowRescue = null;
+        for (int m = 0; m <= 35; m++, exp += 183) {
+            tick(idle, new BotFleetOps.Sample(m * MIN, 682000100, (m % 2) * 20, 79, 5_000_000, true, -1), 0);
+            assertEquals(0L, BotFleetOps.lowExpForMs(idle, m * MIN), "zero is no EXP, not low");
+            BotFleetOps.AutoRescue ar = tick(slowSinceLogin,
+                    new BotFleetOps.Sample(m * MIN, 682000100, (m % 2) * 20, 79, exp, true, -1), 220_000);
+            if (ar != null && slowRescue == null) {
+                slowRescue = ar;
+            }
+        }
+        // Half the band median (110k) is the bar when the bot never showed its own pace: 11k is under a fifth.
+        assertTrue(slowRescue != null && slowRescue.rescue() && slowRescue.why().contains("usual 110k"),
+                String.valueOf(slowRescue));
+    }
+
+    @Test
+    void aSlowWalkAcrossMapsIsNotScrolledAndASlowErrandGoesToTheResponder() {
+        BotFleetOps.Track walk = new BotFleetOps.Track();
+        BotFleetOps.Track errand = new BotFleetOps.Track();
+        long exp = 5_000_000;
+        for (int m = 0; m <= 40; m++, exp += 183) {
+            BotFleetOps.AutoRescue ar = tick(walk, new BotFleetOps.Sample(m * MIN, 101000000 + m / 5, m * 40, 0, exp, true, -1), 220_000);
+            assertNull(ar, "a scroll would only send a walking bot back to town");
+            tick(errand, new BotFleetOps.Sample(m * MIN, 200000111, m * 40, 0, exp, true, 101000300), 220_000);
+        }
+        assertTrue(BotFleetOps.lowExpForMs(walk, 40 * MIN) >= BotFleetOps.LOW_EXP_ACT_MS);
+        assertEquals("low_exp_on_errand", BotFleetOps.incidentKind(errand, 40 * MIN));
+    }
+
     @Test
     void theResponderGetsOnlyStallsAScrollCannotFix() {
         BotFleetOps.Track loop = new BotFleetOps.Track();
@@ -244,6 +314,9 @@ class BotFleetOpsTest {
             for (int i = 0; i <= 40; i++) {
                 BotFleetOps.record(t, still(now - (40 - i) * MIN, 9_000));
             }
+            t.paceExpPerHour = 220_000;
+            t.paceAtMs = now;
+            t.level = 52;
             BotFleetOps.save();
             BotFleetOps.tracks.clear();
 
@@ -251,6 +324,8 @@ class BotFleetOpsTest {
             BotFleetOps.Track restored = BotFleetOps.tracks.get(254);
             assertEquals(41, restored.samples.size());
             assertEquals(40 * MIN, BotFleetOps.frozenForMs(restored));
+            assertEquals(220_000, restored.paceExpPerHour, 1_000, "the usual pace outlives the restart");
+            assertEquals(52, restored.level);
             assertTrue(BotFleetOps.alerts(restored, now + MIN, "SipsBuddy1", "1").isEmpty(),
                     "the owner heard about it before the restart");
         } finally {
