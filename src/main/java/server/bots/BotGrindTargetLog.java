@@ -17,7 +17,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Stage 1 of the learned grind target scorer (docs/bot/learned-grind-target.md): picks among the rule
@@ -35,6 +41,21 @@ final class BotGrindTargetLog {
         t.setDaemon(true);
         return t;
     });
+
+    // Stage 2 readiness (docs/bot/learned-grind-target.md): enough picks, on enough maps, with enough explored,
+    // before training is worth running. Counted on the writer thread: the scan of earlier days is queued first.
+    static final int READY_PICKS = 20_000;
+    static final int READY_MAPS = 10;
+    static final int READY_EXPLORED = 300;
+    private static final Pattern MAP = Pattern.compile("\"map\":(\\d+)");
+    private static final Pattern PICK = Pattern.compile("\"pick\":(\\d+)");
+    private static final AtomicLong picks = new AtomicLong();
+    private static final AtomicLong explored = new AtomicLong();
+    private static final Set<Integer> maps = ConcurrentHashMap.newKeySet();
+
+    static {
+        WRITER.execute(BotGrindTargetLog::countEarlierLogs);
+    }
 
     /** A pick: the target, the ranking it came from, its index there, and the probability it had. */
     record Pick(Monster target, List<BotCombatManager.ScoredGrindTarget> ranking, int index, double probability) {
@@ -158,8 +179,48 @@ final class BotGrindTargetLog {
         return String.format(java.util.Locale.ROOT, "%.3f", v);
     }
 
+    /** {@code {"picks","explored","maps","need":{...},"ready"}}: how close the log is to worth training on. */
+    static String readinessJson() {
+        long p = picks.get();
+        long e = explored.get();
+        int m = maps.size();
+        boolean ready = p >= READY_PICKS && m >= READY_MAPS && e >= READY_EXPLORED;
+        return "{\"picks\":" + p + ",\"explored\":" + e + ",\"maps\":" + m
+                + ",\"need\":{\"picks\":" + READY_PICKS + ",\"maps\":" + READY_MAPS + ",\"explored\":" + READY_EXPLORED
+                + "},\"ready\":" + ready + "}";
+    }
+
+    static void count(String line) {
+        Matcher map = MAP.matcher(line);
+        Matcher pick = PICK.matcher(line);
+        if (!map.find() || !pick.find()) {
+            return;
+        }
+        picks.incrementAndGet();
+        maps.add(Integer.parseInt(map.group(1)));
+        if (!"0".equals(pick.group(1))) {
+            explored.incrementAndGet();
+        }
+    }
+
+    private static void countEarlierLogs() {
+        if (!Files.isDirectory(DIR)) {
+            return;
+        }
+        try (Stream<Path> files = Files.list(DIR)) {
+            for (Path f : (Iterable<Path>) files.filter(f -> f.getFileName().toString().endsWith(".jsonl"))::iterator) {
+                try (Stream<String> lines = Files.lines(f)) {
+                    lines.forEach(BotGrindTargetLog::count);
+                }
+            }
+        } catch (IOException | java.io.UncheckedIOException e) {
+            log.warn("bot decision log count failed: {}", e.toString());
+        }
+    }
+
     private static void write(String line) {
         WRITER.execute(() -> {
+            count(line);
             try {
                 Files.createDirectories(DIR);
                 Files.writeString(DIR.resolve("grind-target-" + LocalDate.now().format(DAY) + ".jsonl"),

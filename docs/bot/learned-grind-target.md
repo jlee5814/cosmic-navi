@@ -51,6 +51,9 @@ Volume: one line per committed pick, a few per minute per bot, well under a mega
 
 ## Stage 2: train offline
 
+Start when the log holds enough to learn from: 20,000 picks across 10 or more maps, at least 300 of them
+explored (`BotGrindTargetLog.READY_*`). `/api/learned/readiness` counts it, and the world map page shows it.
+
 `tools/learned/` (Python): read the logs, label each pick with its EXP per second over the hold
 (zero for a pick abandoned without a hit), and fit a small model that predicts that value from the
 candidate's features. Start with a linear model or a few shallow trees; export the weights as JSON.
