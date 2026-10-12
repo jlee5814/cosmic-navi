@@ -16,8 +16,9 @@ plan picks it again.
 - `BotNavigationManager.resolveTarget` calls `track` on every AI tick with the edge the bot follows.
 - The clock arms once the bot stands within `ARM_PX` (60) of the edge's launch window in its source
   region. Budget: the edge's own cost plus `SLACK_MS` (5 s) plus up to `SLACK_JITTER_MS` (3 s).
-- Only tracked ticks count, each gap capped at 500 ms, so a fight or a break between attempts is not
-  attempt time. The attempt is keyed by geometry (type, start, end), so a graph swap or a nav clear
+- Attempt time is game time: `AI_TICK_MS` per tracked AI tick, the clock physics and edge costs run
+  on. A lagging server or the sim lab (much faster than real time) judges an edge the same way, and
+  ticks spent elsewhere (a fight, a break) never count. Wall time only dates the mark. The attempt is keyed by geometry (type, start, end), so a graph swap or a nav clear
   does not restart the clock; a different edge does.
 - Past the budget and still in the source region (not mid air): the bot pauses one tick
   (`lastNavDecision = edge-failed`), drops the edge and the committed route, and logs

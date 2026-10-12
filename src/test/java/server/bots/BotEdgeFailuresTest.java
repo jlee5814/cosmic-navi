@@ -75,7 +75,7 @@ class BotEdgeFailuresTest {
 
         long gaveUpAt = failDirect(entry, t0 + 60_000);
 
-        assertEquals(t0 + 60_000 + 1500, gaveUpAt, "first tick past 400 ms of edge cost and 1000 ms of slack");
+        assertEquals(t0 + 60_000 + 1500, gaveUpAt, "15th AI tick: past 400 ms of edge cost and 1000 ms of slack");
         assertEquals(BotEdgeFailures.cfg.PENALTY_MS,
                 BotEdgeFailures.penaltyMs(BotEdgeFailures.active(BOT, MAP, gaveUpAt), DIRECT));
         assertNull(BotEdgeFailures.active(BOT, MAP + 1, gaveUpAt), "the mark is per map");
@@ -83,17 +83,14 @@ class BotEdgeFailuresTest {
     }
 
     @Test
-    void timeAwayFromTheEdgeDoesNotCount() {
+    void attemptTimeIsAiTicksNotWallTime() {
         BotEntry entry = entry();
         long now = 1_000_000;
         BotEdgeFailures.track(entry, BOT, MAP, DIRECT, 1, new Point(104, 100), now);
-        now += 60_000; // a fight or a break between tracked ticks counts as one capped gap: 500 ms
-        assertFalse(BotEdgeFailures.track(entry, BOT, MAP, DIRECT, 1, new Point(104, 100), now));
-        now += 400;
-        assertFalse(BotEdgeFailures.track(entry, BOT, MAP, DIRECT, 1, new Point(104, 100), now));
-        now += 400;
-        assertFalse(BotEdgeFailures.track(entry, BOT, MAP, DIRECT, 1, new Point(104, 100), now), "1300 of 1400");
-        now += 200;
+        for (int tick = 1; tick <= 14; tick++) {
+            now += 60_000; // a fight or a break between tracked ticks adds nothing
+            assertFalse(BotEdgeFailures.track(entry, BOT, MAP, DIRECT, 1, new Point(104, 100), now), "tick " + tick);
+        }
         assertTrue(BotEdgeFailures.track(entry, BOT, MAP, DIRECT, 1, new Point(104, 100), now));
     }
 

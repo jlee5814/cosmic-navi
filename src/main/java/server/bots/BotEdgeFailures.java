@@ -32,7 +32,6 @@ final class BotEdgeFailures {
         int ARM_PX = 60;                 // within this of the launch window (x and y) the attempt clock runs
         int SLACK_MS = 5000;             // on top of the edge's own cost
         int SLACK_JITTER_MS = 3000;
-        int MAX_TICK_GAP_MS = 500;       // a longer gap between tracked ticks (combat, a break) isn't attempt time
         int PENALTY_MS = 60_000;
         long REMEMBER_MS = 600_000;
         long REMEMBER_JITTER_MS = 300_000;
@@ -47,7 +46,7 @@ final class BotEdgeFailures {
         }
     }
 
-    /** The edge a bot is attempting: when its clock armed, how much attempt time it has spent, its budget. */
+    /** The edge a bot is attempting: whether its clock runs, the attempt time it has spent, its budget. */
     static final class Attempt {
         final BotNavigationGraph.Edge edge;
         final Key key;
@@ -55,7 +54,6 @@ final class BotEdgeFailures {
         boolean armed;
         long spentMs;
         long budgetMs;
-        long lastTickMs;
 
         Attempt(BotNavigationGraph.Edge edge, int mapId) {
             this.edge = edge;
@@ -73,6 +71,9 @@ final class BotEdgeFailures {
     /**
      * Called on each AI tick with the edge the bot is following. Returns true when the bot just gave the
      * edge up; the caller drops the edge and the committed route so the next tick replans around it.
+     * Attempt time is game time: one AI tick per call, the clock physics and edge costs run on, so a
+     * server under load or the sim lab running faster than real time judges an edge the same way, and
+     * ticks spent elsewhere (a fight, a break) never count. {@code now} (wall time) only dates the mark.
      */
     static boolean track(BotEntry entry, int botId, int mapId, BotNavigationGraph.Edge edge, int regionId,
                          Point botPos, long now) {
@@ -98,11 +99,9 @@ final class BotEdgeFailures {
             a.armed = true;
             a.budgetMs = Math.max(0, edge.cost) + cfg.SLACK_MS
                     + ThreadLocalRandom.current().nextInt(cfg.SLACK_JITTER_MS + 1);
-            a.lastTickMs = now;
             return false;
         }
-        a.spentMs += Math.min(Math.max(0, now - a.lastTickMs), cfg.MAX_TICK_GAP_MS);
-        a.lastTickMs = now;
+        a.spentMs += BotManager.cfg.AI_TICK_MS;
         if (a.spentMs <= a.budgetMs || regionId != edge.fromRegionId) {
             return false; // in time, or mid air / on a rope / somewhere the next plan will sort out
         }
