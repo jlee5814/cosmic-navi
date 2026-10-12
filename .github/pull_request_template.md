@@ -4,7 +4,7 @@
      [Shop] buying, selling, ammo, gear           [Combat] damage, skills, targeting, HP and deaths
      [Strategist] tools/strategist                [Navi] Navi owner tools and fleet ops
      [Chat] bot chat and its SGLang serving       [Bench] load tests, evals, measurements
-     [Docs] docs only -->
+     [Dashboard] web pages and their endpoints    [Docs] docs only -->
 
 ## Motivation
 

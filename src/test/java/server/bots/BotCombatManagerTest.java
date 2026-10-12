@@ -1741,6 +1741,50 @@ class BotCombatManagerTest {
     }
 
     @Test
+    void shouldChargeTheWalkAtBothEndsOfAPathWhenPickingAGrindTarget() {
+        // #48 on 800030000: a mob a few steps away on the bot's platform lost to a group past a free
+        // portal that lands far from them, because the path cost summed edges and skipped the walks.
+        MapleMap map = spy(new MapleMap(910009053, 0, 0, 910009053, 1.0f));
+        server.maps.FootholdTree footholds = new server.maps.FootholdTree(new Point(-2000, -2000), new Point(2000, 2000));
+        Foothold home = new Foothold(new Point(0, 100), new Point(400, 100), 1);
+        Foothold far = new Foothold(new Point(0, -500), new Point(700, -500), 2);
+        footholds.insert(home);
+        footholds.insert(far);
+        map.setFootholds(footholds);
+
+        BotNavigationGraph.Region homeRegion = new BotNavigationGraph.Region(1, List.of(new BotNavigationGraph.Segment(home)));
+        BotNavigationGraph.Region farRegion = new BotNavigationGraph.Region(2, List.of(new BotNavigationGraph.Segment(far)));
+        BotNavigationGraph graph = new BotNavigationGraph(
+                map.getId(),
+                1,
+                BotMovementProfile.base(),
+                List.of(homeRegion, farRegion),
+                Map.of(1, homeRegion, 2, farRegion),
+                Map.of(1, 1, 2, 2),
+                Map.of(1, List.of(new BotNavigationGraph.Edge(1, 2, BotNavigationGraph.EdgeType.WALK,
+                        new Point(60, 100), new Point(650, -500), 0, 0, 0, 0, 0, 0))),
+                Set.of());
+
+        Character bot = mockBot(new Point(50, 100), map, 20_000, null);
+        Monster near = mockMob(new Point(280, 100), 9300402);
+        List<Monster> group = List.of(mockMob(new Point(60, -500), 9300403), mockMob(new Point(70, -500), 9300404),
+                mockMob(new Point(80, -500), 9300405), mockMob(new Point(90, -500), 9300406));
+        List<Monster> all = new java.util.ArrayList<>(group);
+        all.add(near);
+        doReturn(all).when(map).getAllMonsters();
+
+        BotEntry entry = new BotEntry(bot, null, null);
+        entry.grinding = true;
+        try (MockedStatic<BotNavigationGraphProvider> graphProvider =
+                     Mockito.mockStatic(BotNavigationGraphProvider.class, Mockito.CALLS_REAL_METHODS)) {
+            graphProvider.when(() -> BotNavigationGraphProvider.peekGraph(map, BotMovementProfile.base()))
+                    .thenReturn(graph);
+
+            assertEquals(near, BotCombatManager.findGrindTarget(entry, bot));
+        }
+    }
+
+    @Test
     void shouldUseRangedHitBoxTargetOutsideCurrentRegionWithoutPathingThere() {
         MapleMap realMap = new MapleMap(910009051, 0, 0, 910009051, 1.0f);
         server.maps.FootholdTree footholds = new server.maps.FootholdTree(new Point(-2000, -2000), new Point(2000, 2000));

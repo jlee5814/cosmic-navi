@@ -3950,9 +3950,12 @@ public class BotManager {
             }
         }
         if (runAiTick && shouldSearchForGrindTarget(entry, bot, target, attackPlan, now)) {
+            BotGrindTargetLog.Pick pick = entry.patrolRegionId >= 0
+                    ? null
+                    : BotGrindTargetLog.choose(BotCombatManager.rankGrindTargets(entry, bot), target == null);
             Monster searchedTarget = entry.patrolRegionId >= 0
                     ? BotCombatManager.findPatrolTarget(entry, bot)
-                    : BotCombatManager.findGrindTarget(entry, bot);
+                    : pick == null ? null : pick.target();
             if (shouldSwitchToSearchedTarget(entry, bot, target, searchedTarget, attackPlan)) {
                 target = searchedTarget;
                 attackPlan = null;
@@ -3960,6 +3963,7 @@ public class BotManager {
                 // re-choosing a different far mob on the next retarget tick.
                 if (target != null) {
                     entry.grindTargetCommitUntilMs = now + BotCombatManager.cfg.GRIND_TARGET_COMMIT_MS;
+                    BotGrindTargetLog.onCommit(entry, bot, pick, now);
                 }
             }
             entry.nextGrindTargetSearchAtMs = now + BotCombatManager.cfg.GRIND_RETARGET_INTERVAL_MS;

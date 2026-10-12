@@ -126,6 +126,8 @@ public class BotEntry {
     // Grind mode
     volatile boolean grinding = false;
     Monster grindTarget = null;
+    // The committed grind pick awaiting its outcome in the decision log (BotGrindTargetLog).
+    BotGrindTargetLog.OpenPick openGrindPick = null;
     long nextGrindTargetSearchAtMs = 0L;
     // Stay committed to the chosen grind target until this (set when a target is adopted). Stops the
     // bot thrashing between far mobs while approaching one: re-scoring picks a different "best" each
