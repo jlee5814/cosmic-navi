@@ -31,18 +31,19 @@ never seen the like of, and the bot behaves exactly as today.
 Every time a grind search commits to a target, append one JSON line to
 `logs/bot-decisions/grind-target-<date>.jsonl`:
 
-- **Context:** time, bot id, map, level, job, weapon type, HP and MP ratios, position, region,
-  rope or ground.
-- **Candidates** (top 8 by rule order): mob id and level, its HP ratio, dx and dy, route cost
-  (`routeTravelCost`), rule local score, crowd count, occupancy penalty, touch danger flag, accuracy
-  penalty, same foothold flag, same region flag.
-- **Pick:** index of the chosen candidate, the rule's choice, and the probability the pick had
-  (1.0 when it was the rule's choice with no exploration).
-- **Outcome**, written when the next pick closes this one: seconds held, whether the bot landed a hit,
-  whether the target died, EXP gained (level ups included), HP lost.
+- **Context:** time, bot id, map, level, job, weapon type, HP and MP ratios, position, on a rope or not.
+- **Candidates** (top 8 by rule order, one per graph region): mob id, level and HP ratio, dx and dy
+  from the bot, route cost (`routeTravelCost`, after the crowd bonus and occupancy penalty), the rule's
+  local score (touch danger, accuracy and quest terms folded in), region id, and how many mobs that
+  region holds.
+- **Pick:** index of the chosen candidate (0 is the rule's choice) and the probability it had.
+- **Outcome**, written when the next pick closes this one: milliseconds held, EXP gained (level ups
+  included), whether the target died, the share of its HP that dropped (a hit landed, from anyone),
+  and HP the bot lost.
 
-Exploration: with a small probability (`LEARNED_TARGET_EXPLORE`, default 0.1) the bot takes the
-second or third rule candidate instead of the first, when its cost is within a band of the best.
+Exploration: on a fresh pick (no live target), with probability `GRIND_TARGET_EXPLORE` (default 0.1)
+the bot takes the second or third rule candidate instead of the first, when its cost is within
+`GRIND_TARGET_EXPLORE_BAND_MS` (1500) of the best.
 This is the humanlike jitter the rules lack, and it makes the logged picks varied enough to learn from;
 the logged probability lets us evaluate a new ranking against the old one without running it.
 
