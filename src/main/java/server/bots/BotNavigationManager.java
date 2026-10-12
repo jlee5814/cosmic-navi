@@ -1769,10 +1769,21 @@ final class BotNavigationManager {
             return Integer.MAX_VALUE;
         }
 
+        return routeTravelCost(graph, route, cursor, botPos, startRegionId, targetRegionId, targetPos);
+    }
+
+    /**
+     * Travel time (ms) of following {@code route} from index {@code fromIndex}, starting at {@code from} in
+     * {@code startRegionId}: each in-region leg to the next edge's launch point, the edge itself, and, once
+     * the route reaches {@code targetRegionId}, the last leg to {@code targetPos}. The search charges the
+     * same legs, so this is the one cost of a whole route. An empty route is just the in-region leg.
+     * {@link Integer#MAX_VALUE} when the route doesn't chain from region to region.
+     */
+    static int routeTravelCost(BotNavigationGraph graph, List<BotNavigationGraph.Edge> route, int fromIndex,
+                               Point from, int startRegionId, int targetRegionId, Point targetPos) {
         long total = 0L;
-        Point from = botPos;
         int region = startRegionId;
-        for (int i = cursor; i < route.size(); i++) {
+        for (int i = fromIndex; i < route.size(); i++) {
             BotNavigationGraph.Edge edge = route.get(i);
             if (edge.fromRegionId != region) {
                 return Integer.MAX_VALUE;
