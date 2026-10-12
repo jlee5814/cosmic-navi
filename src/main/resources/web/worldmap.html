@@ -803,8 +803,9 @@ function openSpot(i){
   if(!inst) return;
   setFocus(inst.wm); showDetail(inst); pingInstances([inst]);
 }
-document.getElementById('ovBtn').onclick = () => { showOverview(true); renderOverview(); };
-document.getElementById('fbBack').onclick = () => { showOverview(true); renderOverview(); };
+function backToOverview(){ setFocus(null); showOverview(true); renderOverview(); }
+document.getElementById('ovBtn').onclick = backToOverview;
+document.getElementById('fbBack').onclick = backToOverview;
 document.getElementById('fbAll').onclick = () => setFocus(null);
 
 // ---- region focus: one worldmap, its own links, its own roster, a name badge per character ----------
