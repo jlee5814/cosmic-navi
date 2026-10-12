@@ -190,6 +190,7 @@ stage.on('wheel', e => {
 });
 
 const wmImg = {};       // wmId -> Konva.Image
+const wmName = {};      // wmId -> region name from the game's world map links ("Victoria Island")
 const nodes = {};       // mapId / nodeId -> [instance,...]  (registered under id + every constituent map)
 const allInst = [];     // every node instance once (iterate this; nodes{} is multi-keyed for lookups)
 const instByWm = {};    // wmId -> [instance,...]  (fast per-worldmap recompute on drag/resize)
@@ -684,6 +685,7 @@ function mapHitsHtml(hits){
     const kimg = new Konva.Image({x:wm.x, y:wm.y, scaleX:wm.scale, scaleY:wm.scale, draggable:true});
     kimg.setAttr('wmid', wm.id);
     wmImg[wm.id] = kimg;
+    if(wm.name) wmName[wm.id] = wm.name;
     imageLayer.add(kimg); kimg.moveToBottom();
     imgEl.onload  = () => { kimg.image(imgEl); if(focusWm === wm.id) fitRegion(wm.id); imageLayer.batchDraw(); };
     imgEl.src = '/wm/' + wm.id + '.png';
@@ -815,6 +817,7 @@ document.getElementById('fbAll').onclick = () => setFocus(null);
 // ---- region focus: one worldmap, its own links, its own roster, a name badge per character ----------
 let focusWm = null;
 function regionLabel(wm){
+  if(wmName[wm]) return wmName[wm];
   const ins = instByWm[wm] || [];
   const hubs = [...new Set(ins.filter(i => i.hub).map(i => i.names[0]))].slice(0, 3);
   return hubs.length ? hubs.join(' · ') : ((ins.find(i => i.anchor) || ins[0] || {name:'region '+wm}).name);
