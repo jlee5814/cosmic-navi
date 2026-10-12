@@ -1259,7 +1259,12 @@ class BotPhysicsEngineTest {
         // fell through to 479.
         MapleMap map = createEmptyTestMap(910000057);
         server.maps.FootholdTree footholds = map.getFootholds();
-        footholds.insert(new Foothold(new Point(50, 0), new Point(50, 200), 1));
+        Foothold wall = new Foothold(new Point(50, 0), new Point(50, 200), 1);
+        Foothold wallFloor = new Foothold(new Point(50, 200), new Point(120, 200), 4); // the room behind, as in NLC
+        wall.setNext(wallFloor.getId());
+        wallFloor.setPrev(wall.getId());
+        footholds.insert(wall);
+        footholds.insert(wallFloor);
         footholds.insert(new Foothold(new Point(0, 100), new Point(120, 100), 2));
         footholds.insert(new Foothold(new Point(0, 180), new Point(120, 180), 3));
 
