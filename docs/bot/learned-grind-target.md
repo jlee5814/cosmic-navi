@@ -54,14 +54,18 @@ Volume: one line per committed pick, a few per minute per bot, well under a mega
 Start when the log holds enough to learn from: 20,000 picks across 10 or more maps, at least 300 of them
 explored (`BotGrindTargetLog.READY_*`). `/api/learned/readiness` counts it, and the world map page shows it.
 
-`tools/learned/` (Python): read the logs, label each pick with its EXP per second over the hold
-(zero for a pick abandoned without a hit), and fit a small model that predicts that value from the
-candidate's features. Start with a linear model or a few shallow trees; export the weights as JSON.
+`tools/learned/train_grind_target.py` (plain Python; method in [its README](../../tools/learned/README.md)):
 
-Evaluation gate, before any bot runs it: on held out days, estimate the EXP per second the model's
-picks would have earned with inverse propensity weighting over the logged picks, and compare with the
-rule. Report both, with the number of picks and the variance. The model must beat the rule by a
-margin larger than the noise.
+- Value of a pick: EXP earned minus what the hold would have earned at the bot's average pace.
+- Model: ridge regression on 10 candidate features, rows weighted by one over their logged probability.
+- Policy: the best scored candidate among those the logging policy could have taken, so it only reorders
+  near ties on fresh picks and every choice is evaluable.
+- Gate: on the latest 25% of decisions, self normalized inverse propensity replay compares model and rule;
+  pass requires the readiness counts and a 90% bootstrap interval on the gain entirely above zero.
+
+First run, 2026-10-12, 4,402 picks: the weights point the expected way (cheaper routes, mobs already damaged
+and crowds score higher), but on held out time the model lost to the rule by 12.1 EXP per decision (90% CI
+-23.3 to -1.7). The gate blocked it, as it should.
 
 ## Stage 3: serve and compare live
 
