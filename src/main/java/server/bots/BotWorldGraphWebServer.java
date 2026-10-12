@@ -304,9 +304,10 @@ public final class BotWorldGraphWebServer {
 
     /** WorldMap spots in image-local pixels. A dot may stand for several maps (merged mapNo); merging is
      *  per-worldmap-entry (NOT global), so a map can be merged on an overview yet separate on its detail.
-     *  {@code spotMaps} = every map that belongs to some entry; {@code occur} counts worldmaps per map. */
+     *  {@code spotMaps} = every map that belongs to some entry; {@code occur} counts worldmaps per map.
+     *  {@code names} = worldmap id -> the region name the game shows on the link into it ("Victoria Island"). */
     private record WorldSpots(List<String> wmIds, Map<String, List<WorldSpot>> byWm,
-                              Map<Integer, Integer> occur, Set<Integer> spotMaps) {
+                              Map<Integer, Integer> occur, Set<Integer> spotMaps, Map<String, String> names) {
     }
 
     /** Follow parentMap links to the top-level (overview) worldmap; detail worldmaps share their parent's root. */
@@ -329,11 +330,14 @@ public final class BotWorldGraphWebServer {
         Map<Integer, Integer> occur = new HashMap<>(); // mapId -> # of distinct ROOT worldmaps showing it
         Map<String, String> wmParent = new HashMap<>(); // child worldmap id -> parent (overview) worldmap id
         Map<String, Set<Integer>> wmMaps = new HashMap<>(); // worldmap id -> the maps it shows
+        Map<String, String> names = new HashMap<>();
+        collectRegionNames(dp.getData("WorldMap.img"), names); // the top world map links every continent
         for (String id : worldMapIds()) {
             Data wm = dp.getData("WorldMap/WorldMap" + id + ".img");
             if (wm == null) {
                 continue;
             }
+            collectRegionNames(wm, names);
             Point origin = DataTool.getPoint("BaseImg/0/origin", wm, new Point(0, 0)); // canvas is named "0"
             Data mapList = wm.getChildByPath("MapList");
             if (mapList == null) {
@@ -385,7 +389,22 @@ public final class BotWorldGraphWebServer {
         for (Set<Integer> ms : wmMaps.values()) {
             spotMaps.addAll(ms);
         }
-        return new WorldSpots(wmIds, byWm, occur, spotMaps);
+        return new WorldSpots(wmIds, byWm, occur, spotMaps, names);
+    }
+
+    /** A worldmap's MapLink entries name the worldmaps they open: {@code link/linkMap} + {@code toolTip}. */
+    private static void collectRegionNames(Data wm, Map<String, String> names) {
+        Data links = wm == null ? null : wm.getChildByPath("MapLink");
+        if (links == null) {
+            return;
+        }
+        for (Data link : links.getChildren()) {
+            String target = DataTool.getString("link/linkMap", link, null);
+            String tip = DataTool.getString("toolTip", link, null);
+            if (target != null && target.startsWith("WorldMap") && tip != null) {
+                names.putIfAbsent(target.substring("WorldMap".length()), tip);
+            }
+        }
     }
 
     /**
@@ -439,7 +458,9 @@ public final class BotWorldGraphWebServer {
                         override != null ? override.y() : p[1],
                         false, false, override != null);
             }
-            wmsOut.add("{\"id\":\"" + wm + "\",\"x\":" + Math.round(tx) + ",\"y\":" + Math.round(ty)
+            String name = ws.names().get(wm);
+            wmsOut.add("{\"id\":\"" + wm + "\"" + (name != null ? ",\"name\":" + jsonStr(name) : "")
+                    + ",\"x\":" + Math.round(tx) + ",\"y\":" + Math.round(ty)
                     + ",\"scale\":" + ts + ",\"nodes\":[" + nodes + "]}");
         }
         // Raw map-id edges over every source (entry maps + non-anchors) from the full portal graph —
