@@ -17,12 +17,13 @@ the LAN (accepted: private game-server LAN). Open `http://<server-lan-ip>:8089/`
 | `/map` | GET | RTS world map (`worldmap.html`): graph over WorldMap continent images, live positions, RTS control, collapsible per-map detail. |
 | `/admin` | GET | Admin/settings menu (`admin.html`): edit bot config live, drive the population scheduler + LLM toggle, danger zone (disconnect-all / wipe). Front end for `/api/settings`. |
 | `/mapgraph?id=<mapId>` | GET | Single-map nav-graph preview (`mapgraph.html`): regions (footholds/ropes), typed edges, NPCs, portals, live characters. Click a region for its `!pos` report; the **Pathfind** button lets you pick a source then target region to preview + verdict the route (`/api/pathfind`). **`show:` view toggles** (all client-side, all default OFF): `partition` colours regions by reachability component (SCC over the walk-only edge set — the same adjacency `BotNavigationGraph.canReach` uses; one colour = fully connected, multiple = a split map); `downjumps` (DROP edges), `jump-downs` (JUMP landing lower), `fj-downs` (FLASH_JUMP landing lower) show those normally-hidden down-edge classes. Opened from a world-map node's detail-panel button (same tab) or by middle-clicking a node (new tab). |
-| `/wm/{worldmapId}.png` | GET | A WorldMap continent background image. |
+| `/wm/{worldmapId}.png` | GET | A WorldMap continent background image from `wz-WorldMap/`; `/wm/overview.png` is the Maple World overview the map page opens on. |
 
 ## Read APIs (JSON, GET)
 
 ### `/api/worldmaps`
-The world graph laid out over the WorldMap images: per worldmap `{id, x, y, scale, nodes[], edges}`;
+The world graph laid out over the WorldMap images: per worldmap `{id, name?, x, y, scale, nodes[], edges}`
+(`name` = the region name from the game's MapLink tooltips, e.g. `Victoria Island`; absent when no link names it);
 each node `{id, maps[], names[], x, y, hub, anchor, dup, danger, leaf, unreachable}`. A node may merge
 several maps (`maps[]`). Drives the map page. (See `serveWorldMaps`/`worldmapsJson` for exact fields.)
 
