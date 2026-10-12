@@ -2032,7 +2032,7 @@ class BotInventoryManager {
                 out.put(item, new UseClass(UseTier.JUNK, 0, 0, junkReason(bot, id)));
                 continue;
             }
-            if (id == BotShopManager.RETURN_SCROLL_NEAREST_TOWN) {
+            if (BotShopManager.isNearestTownScroll(id)) {
                 returnScrolls.add(item);
                 continue;
             }

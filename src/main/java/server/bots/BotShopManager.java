@@ -674,7 +674,7 @@ final class BotShopManager {
             actions.add((sequence, shop) -> appendBuyReport(sequence, buyAmmo(bot, shop, wt), "ammo"));
         }
         if (shouldBuyReturnScrollWhileShopping(bot)) {
-            actions.add((sequence, shop) -> appendBuyReport(sequence, buyReturnScrolls(bot, shop), "Return Scroll - Nearest Town"));
+            actions.add((sequence, shop) -> appendBuyReport(sequence, buyReturnScrolls(bot, shop), "Return scroll (nearest town)"));
         }
         // Class-weighted pot budget: buy the PRIMARY pot type first (mage -> MP, everyone else -> HP)
         // but cap its spend so the SECONDARY keeps a reserve share of the meso, then the secondary
@@ -1155,15 +1155,32 @@ final class BotShopManager {
         return buyFixedCostItem(bot, shop, scroll, Math.max(0, RETURN_SCROLL_TARGET_QTY - current), 10);
     }
 
+    /** The cheapest nearest town scroll the shop sells: 2030000 on the mainland, Coffee Milk in Zipangu. */
     private static ShopSlotItem findReturnScrollItem(Shop shop) {
         List<ShopItem> items = shop.getItems();
+        ShopSlotItem best = null;
         for (int i = 0; i < items.size(); i++) {
             ShopItem si = items.get(i);
-            if (si.getItemId() == RETURN_SCROLL_NEAREST_TOWN && si.getPrice() > 0) {
-                return new ShopSlotItem((short) i, si);
+            if (si.getPrice() > 0 && isNearestTownScroll(si.getItemId())
+                    && (best == null || si.getPrice() < best.shopItem().getPrice())) {
+                best = new ShopSlotItem((short) i, si);
             }
         }
-        return null;
+        return best;
+    }
+
+    /** A use item that warps to the nearest town, whatever the region calls it (moveTo is MapId.NONE): 2030000
+     *  everywhere, and the twins some towns sell instead (Zipangu's Coffee Milk 2030008). The rescue and travel
+     *  planning treat every such item as a return scroll; town specific ones are not. */
+    static boolean isNearestTownScroll(int itemId) {
+        if (itemId == RETURN_SCROLL_NEAREST_TOWN) {
+            return true;
+        }
+        if (itemId / 10_000 != RETURN_SCROLL_NEAREST_TOWN / 10_000) {
+            return false; // not a town scroll (the 203 item family)
+        }
+        StatEffect fx = BotInventoryManager.useEffect.effect(itemId); // the bag's cached WZ effect lookup
+        return fx != null && fx.getMoveTo() == constants.id.MapId.NONE;
     }
 
     static int countReturnScrolls(Character bot) {
@@ -1173,7 +1190,7 @@ final class BotShopManager {
         }
         int count = 0;
         for (Item item : use.list()) {
-            if (item.getItemId() == RETURN_SCROLL_NEAREST_TOWN && item.getQuantity() > 0) {
+            if (item.getQuantity() > 0 && isNearestTownScroll(item.getItemId())) {
                 count += item.getQuantity();
             }
         }

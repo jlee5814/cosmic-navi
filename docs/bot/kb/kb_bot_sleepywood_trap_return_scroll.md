@@ -43,3 +43,11 @@ bypass the danger block), NOT by grind-selection, so recovery is the load-bearin
 
 Related: [[kb_bot_inert_autopilot_recovery]] (other stranded-bot self-heal), [[kb_bot_town_nav_airborne_target]]
 (travel give-up loop), [[feedback_client_side_formulas_in_bot]] (StatEffect stays generic; bot reuses applyTo).
+
+**UPDATE 2026-10-12, regional nearest town twins (#48):** a bot based in Zipangu could never restock
+return scrolls, because no Zipangu shop sells 2030000; the local twin is Coffee Milk (2030008, moveTo
+999999999 = MapId.NONE, same as Nearest Town). Strawberry and Fruit Milk (2030009/2030010) are fixed town
+scrolls. `BotShopManager.isNearestTownScroll` now reads moveTo from WZ (through
+`BotInventoryManager.useEffect`), and the shop search, `countReturnScrolls` and the USE runway all use it.
+Symptom when this class breaks: fleet ops logs "couldn't auto rescue ... no usable return scroll" while
+the bot's bag shows plenty of meso and potions. Test: `BotShopManagerTest.zipangusCoffeeMilkCountsAsANearestTownScrollFromTheRealWzData`.

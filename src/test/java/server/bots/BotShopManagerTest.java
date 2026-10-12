@@ -396,6 +396,32 @@ class BotShopManagerTest {
     }
 
     @Test
+    void zipangusCoffeeMilkCountsAsANearestTownScrollFromTheRealWzData() {
+        // #48: Zipangu shops sell no 2030000, only Coffee Milk (warps to the nearest town) and fixed town
+        // milks; matching 2030000 alone left a bot there with no way to restock, so every rescue failed.
+        provider.DataProvider items = provider.DataProviderFactory.getDataProvider(provider.wz.WZFiles.ITEM);
+        provider.Data scrolls = items.getData("Consume/0203.img");
+        assertTrue(scrolls != null, "real WZ Item.wz/Consume/0203.img");
+        BotInventoryManager.ItemEffectLookup prev = BotInventoryManager.useEffect;
+        BotInventoryManager.useEffect = id -> {
+            provider.Data item = scrolls.getChildByPath("0" + id);
+            return item == null ? null : server.StatEffect.loadItemEffectFromData(item.getChildByPath("spec"), id);
+        };
+        try {
+            assertTrue(BotShopManager.isNearestTownScroll(2030000), "Return Scroll - Nearest Town");
+            assertTrue(BotShopManager.isNearestTownScroll(2030008), "Coffee Milk warps to the nearest town");
+            assertFalse(BotShopManager.isNearestTownScroll(2030009), "Strawberry Milk always goes to Mushroom Shrine");
+            assertFalse(BotShopManager.isNearestTownScroll(2030004), "Return Scroll to Henesys");
+            assertFalse(BotShopManager.isNearestTownScroll(2000002), "a potion is not a scroll");
+
+            Character bot = clawBotWithStarItems(new int[]{2030008, 2030009}, new int[]{4, 7});
+            assertEquals(4, BotShopManager.countReturnScrolls(bot), "only the nearest town kind counts");
+        } finally {
+            BotInventoryManager.useEffect = prev;
+        }
+    }
+
+    @Test
     void clawBotTopsUpToThreeStarStacksWhileShopping() {
         try (Seam seam = withStarStats()) {
             // One stack: the SipsBuddy38 case, dry every few hundred throws.
