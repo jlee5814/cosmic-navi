@@ -67,9 +67,6 @@ final class BotShopManager {
     private static final int AMMO_TRIGGER_THRESHOLD = 8;
     private static final int AMMO_TARGET_THRESHOLD = 10; // full target when buying at shop
     static final int RETURN_SCROLL_NEAREST_TOWN = 2030000;
-    // item id -> warps to the nearest town (its effect's moveTo is MapId.NONE): 2030000 everywhere, and the
-    // regional twins some towns sell instead (Zipangu's Coffee Milk 2030008). WZ data, read once per id.
-    private static final Map<Integer, Boolean> NEAREST_TOWN_SCROLL = new ConcurrentHashMap<>();
     private static final int RETURN_SCROLL_TARGET_QTY = 10;
     private static final int RECHARGE_MAX_SETS = 10; // cap recharge to the best N own-type stacks
     private static final int AUTO_SELL_FREE_SLOT_THRESHOLD = 2; // bag tab "cramped" when this few slots left
@@ -1172,8 +1169,9 @@ final class BotShopManager {
         return best;
     }
 
-    /** A use item that warps to the nearest town, whatever the region calls it (moveTo is MapId.NONE). The
-     *  rescue and travel planning treat every such item as a return scroll; town specific ones are not. */
+    /** A use item that warps to the nearest town, whatever the region calls it (moveTo is MapId.NONE): 2030000
+     *  everywhere, and the twins some towns sell instead (Zipangu's Coffee Milk 2030008). The rescue and travel
+     *  planning treat every such item as a return scroll; town specific ones are not. */
     static boolean isNearestTownScroll(int itemId) {
         if (itemId == RETURN_SCROLL_NEAREST_TOWN) {
             return true;
@@ -1181,14 +1179,8 @@ final class BotShopManager {
         if (itemId / 10_000 != RETURN_SCROLL_NEAREST_TOWN / 10_000) {
             return false; // not a town scroll (the 203 item family)
         }
-        return NEAREST_TOWN_SCROLL.computeIfAbsent(itemId, id -> {
-            try {
-                StatEffect fx = ItemInformationProvider.getInstance().getItemEffect(id);
-                return fx != null && fx.getMoveTo() == constants.id.MapId.NONE;
-            } catch (RuntimeException e) {
-                return false;
-            }
-        });
+        StatEffect fx = BotInventoryManager.useEffect.effect(itemId); // the bag's cached WZ effect lookup
+        return fx != null && fx.getMoveTo() == constants.id.MapId.NONE;
     }
 
     static int countReturnScrolls(Character bot) {
