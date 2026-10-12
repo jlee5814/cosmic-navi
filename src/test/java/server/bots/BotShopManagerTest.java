@@ -396,6 +396,20 @@ class BotShopManagerTest {
     }
 
     @Test
+    void zipangusCoffeeMilkCountsAsANearestTownScrollFromTheRealWzData() {
+        // #48: Zipangu shops sell no 2030000, only Coffee Milk (warps to the nearest town) and fixed town
+        // milks; matching 2030000 alone left a bot there with no way to restock, so every rescue failed.
+        assertTrue(BotShopManager.isNearestTownScroll(2030000), "Return Scroll - Nearest Town");
+        assertTrue(BotShopManager.isNearestTownScroll(2030008), "Coffee Milk warps to the nearest town");
+        assertFalse(BotShopManager.isNearestTownScroll(2030009), "Strawberry Milk always goes to Mushroom Shrine");
+        assertFalse(BotShopManager.isNearestTownScroll(2030004), "Return Scroll to Henesys");
+        assertFalse(BotShopManager.isNearestTownScroll(2000002), "a potion is not a scroll");
+
+        Character bot = clawBotWithStarItems(new int[]{2030008, 2030009}, new int[]{4, 7});
+        assertEquals(4, BotShopManager.countReturnScrolls(bot), "only the nearest town kind counts");
+    }
+
+    @Test
     void clawBotTopsUpToThreeStarStacksWhileShopping() {
         try (Seam seam = withStarStats()) {
             // One stack: the SipsBuddy38 case, dry every few hundred throws.
