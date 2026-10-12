@@ -217,6 +217,8 @@ function instOccupants(inst){
 // ring priority: unreachable(grey) > danger(red) > custom(cyan) > hub(purple) > spot(light) > plain
 function styleNode(inst){
   inst.circle.dash([]); inst.circle.opacity(1);
+  if(focusWm != null){ styleSpot(inst); return; }
+  inst.circle.radius(inst.r0);
   if(inst.unreachable){ // worldmap location no bot can reach — exists in WZ, not in the bot graph
     inst.circle.fill('#23262e'); inst.circle.stroke('#7a8290'); inst.circle.strokeWidth(1.6);
     inst.circle.dash([2,2]); inst.circle.opacity(0.55); return;
@@ -245,6 +247,7 @@ function matches(inst){
 // center label: occupant count when anyone is here, else the danger/unreachable marker (or nothing)
 function updateCenter(inst){
   if(!inst.center) return;
+  if(focusWm != null){ inst.center.text(''); return; }      // focus mode: name badges carry the occupants
   const n = instOccupants(inst).length;
   let txt = '', fill = '#0d1017';
   if(n > 0){ txt = String(n); }
@@ -257,6 +260,7 @@ function updateCenter(inst){
 }
 function applyStyle(){
   for(const inst of allInst){
+    const v = shownInFocus(inst); inst.circle.visible(v); if(inst.center) inst.center.visible(v);
     styleNode(inst);
     updateCenter(inst);
     const hit = matches(inst);
@@ -698,7 +702,7 @@ function mapHitsHtml(hits){
                     anchor:nd.anchor, hub:nd.hub, dup:nd.dup, danger:nd.danger, leaf:nd.leaf,
                     unreachable:nd.unreachable, custom:!!nd.custom, absolute:!!nd.absolute,
                     absX:nd.absX||0, absY:nd.absY||0,
-                    circle, center:null};
+                    r0:r, circle, center:null};
       circle.on('mouseover', e => { document.body.style.cursor='pointer'; showTip(inst, e.evt); });
       circle.on('mousemove', e => { tipXY={x:e.evt.clientX,y:e.evt.clientY}; if(tipNode===inst) paintTip(inst); });
       circle.on('mouseout', () => { document.body.style.cursor='default'; hideTip(); });
@@ -816,6 +820,21 @@ function regionLabel(wm){
   return hubs.length ? hubs.join(' · ') : ((ins.find(i => i.anchor) || ins[0] || {name:'region '+wm}).name);
 }
 function inFocus(map){ return (nodes[map] || []).some(i => i.wm === focusWm); }
+// focus mode looks like the in-game world map: only its spots, plus any other map someone stands on
+function shownInFocus(inst){
+  return focusWm == null || (inst.wm === focusWm && (inst.anchor || instOccupants(inst).length > 0));
+}
+function styleSpot(inst){
+  let hasP = false, hasB = false;
+  for(const m of inst.maps){ const o = live[m]; if(o){ if(o.players.length) hasP = true; if(o.bots.length) hasB = true; } }
+  const c = inst.circle;
+  c.radius(inst.hub ? 7 : inst.anchor ? 5 : 3.5);
+  c.fill(hasP ? '#39d353' : hasB ? '#ff9d4d' : '#f6c343');
+  c.stroke(inst.danger ? '#ff3b3b' : hasP || hasB ? '#ffffff' : '#6b4513');
+  c.strokeWidth(hasP || hasB || inst.danger ? 2 : 1.4);
+  if(inst.unreachable){ c.fill('#b9b2a3'); c.dash([2,2]); c.opacity(0.7); }
+  if(nodeHasSelected(inst)){ c.stroke('#ffd54a'); c.strokeWidth(3); }
+}
 function instFor(map){
   if(focusWm != null){ const i = (nodes[map] || []).find(i => i.wm === focusWm); if(i) return i; }
   return pickInstance(map);
@@ -823,8 +842,8 @@ function instFor(map){
 function setFocus(wm){
   focusWm = wm;
   for(const id in wmImg) wmImg[id].visible(wm == null || id === wm);
-  for(const inst of allInst){ const v = wm == null || inst.wm === wm; inst.circle.visible(v); if(inst.center) inst.center.visible(v); }
-  for(const el of edgeLines) el.line.visible(wm == null || (el.ia.wm === wm && el.ib.wm === wm));
+  for(const el of edgeLines) el.line.visible(wm == null);   // the region art already paints its roads
+  applyStyle();
   const bar = document.getElementById('focusBar');
   bar.style.display = wm == null ? 'none' : 'flex';
   document.getElementById('fbName').textContent = wm == null ? '' : regionLabel(wm);
