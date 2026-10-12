@@ -59,15 +59,26 @@ fi
 echo "sweeping working tree"
 HEAD_TSV="tmp/navgate/head.tsv"
 sweep_in . "$HEAD_TSV" @tmp/navgate/maps.txt
-python3 tools/navgate/compare_sweeps.py "$BASE_TSV" "$HEAD_TSV" "$OUT/candidates.txt"
+python3 tools/navgate/compare_sweeps.py "$BASE_TSV" "$HEAD_TSV" "$OUT/candidates.txt" "$OUT/probes.txt"
 
-# Confirm each candidate with 10 runs on each side; a single sweep can't tell a regression from a flaky move.
-if [ ! -s "$OUT/candidates.txt" ]; then
+# Confirm with 10 runs on each side; a single sweep can't tell a regression from a flaky move.
+# Candidates are stuck moves, rerun as edges; probes are trips that lost every move like them, rerun with
+# the live router choosing, so a branch passes when the bot still gets there some other way.
+if [ ! -s "$OUT/candidates.txt" ] && [ ! -s "$OUT/probes.txt" ]; then
   echo "NAV GATE: PASS"
   exit 0
 fi
-cut -f1 "$OUT/candidates.txt" | sort -u > "$OUT/candidate-maps.txt"
-echo "confirming $(wc -l < "$OUT/candidates.txt" | tr -d ' ') candidates"
-sweep_in "$WT" tmp/navgate/confirm-base.tsv --attempts 10 --only tmp/navgate/candidates.txt @tmp/navgate/candidate-maps.txt
-sweep_in . tmp/navgate/confirm-head.tsv --attempts 10 --only tmp/navgate/candidates.txt @tmp/navgate/candidate-maps.txt
-python3 tools/navgate/compare_sweeps.py --confirm "$OUT/confirm-base.tsv" "$OUT/confirm-head.tsv"
+rm -f "$OUT"/confirm-*.tsv "$OUT"/probe-*.tsv
+if [ -s "$OUT/candidates.txt" ]; then
+  cut -f1 "$OUT/candidates.txt" | sort -u > "$OUT/candidate-maps.txt"
+  echo "confirming $(wc -l < "$OUT/candidates.txt" | tr -d ' ') candidates"
+  sweep_in "$WT" tmp/navgate/confirm-base.tsv --attempts 10 --only tmp/navgate/candidates.txt @tmp/navgate/candidate-maps.txt
+  sweep_in . tmp/navgate/confirm-head.tsv --attempts 10 --only tmp/navgate/candidates.txt @tmp/navgate/candidate-maps.txt
+fi
+if [ -s "$OUT/probes.txt" ]; then
+  echo "probing $(wc -l < "$OUT/probes.txt" | tr -d ' ') trips"
+  sweep_in "$WT" tmp/navgate/probe-base.tsv --attempts 10 --probe tmp/navgate/probes.txt
+  sweep_in . tmp/navgate/probe-head.tsv --attempts 10 --probe tmp/navgate/probes.txt
+fi
+python3 tools/navgate/compare_sweeps.py --confirm "$OUT/confirm-base.tsv" "$OUT/confirm-head.tsv" \
+  "$OUT/probe-base.tsv" "$OUT/probe-head.tsv"

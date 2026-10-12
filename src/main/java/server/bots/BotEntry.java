@@ -779,6 +779,9 @@ public class BotEntry {
     int navBlockedPosGiveUpTicks = 0;
     int navBlockedPosX = Integer.MIN_VALUE;
     int navBlockedPosY = Integer.MIN_VALUE;
+    // The edge the bot is attempting and its clock (BotEdgeFailures): an edge that doesn't finish in time
+    // is given up and avoided for a while.
+    BotEdgeFailures.Attempt edgeAttempt = null;
     boolean graphWarmupFallback = false;
     int observedOwnerStepX = 0;
     int observedOwnerStepY = 0;

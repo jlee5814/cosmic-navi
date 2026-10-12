@@ -311,6 +311,18 @@ final class BotNavigationManager {
                 return new NavigationDirective(rawTargetPos, false);
             }
 
+            if (runAiTick && BotEdgeFailures.track(entry, bot.getId(), bot.getMapId(), edge, startRegionId, botPos,
+                    System.currentTimeMillis())) {
+                // The edge didn't finish in time: pause a tick, then plan around it.
+                entry.lastNavDecision = "edge-failed";
+                clearNavigation(entry);
+                clearCommittedRoute(entry);
+                if (entry.pathLogger != null) {
+                    entry.pathLogger.record(entry, captureTargetSnapshot(entry, rawTargetPos), startRegionId, false, runAiTick);
+                }
+                return new NavigationDirective(new Point(botPos), false);
+            }
+
             NavigationDirective executionDirective = tryExecuteEdge(graph, entry, bot, botPos, rawTargetPos, edge, runAiTick);
             if (executionDirective != null) {
                 entry.lastNavDecision = "exec";
@@ -1641,7 +1653,7 @@ final class BotNavigationManager {
             route = skillAwareRoutePath(graph, map, bot, startRegionId, targetRegionId, targetPos);
         } else {
             route = graph.portalRoute(startRegionId, targetRegionId, bot.getPosition());
-            if (route.isEmpty() || !routeUsable(graph, map, route)) {
+            if (route.isEmpty() || !routeUsable(graph, map, route) || usesFailedEdge(bot, map, route)) {
                 route = findPath(graph, bot, startRegionId, targetRegionId, targetPos);
             }
         }
@@ -1665,6 +1677,19 @@ final class BotNavigationManager {
         for (BotNavigationGraph.Edge e : route) {
             if (e.type == BotNavigationGraph.EdgeType.PORTAL && e.fromRegionId == e.toRegionId) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    /** True when the route uses an edge this bot gave up recently: the shared baked route can't see that. */
+    private static boolean usesFailedEdge(Character bot, MapleMap map, List<BotNavigationGraph.Edge> route) {
+        Map<BotEdgeFailures.Key, Long> failed = BotEdgeFailures.active(bot.getId(), map.getId(), System.currentTimeMillis());
+        if (failed != null) {
+            for (BotNavigationGraph.Edge edge : route) {
+                if (BotEdgeFailures.penaltyMs(failed, edge) > 0) {
+                    return true;
+                }
             }
         }
         return false;
@@ -1902,7 +1927,8 @@ final class BotNavigationManager {
                                                   int startRegionId,
                                                   int targetRegionId,
                                                   Point targetPos) {
-        return findPath(graph, bot.getMap(), bot.getPosition(), startRegionId, targetRegionId, targetPos, "committed", routeSeed(bot));
+        return runSearch(graph, bot.getMap(), bot.getPosition(), startRegionId, targetRegionId, targetPos,
+                "committed", useAdmissibleHeuristic, true, routeSeed(bot), false, bot).path();
     }
 
     /** Skill-enabled path for /api/navprobe debugging — routes through teleport/flash-jump edges the bot
@@ -2141,6 +2167,10 @@ final class BotNavigationManager {
             SearchState closestState = startState;
             long closestDistance = rawDistance(startPos, targetPos);
 
+            // Edges this bot gave up recently cost it more, so it routes around them when it can.
+            Map<BotEdgeFailures.Key, Long> failedEdges = bot == null ? null
+                    : BotEdgeFailures.active(bot.getId(), map.getId(), System.currentTimeMillis());
+
             gScore.put(startState, 0);
             open.add(new SearchNode(startState, 0, hValue(graph, startRegionId, startPos, targetRegionId, targetPos, costToGoal, zeroHeuristic, randomized, epsilon, skillMask)));
 
@@ -2226,6 +2256,7 @@ final class BotNavigationManager {
                     if (randomized) {
                         stepCost += (int) Math.round(stepCost * JITTER_FRAC * hashFrac(routeSeed, edgeKey(edge)));
                     }
+                    stepCost += BotEdgeFailures.penaltyMs(failedEdges, edge);
                     int tentativeCost = current.cost + stepCost;
                     SearchState nextState = new SearchState(edge.toRegionId, landingPoint, isPortal);
                     if (tentativeCost >= gScore.getOrDefault(nextState, Integer.MAX_VALUE)) {
