@@ -220,6 +220,14 @@ JSON array of stalls a return scroll can't fix (`errand_loop`, `no_exp_on_errand
 status line, bag fill per tab and its top USE stacks with the sell rule that classifies each. Read only.
 Polled by [tools/responder](../../tools/responder/README.md).
 
+### `/api/learned/readiness`
+How close the grind target decision log (`logs/bot-decisions/`, docs/bot/learned-grind-target.md) is to
+worth training on. Counts every logged pick since the first log, earlier days included (scanned once,
+in the background, the first time it's needed). Read only. Shown on the world map page.
+```
+{"picks":38,"explored":1,"maps":1,"need":{"picks":20000,"maps":10,"explored":300},"ready":false}
+```
+
 ### `/api/fleetops/act` (POST)
 `{"bot":<char id>,"action":"rescue|hold_errands|sell_trash|park","arg":<minutes>,"reason":"..."}` runs one
 responder action on the bot's next tick and whispers its owner. At most 3 per bot in 2 hours. Not reachable

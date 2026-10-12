@@ -71,6 +71,27 @@ class BotGrindTargetLogTest {
     }
 
     @Test
+    void readinessCountsPicksMapsAndExploredPicks() {
+        long[] before = readiness();
+        BotGrindTargetLog.count("{\"t\":1,\"bot\":1,\"map\":910000001,\"cands\":[{\"mob\":1}],\"pick\":0,\"p\":0.900}");
+        BotGrindTargetLog.count("{\"t\":2,\"bot\":1,\"map\":910000002,\"cands\":[{\"mob\":1}],\"pick\":2,\"p\":0.050}");
+        BotGrindTargetLog.count("not a decision line");
+        long[] after = readiness();
+
+        assertEquals(before[0] + 2, after[0], "picks");
+        assertEquals(before[1] + 1, after[1], "explored");
+        assertEquals(before[2] + 2, after[2], "maps");
+    }
+
+    private static long[] readiness() {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("\"picks\":(\\d+),\"explored\":(\\d+),\"maps\":(\\d+)")
+                .matcher(BotGrindTargetLog.readinessJson());
+        assertTrue(m.find());
+        return new long[]{Long.parseLong(m.group(1)), Long.parseLong(m.group(2)), Long.parseLong(m.group(3))};
+    }
+
+    @Test
     void countsExpAcrossLevelUps() {
         assertEquals(500, BotGrindTargetLog.expGained(30, 1000, 30, 1500));
         long need30 = ExpTable.getExpNeededForLevel(30);

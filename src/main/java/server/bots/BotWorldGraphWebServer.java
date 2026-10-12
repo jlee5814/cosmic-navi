@@ -184,6 +184,7 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/fleetops", BotWorldGraphWebServer::serveFleetOps);
             s.createContext("/api/fleetops/incidents", BotWorldGraphWebServer::serveFleetIncidents);
             s.createContext("/api/fleetops/act", BotWorldGraphWebServer::serveFleetAct);
+            s.createContext("/api/learned/readiness", BotWorldGraphWebServer::serveLearnedReadiness);
             s.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "bot-worldmap-web");
                 t.setDaemon(true);
@@ -217,6 +218,11 @@ public final class BotWorldGraphWebServer {
     private static void serveFleetIncidents(HttpExchange ex) throws IOException {
         send(ex, 200, "application/json", BotFleetOps.incidentsJson(System.currentTimeMillis())
                 .getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** GET /api/learned/readiness: how close the grind decision log is to worth training on (stage 2 gate). */
+    private static void serveLearnedReadiness(HttpExchange ex) throws IOException {
+        send(ex, 200, "application/json", BotGrindTargetLog.readinessJson().getBytes(StandardCharsets.UTF_8));
     }
 
     /** POST /api/fleetops/act {"bot":id,"action":"rescue|hold_errands|sell_trash|park","arg":n,"reason":"..."}:
