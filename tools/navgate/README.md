@@ -16,15 +16,20 @@ tools/navgate/nav_gate.sh <ref>      # or with another base
    is cached per commit and tool version in `tmp/navgate/`, so a rerun sweeps only the branch (about 6
    minutes).
 2. **Compare.** A move stuck on the branch but not on the base becomes a candidate. Stuck means the bot
-   stayed on its platform or froze, the trap that stalls a live bot for hours.
+   stayed on its platform or froze, the trap that stalls a live bot for hours. A move that works on the
+   base and has no move like it on the branch (any type, start within 48 px across, end within 64 px
+   across, both within 10 px up or down) becomes a trip to probe: a change that prunes or reshapes
+   edges can take away a way between two platforms without leaving anything stuck behind.
 3. **Confirm.** The sim isn't fully deterministic: timer threads run beside the tick, so a move near the
    edge of working can pass one run and fail the next. Each candidate runs 10 times on each side. A
    regression fails at least 8 of 10 on the branch and at most 2 of 10 on the base, or doesn't exist on
-   the base at all.
+   the base at all. Each trip also runs 10 times on each side (`BotEdgeSweepCli --probe`), but the bot gets
+   only the destination and the live router picks the way, so a branch that still gets there by another
+   path passes. A lost way fails at least 8 of 10 on the branch and at most 2 of 10 on the base.
 
 ## What it gates and what it doesn't
 
-- **Fails on:** confirmed regressions.
+- **Fails on:** confirmed regressions and confirmed lost ways.
 - **Reports only:** moves that land on another platform than planned (the bot replans, so these cost time
   rather than freeze it) and flaky moves that pass on a retry.
 - **Can't see:** monsters, portals, ropes, teleports and flash jumps, or traps the sim escapes and a live
@@ -35,3 +40,5 @@ tools/navgate/nav_gate.sh <ref>      # or with another base
 - main against main: 2 candidates, both failing about as often on each side (8/10 and 8/10, 2/10 and
   3/10). PASS.
 - The #25 era wall check put back: 95 candidates, 88 confirmed regressions on 28 maps. FAIL.
+
+Tests for the comparison: `python3 -m unittest tools/navgate/test_compare_sweeps.py`.
