@@ -675,12 +675,13 @@ function mapHitsHtml(hits){
 
   wms.forEach((wm, i) => {
     const imgEl = new Image();
-    const kimg = new Konva.Image({x:wm.x, y:wm.y, scaleX:wm.scale, scaleY:wm.scale, image:imgEl, draggable:true});
+    // the image attaches only once loaded: Konva throws drawing a broken image, and the throw leaves the
+    // canvas transform unbalanced, so every later draw lands off screen (5 worldmaps have no PNG yet)
+    const kimg = new Konva.Image({x:wm.x, y:wm.y, scaleX:wm.scale, scaleY:wm.scale, draggable:true});
     kimg.setAttr('wmid', wm.id);
     wmImg[wm.id] = kimg;
     imageLayer.add(kimg); kimg.moveToBottom();
-    imgEl.onload  = () => imageLayer.batchDraw();
-    imgEl.onerror = () => imageLayer.batchDraw();
+    imgEl.onload  = () => { kimg.image(imgEl); if(focusWm === wm.id) fitRegion(wm.id); imageLayer.batchDraw(); };
     imgEl.src = '/wm/' + wm.id + '.png';
 
     kimg.on('click tap', e => { e.cancelBubble = true;
@@ -840,6 +841,7 @@ function fitRegion(wm){
   const s = Math.min(w / Math.max(1, x2 - x1), h / Math.max(1, y2 - y1)) * pad;
   stage.scale({x:s, y:s});
   stage.position({x: w/2 - (x1 + x2)/2 * s, y: 48 + h/2 - (y1 + y2)/2 * s});
+  scaleBadges();
 }
 // a name badge beside every occupied dot of the focused region; constant on-screen size
 function renderBadges(){
