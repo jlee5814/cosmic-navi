@@ -202,6 +202,11 @@ class BotCombatManager {
         // approaching it (out of attack range), so the bot doesn't flip between far mobs every retarget
         // tick as re-scoring shifts the "best" pick. Broken early only if the target dies/vanishes.
         public int   GRIND_TARGET_COMMIT_MS = 3000;
+        // Fresh picks (no live target) sometimes take the 2nd or 3rd candidate when its cost is within
+        // this band of the best: humanlike variety, and the spread the learned target scorer trains on
+        // (docs/bot/learned-grind-target.md). 0 turns it off.
+        public double GRIND_TARGET_EXPLORE = 0.1;
+        public int   GRIND_TARGET_EXPLORE_BAND_MS = 1500;
         public int   AOE_MOB_THRESHOLD = 2;
         // AoE repositioning: when the best fire-now plan is single-target but stepping into the
         // cluster centroid would let the AoE skill beat it by this DPS factor, defer the shot and
@@ -961,17 +966,23 @@ class BotCombatManager {
 
     /** Returns the most convenient reachable target (deterministic — closest/best score wins). */
     static Monster findGrindTarget(BotEntry entry, Character bot) {
+        List<ScoredGrindTarget> ranked = rankGrindTargets(entry, bot);
+        return ranked.isEmpty() ? null : ranked.getFirst().monster();
+    }
+
+    /** The reachable grind candidates, best first by the rules (one per region on the graph); empty if none. */
+    static List<ScoredGrindTarget> rankGrindTargets(BotEntry entry, Character bot) {
         long startedAt = System.nanoTime();
         try {
             Point botPos = bot.getPosition();
             double rangeSq = (double) BotCombatManager.cfg.GRIND_SEEK_RANGE * BotCombatManager.cfg.GRIND_SEEK_RANGE;
             Foothold botFoothold = findGroundFoothold(botPos, bot);
             List<Monster> candidates = aliveMonstersInRange(bot, botPos, rangeSq);
-            if (candidates.isEmpty()) return null;
+            if (candidates.isEmpty()) return List.of();
 
             List<ScoredGrindTarget> scoredTargets = scoreGrindTargets(entry, bot, botPos, botFoothold, candidates);
             if (scoredTargets.isEmpty()) {
-                return null;
+                return List.of();
             }
 
             scoredTargets.sort(Comparator
@@ -983,10 +994,10 @@ class BotCombatManager {
                     .toList();
             List<ScoredGrindTarget> selectable = reachableTargets.isEmpty() ? scoredTargets : reachableTargets;
             if (selectable.getFirst().graphCost() >= UNREACHABLE_GRAPH_COST) {
-                return null;
+                return List.of();
             }
 
-            return selectable.get(0).monster();
+            return selectable;
         } finally {
             BotPerformanceMonitor.record("combat-target-search", System.nanoTime() - startedAt);
         }
@@ -2249,7 +2260,7 @@ class BotCombatManager {
                     : Math.max(0L, pathCost - crowdBonus) + occupancyPenalty;
             long localScore = group.bestLocalScore() + occupancyPenalty;
             scoredTargets.add(new ScoredGrindTarget(group.bestMonster(), graphScore, localScore,
-                    group.bestDistanceSq()));
+                    group.bestDistanceSq(), group.regionId(), group.mobCount()));
         }
         return scoredTargets;
     }
@@ -2714,7 +2725,12 @@ class BotCombatManager {
         return BotPhysicsEngine.findGroundFoothold(bot.getMap(), position);
     }
 
-    private record ScoredGrindTarget(Monster monster, long graphCost, long localScore, double distanceSq) {
+    /** One grind candidate as the rules score it; {@code regionId}/{@code mobCount} are -1/1 off the graph. */
+    record ScoredGrindTarget(Monster monster, long graphCost, long localScore, double distanceSq,
+                             int regionId, int mobCount) {
+        ScoredGrindTarget(Monster monster, long graphCost, long localScore, double distanceSq) {
+            this(monster, graphCost, localScore, distanceSq, -1, 1);
+        }
     }
 
     private static final class GrindTargetGroup {
