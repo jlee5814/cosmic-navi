@@ -64,4 +64,28 @@ class BotWalkOffMapEdgeTest {
             }
         }
     }
+
+    /** New Leaf City's valley at x 1715 to 1748: its left end is the foot of a 6 px wall up to the chain
+     *  on the left. Walking left, the bot stops a step short of the wall and never falls, but a first step
+     *  tested from the end itself passed the wall, so a left walk off drop was authored and the bot stood
+     *  in the corner. The right end is a real ledge and keeps its drop. */
+    @org.junit.jupiter.api.Test
+    void noWalkOffDropIntoAWallRisingFromTheRegionEnd() {
+        if (System.getProperty("wz-path") == null) {
+            System.setProperty("wz-path", Path.of("wz").toAbsolutePath().toString());
+        }
+        MapleMap map = BotNavigationMapLoader.loadMapGeometry(600000000);
+        BotNavigationGraph graph = BotNavigationGraphProvider.rebuildGraph(map);
+        int valley = graph.findRegionId(map, new java.awt.Point(1731, 355));
+        boolean left = false;
+        boolean right = false;
+        for (BotNavigationGraph.Edge e : graph.getOutgoing(valley)) {
+            if (e.type == BotNavigationGraph.EdgeType.DROP && e.launchStepX != 0) {
+                left |= e.launchStepX < 0;
+                right |= e.launchStepX > 0;
+            }
+        }
+        assertFalse(left, "no walk off drop to the left of region " + valley);
+        assertTrue(right, "the ledge at x 1748 keeps its walk off drop");
+    }
 }
