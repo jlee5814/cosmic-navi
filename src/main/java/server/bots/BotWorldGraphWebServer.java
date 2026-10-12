@@ -331,7 +331,7 @@ public final class BotWorldGraphWebServer {
         Map<String, String> wmParent = new HashMap<>(); // child worldmap id -> parent (overview) worldmap id
         Map<String, Set<Integer>> wmMaps = new HashMap<>(); // worldmap id -> the maps it shows
         Map<String, String> names = new HashMap<>();
-        collectRegionNames(dp.getData("WorldMap.img"), names); // the top world map links every continent
+        collectRegionNames(dp.getData("WorldMap/WorldMap.img"), names); // the top world map links every continent
         for (String id : worldMapIds()) {
             Data wm = dp.getData("WorldMap/WorldMap" + id + ".img");
             if (wm == null) {
