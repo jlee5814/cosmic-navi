@@ -200,13 +200,16 @@ class Wz:
         w, h, fmt, at, n = canvas
         raw = self.d[at:at + n]
         if raw[:2] in (b'\x78\x9c', b'\x78\x01', b'\x78\xda', b'\x78\x5e'):
-            data = zlib.decompress(raw)
+            data = zlib.decompressobj().decompress(raw)  # some clients omit the zlib trailer
         else:  # encrypted blocks: int32 length + xor keystream
             p, buf = 0, bytearray()
             while p < len(raw):
                 ln = struct.unpack_from('<i', raw, p)[0]; p += 4
                 buf += bytes(b ^ self.key[i] for i, b in enumerate(raw[p:p + ln])); p += ln
-            data = zlib.decompress(bytes(buf))
+            data = zlib.decompressobj().decompress(bytes(buf))
+        need = w * h * (4 if fmt == 2 else 2)
+        if len(data) < need:
+            raise ValueError('pixel data short: %d of %d bytes' % (len(data), need))
         rgba = bytearray(w * h * 4)
         if fmt == 1:  # BGRA4444
             for i in range(w * h):
