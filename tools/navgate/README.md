@@ -41,4 +41,13 @@ tools/navgate/nav_gate.sh <ref>      # or with another base
   3/10). PASS.
 - The #25 era wall check put back: 95 candidates, 88 confirmed regressions on 28 maps. FAIL.
 
+Lost ways (2026-10-12, 245 maps, 51,535 moves):
+
+- main against main: 0 trips to probe. PASS.
+- Walk off drops removed from the builder: 11,059 fewer moves and fewer stuck ones (12 to 5), so the
+  stuck check alone passed it. 1,902 trips probed on 172 maps; the router found another way on almost all,
+  and 6 on 5 maps were confirmed lost (Kerning City, Orbis, Eos Tower,
+  Singapore CBD twice, the NLC subway). FAIL.
+  Probing took about 4 minutes a side.
+
 Tests for the comparison: `python3 -m unittest tools/navgate/test_compare_sweeps.py`.
