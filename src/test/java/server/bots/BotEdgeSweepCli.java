@@ -16,9 +16,13 @@ import java.util.Set;
  * Phantom edge sweep. For every ground edge the builder authored on a map, put a bot at the edge's start,
  * hand it the edge, and run the live movement pipeline (the same per tick physics a bot runs in game). An
  * edge the bot can't finish within the budget is a phantom: A* will route through it and a real bot will
- * stall there (issue #30 was one). Prints one TSV line per failed edge and a summary per map.
+ * stall there (issue #30 was one). Writes one TSV line per tested edge and prints a summary per map.
  *
  * <p>Usage: BotEdgeSweepCli out.tsv mapId [mapId ...]   (or @file with one map id per line)
+ *
+ * <p>Passing moves are written as {@code ok}, so a gate can also see a working move that a change removed. {@code --probe file} tests trips instead of edges: lines of map, startX, startY, endX, endY
+ * (tab separated); the bot gets only the target and the live router picks the way, and each row reads
+ * {@code fails:k/N}. That answers whether a bot can still get from A to B at all, whatever edges a branch has.
  */
 public final class BotEdgeSweepCli {
     private static final Set<BotNavigationGraph.EdgeType> TESTED = EnumSet.of(
@@ -52,6 +56,19 @@ public final class BotEdgeSweepCli {
                 only = new java.util.HashSet<>(Files.readAllLines(Path.of(args[++i])));
                 continue;
             }
+            if (args[i].equals("--probe")) {
+                for (String line : Files.readAllLines(Path.of(args[++i]))) {
+                    String[] f = line.split("\t");
+                    if (f.length >= 5) {
+                        probes.computeIfAbsent(Integer.parseInt(f[0]), k -> new ArrayList<>()).add(new Point[]{
+                                new Point(Integer.parseInt(f[1]), Integer.parseInt(f[2])),
+                                new Point(Integer.parseInt(f[3]), Integer.parseInt(f[4]))});
+                    }
+                }
+                routeMode = true;
+                budgetMs = 20000;
+                continue;
+            }
             if (args[i].equals("--route")) {
                 routeMode = true;
                 budgetMs = 20000;
@@ -71,10 +88,13 @@ public final class BotEdgeSweepCli {
         rows.add("map\tfrom\tto\ttype\tstepX\tstartX\tstartY\tendX\tendY\tendRegion\tfinalX\tfinalY\tmovedPx\tverdict");
         int totalTested = 0;
         int totalFailed = 0;
+        if (!probes.isEmpty()) {
+            mapIds = new ArrayList<>(probes.keySet());
+        }
         for (int mapId : mapIds) {
             MapResult r;
             try {
-                r = sweepMap(mapId, rows);
+                r = probes.isEmpty() ? sweepMap(mapId, rows) : probeMap(mapId, probes.get(mapId), rows);
             } catch (Throwable t) {
                 System.out.println(mapId + "\tERROR\t" + t);
                 continue;
@@ -93,6 +113,8 @@ public final class BotEdgeSweepCli {
      *  tab separated), runs every attempt, and writes fails:k/N for each, so a gate can tell a real
      *  regression from a move that fails only some of the time. */
     private static java.util.Set<String> only = null;
+    /** --probe: map id to its trips, each {start, end}. */
+    private static final Map<Integer, List<Point[]>> probes = new java.util.TreeMap<>();
 
     private record Attempt(boolean reached, int maxMoved, Point end, int endRegion, int fromRegion, String error) {
         String verdict(BotNavigationGraph.Edge edge) {
@@ -103,14 +125,23 @@ public final class BotEdgeSweepCli {
 
     private static Attempt attempt(BotMovementSimulationLab lab, MapleMap map, BotNavigationGraph graph,
                                    BotNavigationGraph.Edge edge, int botId) {
+        return attempt(lab, map, graph, edge.startPoint, edge.endPoint, edge.fromRegionId, edge.toRegionId,
+                routeMode ? null : edge, botId);
+    }
+
+    /** One try from {@code startPoint} to {@code endPoint}: handed {@code forced} as its edge, or, when null,
+     *  only the target, so the live router chooses. Done when grounded in {@code toRegion} or near the end. */
+    private static Attempt attempt(BotMovementSimulationLab lab, MapleMap map, BotNavigationGraph graph,
+                                   Point startPoint, Point endPoint, int fromRegion, int toRegion,
+                                   BotNavigationGraph.Edge forced, int botId) {
         String name = "sweep" + botId;
-        BotEntry entry = lab.spawnBot(name, botId, map, new Point(edge.startPoint));
-        lab.teleport(name, new Point(edge.startPoint));
+        BotEntry entry = lab.spawnBot(name, botId, map, new Point(startPoint));
+        lab.teleport(name, new Point(startPoint));
         lab.primeMapState(name);
-        if (!routeMode) {
-            lab.setNavState(name, edge, edge.toRegionId, false);
+        if (forced != null) {
+            lab.setNavState(name, forced, forced.toRegionId, false);
         }
-        lab.setMoveTarget(name, new Point(edge.endPoint), true);
+        lab.setMoveTarget(name, new Point(endPoint), true);
         Point start = new Point(entry.bot.getPosition());
         int maxMoved = 0;
         boolean reached = false;
@@ -122,8 +153,8 @@ public final class BotEdgeSweepCli {
                 Point p = entry.bot.getPosition();
                 maxMoved = Math.max(maxMoved, (int) start.distance(p));
                 if (!entry.inAir && !entry.climbing
-                        && (p.distance(edge.endPoint) <= MIN_EDGE_PX
-                        || BotNavigationManager.resolveCurrentRegionId(graph, entry, map, p) == edge.toRegionId)) {
+                        && (p.distance(endPoint) <= MIN_EDGE_PX
+                        || BotNavigationManager.resolveCurrentRegionId(graph, entry, map, p) == toRegion)) {
                     reached = true;
                 }
             }
@@ -133,7 +164,41 @@ public final class BotEdgeSweepCli {
         lab.remove(name);
         Point p = new Point(entry.bot.getPosition());
         int endRegion = BotNavigationManager.resolveCurrentRegionId(graph, entry, map, p);
-        return new Attempt(reached, maxMoved, p, endRegion, edge.fromRegionId, error);
+        return new Attempt(reached, maxMoved, p, endRegion, fromRegion, error);
+    }
+
+    /** --probe: each trip on this map, every attempt run, written as fails:k/N. */
+    private static MapResult probeMap(int mapId, List<Point[]> trips, List<String> rows) {
+        MapleMap map = BotNavigationMapLoader.loadMapGeometry(mapId);
+        BotMovementSimulationLab lab = BotMovementSimulationLab.fromMap(map);
+        BotNavigationGraph graph = BotNavigationGraphProvider.getGraph(map);
+        int failed = 0;
+        int botId = 1;
+        for (Point[] trip : trips) {
+            int from = graph.findRegionId(map, trip[0]);
+            int to = graph.findRegionId(map, trip[1]);
+            int failures = 0;
+            Attempt first = null;
+            for (int a = 0; a < attempts; a++) {
+                Attempt at = attempt(lab, map, graph, trip[0], trip[1], from, to, null, botId++);
+                first = first == null ? at : first;
+                if (!at.reached()) {
+                    failures++;
+                }
+            }
+            if (failures == attempts) {
+                failed++;
+            }
+            rows.add(row(mapId, from, to, "TRIP", 0, trip[0], trip[1], first, "fails:" + failures + "/" + attempts));
+        }
+        return new MapResult(trips.size(), failed, new EnumMap<>(BotNavigationGraph.EdgeType.class));
+    }
+
+    private static String row(int mapId, int from, int to, String type, int stepX, Point start, Point end,
+                              Attempt first, String verdict) {
+        return mapId + "\t" + from + "\t" + to + "\t" + type + "\t" + stepX + "\t" + start.x + "\t" + start.y
+                + "\t" + end.x + "\t" + end.y + "\t" + first.endRegion() + "\t" + first.end().x + "\t"
+                + first.end().y + "\t" + first.maxMoved() + "\t" + verdict;
     }
 
     private record MapResult(int tested, int failed, Map<BotNavigationGraph.EdgeType, Integer> failedByType) {
@@ -170,7 +235,9 @@ public final class BotEdgeSweepCli {
                 tested++;
                 Attempt first = attempt(lab, map, graph, edge, botId++);
                 if (first.reached() && only == null) {
-                    continue;
+                    rows.add(row(mapId, edge.fromRegionId, edge.toRegionId, edge.type.toString(), edge.launchStepX,
+                            edge.startPoint, edge.endPoint, first, "ok"));
+                    continue; // a passing move is written too, so a gate can see one a change removed
                 }
                 // The sim isn't fully deterministic (timer threads run beside the tick), so a move that
                 // fails once is retried. Only a move that fails every try is stuck; one that passes on a
@@ -187,10 +254,8 @@ public final class BotEdgeSweepCli {
                     failed++;
                     byType.merge(edge.type, 1, Integer::sum);
                 }
-                rows.add(mapId + "\t" + edge.fromRegionId + "\t" + edge.toRegionId + "\t" + edge.type + "\t"
-                        + edge.launchStepX + "\t" + edge.startPoint.x + "\t" + edge.startPoint.y + "\t"
-                        + edge.endPoint.x + "\t" + edge.endPoint.y + "\t" + first.endRegion() + "\t"
-                        + first.end().x + "\t" + first.end().y + "\t" + first.maxMoved() + "\t" + verdict);
+                rows.add(row(mapId, edge.fromRegionId, edge.toRegionId, edge.type.toString(), edge.launchStepX,
+                        edge.startPoint, edge.endPoint, first, verdict));
             }
         }
         return new MapResult(tested, failed, byType);
