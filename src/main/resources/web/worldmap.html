@@ -132,6 +132,7 @@
   </div>
   <pre id="dbgOut" style="display:none;max-height:260px;overflow:auto;font-size:11px;line-height:1.35;white-space:pre-wrap;background:#111;border:1px solid #333;padding:6px;margin:4px 0"></pre>
   <div id="status"></div>
+  <div id="learnStat" class="meta" style="margin-top:6px" title="grind decision log: what the learned target scorer trains on (stage 2 starts when all three are met)"></div>
   <button id="sortBtn">Sort: name</button>
   <div id="roster"></div>
 </div>
@@ -894,6 +895,19 @@ function scaleBadges(){
   badgeLayer.getChildren().forEach(l => { l.scale({x:k, y:k}); l.offsetX(-9); });
   badgeLayer.batchDraw();
 }
+
+// learned scorer readiness: picks / maps / explored against the stage 2 gate (docs/bot/learned-grind-target.md)
+async function pollLearned(){
+  try {
+    const r = await (await fetch('/api/learned/readiness')).json(), n = r.need, f = x => x.toLocaleString();
+    document.getElementById('learnStat').innerHTML = (r.ready ? '&#9989; ' : '&#129504; ')
+      + 'Learning data: ' + f(r.picks) + ' / ' + f(n.picks) + ' picks &middot; '
+      + r.maps + ' / ' + n.maps + ' maps &middot; ' + f(r.explored) + ' / ' + f(n.explored) + ' explored'
+      + (r.ready ? ' &middot; ready to train' : '');
+  } catch(e){ /* keep last */ }
+  setTimeout(pollLearned, 30000);
+}
+pollLearned();
 
 async function poll(){
   try {
