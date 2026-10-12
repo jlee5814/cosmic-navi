@@ -647,7 +647,7 @@ function rosterClick(ev, id, map, bot, c){
 }
 function locateChar(map){
   const inst = instFor(map);
-  if(inst && focusWm != null && inst.wm !== focusWm) setFocus(inst.wm);   // follow the character into its region
+  if(inst && focusWm != null && inst.wm !== focusWm){ const r = regionInstFor(map); setFocus(r.wm); return locateChar(map); }
   centerOnMap(map); if(inst) showDetail(inst);
 }
 // map-name search index, built once (node names are static). [{id,name,lower}]
@@ -805,7 +805,7 @@ function openSpot(i){
   const target = s.m.find(m => live[m] && (live[m].bots.length || live[m].players.length) && pickInstance(m))
               || s.m.find(m => pickInstance(m));
   showOverview(false);
-  const inst = target && pickInstance(target);
+  const inst = target && regionInstFor(target);
   if(!inst) return;
   setFocus(inst.wm); showDetail(inst); pingInstances([inst]);
 }
@@ -841,6 +841,12 @@ function styleSpot(inst){
 function instFor(map){
   if(focusWm != null){ const i = (nodes[map] || []).find(i => i.wm === focusWm); if(i) return i; }
   return pickInstance(map);
+}
+// the region to open for a map: the most detailed worldmap showing it (a WorldTour overview merges
+// Japan's maps into one dot; Japan's own worldmap shows each)
+function regionInstFor(map){
+  const arr = (nodes[map] || []).slice().sort((a, b) => a.maps.length - b.maps.length);
+  return arr[0] || null;
 }
 function setFocus(wm){
   focusWm = wm;
