@@ -836,10 +836,11 @@ function fitRegion(wm){
   const img = wmImg[wm]; let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
   const grow = (x, y) => { x1 = Math.min(x1, x); y1 = Math.min(y1, y); x2 = Math.max(x2, x); y2 = Math.max(y2, y); };
   if(img && img.width()) { grow(img.x(), img.y()); grow(img.x() + img.width()*img.scaleX(), img.y() + img.height()*img.scaleY()); }
-  for(const inst of (instByWm[wm] || [])) grow(inst.circle.x(), inst.circle.y());
+  for(const inst of (instByWm[wm] || [])){ const r = 30; grow(inst.circle.x() - r, inst.circle.y() - r); grow(inst.circle.x() + r, inst.circle.y() + r); }
   if(!isFinite(x1)) return;
   const w = host.clientWidth, h = host.clientHeight - 48, pad = 0.94;
-  const s = Math.min(w / Math.max(1, x2 - x1), h / Math.max(1, y2 - y1)) * pad;
+  // capped: a region with no image yet fits only its dots, and dots grow with the zoom
+  const s = Math.min(2, Math.min(w / Math.max(1, x2 - x1), h / Math.max(1, y2 - y1)) * pad);
   stage.scale({x:s, y:s});
   stage.position({x: w/2 - (x1 + x2)/2 * s, y: 48 + h/2 - (y1 + y2)/2 * s});
   scaleBadges();
