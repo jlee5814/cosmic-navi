@@ -50,15 +50,17 @@ final class BotGrindTargetLog {
     /**
      * Picks from the rule ranking. A fresh pick (no live target) takes, with probability
      * {@code GRIND_TARGET_EXPLORE}, one of the next two candidates whose cost is within
-     * {@code GRIND_TARGET_EXPLORE_BAND_MS} of the best; otherwise the rule's first. Null when nothing ranks.
+     * {@code GRIND_TARGET_EXPLORE_BAND_MS} of the best; otherwise the rule's first. Only candidates priced on
+     * the nav graph explore: off the graph the scores are rule points, not milliseconds. Null when nothing ranks.
      */
     static Pick choose(List<BotCombatManager.ScoredGrindTarget> ranking, boolean freshPick) {
         if (ranking.isEmpty()) {
             return null;
         }
         long best = ranking.getFirst().graphCost();
+        boolean onGraph = ranking.getFirst().regionId() >= 0;
         List<Integer> alternatives = new ArrayList<>();
-        for (int i = 1; i < ranking.size() && alternatives.size() < MAX_ALTERNATIVES; i++) {
+        for (int i = 1; onGraph && i < ranking.size() && alternatives.size() < MAX_ALTERNATIVES; i++) {
             if (ranking.get(i).graphCost() <= best + BotCombatManager.cfg.GRIND_TARGET_EXPLORE_BAND_MS) {
                 alternatives.add(i);
             }

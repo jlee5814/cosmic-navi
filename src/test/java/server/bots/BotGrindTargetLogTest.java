@@ -23,7 +23,7 @@ class BotGrindTargetLogTest {
     }
 
     private static BotCombatManager.ScoredGrindTarget candidate(long cost) {
-        return new BotCombatManager.ScoredGrindTarget(mock(Monster.class), cost, 0, 0);
+        return new BotCombatManager.ScoredGrindTarget(mock(Monster.class), cost, 0, 0, 1, 1);
     }
 
     @Test
@@ -50,6 +50,19 @@ class BotGrindTargetLogTest {
         assertEquals(1, fresh.index(), "the 9000 ms candidate is outside the band");
         assertEquals(1.0, fresh.probability());
         assertEquals(0, held.index(), "a bot with a live target never explores");
+    }
+
+    @Test
+    void neverExploresOffTheGraph() {
+        BotCombatManager.cfg.GRIND_TARGET_EXPLORE = 1.0;
+        List<BotCombatManager.ScoredGrindTarget> ranking = List.of(
+                new BotCombatManager.ScoredGrindTarget(mock(Monster.class), 10, 10, 0),
+                new BotCombatManager.ScoredGrindTarget(mock(Monster.class), 12, 12, 0));
+
+        BotGrindTargetLog.Pick pick = BotGrindTargetLog.choose(ranking, true);
+
+        assertEquals(0, pick.index(), "rule points are not milliseconds; the band does not apply");
+        assertEquals(1.0, pick.probability());
     }
 
     @Test
