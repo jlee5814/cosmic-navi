@@ -84,6 +84,9 @@ public final class BotEdgeSweepCli {
                 mapIds.add(Integer.parseInt(args[i]));
             }
         }
+        // A forced edge is the thing under test: the bot must not give it up and route around it. Route and
+        // probe runs keep giving up on, since that is how a live bot finds another way.
+        System.setProperty("bots.edge-give-up", routeMode ? "on" : "off"); // read by BotEdgeFailures, if present
         List<String> rows = new ArrayList<>();
         rows.add("map\tfrom\tto\ttype\tstepX\tstartX\tstartY\tendX\tendY\tendRegion\tfinalX\tfinalY\tmovedPx\tverdict");
         int totalTested = 0;
