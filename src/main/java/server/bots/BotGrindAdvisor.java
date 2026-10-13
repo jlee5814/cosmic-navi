@@ -1422,14 +1422,21 @@ final class BotGrindAdvisor {
             new java.util.concurrent.ConcurrentHashMap<>();
 
     private static String mapName(int mapId) {
-        return mapNameCache.computeIfAbsent(mapId, id -> {
-            try {
-                String name = MapFactory.loadPlaceName(id);
-                return name != null ? name : "";
-            } catch (RuntimeException e) {
-                return "";
-            }
-        });
+        String cached = mapNameCache.get(mapId);
+        if (cached != null) {
+            return cached;
+        }
+        String name;
+        try {
+            name = MapFactory.loadPlaceName(mapId);
+        } catch (RuntimeException e) {
+            name = null;
+        }
+        if (name == null || name.isEmpty()) {
+            return ""; // not cached: a failed lookup must not pin "map <id>" into every later plan and reply
+        }
+        mapNameCache.put(mapId, name);
+        return name;
     }
 
     private static String itemName(ItemInformationProvider ii, int itemId) {
