@@ -215,6 +215,28 @@ class BotChatManagerTest {
     }
 
     @Test
+    void whereQueriesGetThePlaceAndLevelQueriesGetTheLevelFromCode() {
+        for (String q : List.of("where are you", "where ru?", "where r u", "where u at", "what map are you in?", "loc?")) {
+            assertTrue(BotChatManager.isWhereQuery(q), q);
+        }
+        assertFalse(BotChatManager.isWhereQuery("what are you doing"), "doing is the status, not the place");
+        assertFalse(BotChatManager.isWhereQuery("where should we grind"));
+
+        for (String q : List.of("what level are you", "what lvl r u", "whats your level", "ur lvl?", "level?",
+                "lvl", "how high level are you")) {
+            assertTrue(BotChatManager.isLevelQuery(q), q);
+            assertTrue(BotChatManager.isReadOnlyInfoQuery(q), q);
+        }
+        assertFalse(BotChatManager.isLevelQuery("what level should i grind at"));
+        assertFalse(BotChatManager.isLevelQuery("level up soon?"));
+
+        Character bot = org.mockito.Mockito.mock(Character.class);
+        org.mockito.Mockito.when(bot.getLevel()).thenReturn(67);
+        org.mockito.Mockito.when(bot.getExp()).thenReturn(0);
+        assertEquals("lv67, 0% to 68", BotChatManager.buildLevelReport(bot));
+    }
+
+    @Test
     void shouldMatchLocationStatusQueriesNaturally() {
         assertTrue(BotChatManager.isLocationStatusQuery("where are you"));
         assertTrue(BotChatManager.isLocationStatusQuery("where ru?"));
