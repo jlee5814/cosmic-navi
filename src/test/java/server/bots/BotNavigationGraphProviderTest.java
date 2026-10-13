@@ -238,9 +238,10 @@ class BotNavigationGraphProviderTest {
         var route = BotNavigationManager.computeCommittedRoute(g, bot, startRegion, goalRegion, goal);
         assertNotNull(route, "best-effort committed route should be represented as an empty or partial route");
 
-        java.util.Set<Integer> visited = new java.util.HashSet<>();
+        // A route may come back to a region at another point (jump up, drop down further along: the
+        // WeeklyCovert staircase), so the cycle this guards is a hop taken twice, not a region seen twice.
+        java.util.Set<BotNavigationGraph.Edge> taken = new java.util.HashSet<>();
         int region = startRegion;
-        visited.add(region);
         BotEntry entry = new BotEntry(bot, null, null);
         entry.committedRoute = route;
         entry.committedRouteTargetRegionId = goalRegion;
@@ -252,7 +253,7 @@ class BotNavigationGraphProviderTest {
             }
             assertEquals(region, hop.fromRegionId, "hop must leave the bot's current region");
             region = hop.toRegionId;
-            assertTrue(visited.add(region), "botId " + botId + " best-effort route revisits region " + region + ": " + route);
+            assertTrue(taken.add(hop), "botId " + botId + " best-effort route takes a hop twice into region " + region + ": " + route);
         }
     }
 
@@ -790,22 +791,31 @@ class BotNavigationGraphProviderTest {
         assertEquals(36, fromRegionId);
         assertEquals(32, targetRegionId);
 
-        BotPhysicsEngine.JumpLanding badLanding = BotPhysicsEngine.simulateJumpLanding(
-                map, badLaunch, BotPhysicsEngine.walkStep(map), graph.movementProfile);
-        assertNotNull(badLanding);
-        assertEquals(fromRegionId, graph.regionIdByFootholdId.getOrDefault(badLanding.foothold().getId(), -1),
-                "logged bad launch should bounce back to the original region");
+        // The logged launch bounced off the wall back into region 36 when the arc stopped dead at a wall. The
+        // executor keeps the launch key held, so it drifts over the wall's top and makes the platform (v75);
+        // the window must now agree with that, launch by launch.
+        int stepX = BotPhysicsEngine.walkStep(map, graph.movementProfile);
+        BotPhysicsEngine.JumpLanding landing = BotPhysicsEngine.simulateJumpLanding(map, badLaunch, stepX, graph.movementProfile);
+        assertNotNull(landing);
+        assertEquals(targetRegionId, graph.regionIdByFootholdId.getOrDefault(landing.foothold().getId(), -1),
+                "with the key held, the logged launch makes the target platform");
 
         assertTrue(graph.getOutgoing(fromRegionId).stream()
                         .anyMatch(edge -> edge.type == BotNavigationGraph.EdgeType.JUMP
                                 && edge.toRegionId == targetRegionId
                                 && edge.containsLaunchX(-1427)),
                 "nearby valid launch point should still route to the target platform");
-        assertFalse(graph.getOutgoing(fromRegionId).stream()
-                        .anyMatch(edge -> edge.type == BotNavigationGraph.EdgeType.JUMP
-                                && edge.toRegionId == targetRegionId
-                                && edge.containsLaunchX(badLaunch.x)),
-                "jump launch windows must not include X positions that no longer land in the target region");
+        for (BotNavigationGraph.Edge edge : graph.getOutgoing(fromRegionId)) {
+            if (edge.type != BotNavigationGraph.EdgeType.JUMP || edge.toRegionId != targetRegionId || edge.launchStepX != stepX) {
+                continue;
+            }
+            for (int x = edge.launchMinX; x <= edge.launchMaxX; x++) {
+                Point launch = graph.getRegion(fromRegionId).pointAt(x);
+                BotPhysicsEngine.JumpLanding l = BotPhysicsEngine.simulateJumpLanding(map, launch, stepX, graph.movementProfile);
+                assertTrue(l != null && graph.regionIdByFootholdId.getOrDefault(l.foothold().getId(), -1) == targetRegionId,
+                        "jump launch windows must not include X positions that don't land in the target region: x " + x);
+            }
+        }
     }
 
     @Test
