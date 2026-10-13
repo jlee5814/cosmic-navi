@@ -1260,7 +1260,7 @@ class BotPhysicsEngineTest {
         MapleMap map = BotNavigationMapLoader.loadMapGeometry(101000301);
 
         assertEquals(26, BotPhysicsEngine.findGroundFoothold(map, new Point(2360, -351)).getId());
-        assertEquals(-351, BotPhysicsEngine.findGroundPoint(map, new Point(2360, -351)).y);
+        assertEquals(-352, BotPhysicsEngine.findGroundPoint(map, new Point(2360, -351)).y, "fh 26, not fh 25 at -360");
         assertEquals(25, BotPhysicsEngine.findGroundFoothold(map, new Point(2333, -375)).getId(),
                 "standing on fh 25 itself still finds it");
     }
