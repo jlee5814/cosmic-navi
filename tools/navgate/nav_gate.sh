@@ -52,8 +52,11 @@ WT="tmp/navgate/wt-$BASE_SHA"
 [ -d "$WT" ] || git worktree add -q --detach "$WT" "$BASE_REF"
 [ -d "$WT/target/classes" ] || mvn_in "$WT" test-compile
 if [ ! -s "$BASE_TSV" ]; then
+  # The sweep rewrites its output after every map, so an interrupted sweep leaves a partial file. Sweep to a
+  # temporary name and keep it only once it finishes, or a rerun would compare against part of the base.
   echo "sweeping $BASE_REF ($BASE_SHA)"
-  sweep_in "$WT" "$BASE_TSV" @tmp/navgate/maps.txt
+  sweep_in "$WT" "$BASE_TSV.part" @tmp/navgate/maps.txt
+  mv "$BASE_TSV.part" "$BASE_TSV"
 fi
 
 echo "sweeping working tree"

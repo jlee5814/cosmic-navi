@@ -1252,6 +1252,36 @@ class BotPhysicsEngineTest {
     }
 
     @Test
+    void shouldLandOnAFloorCrossedBeforeTheWallInTheSameStep() {
+        // New Leaf City 600000000: platforms at y 409 and 479 run through a tall wall at x 5136. A jump up
+        // to 409 met the wall at its apex, fell back pressing into it, and crossed 409 in a step that also
+        // reached the wall. The floor showed up at the wall's progress, the wall won the tie, and the bot
+        // fell through to 479.
+        MapleMap map = createEmptyTestMap(910000057);
+        server.maps.FootholdTree footholds = map.getFootholds();
+        Foothold wall = new Foothold(new Point(50, 0), new Point(50, 200), 1);
+        Foothold wallFloor = new Foothold(new Point(50, 200), new Point(120, 200), 4); // the room behind, as in NLC
+        wall.setNext(wallFloor.getId());
+        wallFloor.setPrev(wall.getId());
+        footholds.insert(wall);
+        footholds.insert(wallFloor);
+        footholds.insert(new Foothold(new Point(0, 100), new Point(120, 100), 2));
+        footholds.insert(new Foothold(new Point(0, 180), new Point(120, 180), 3));
+
+        Character bot = mockBot(new Point(51, 96), map);
+        BotEntry entry = new BotEntry(bot, null, null);
+        entry.inAir = true;
+        entry.physX = 51;
+        entry.physY = 96;
+        entry.velY = 8f;
+        entry.airVelX = -2;
+        entry.fixedAirArc = true;
+
+        assertEquals(BotPhysicsEngine.AirborneStepResult.LANDED, BotPhysicsEngine.stepAirborne(entry, bot));
+        assertEquals(100, bot.getPosition().y);
+    }
+
+    @Test
     void shouldUseFootholdXBoundsWhenMapHasSyntheticBounds() {
         MapleMap map = createEmptyTestMap(910000056);
         map.setMapPointBoundings(-(1 << 17), -(1 << 17), 1 << 18, 1 << 18);
