@@ -1,6 +1,6 @@
 ---
-name: Wall vs landing tie, rising wall drops, ground truncation and held key arcs (graph v73 to v75)
-description: Sweep traps fixed by traffic in v73 and v74, plus the ones still open. Air steps that cross a floor and reach a wall resolved to the wall and fell through; walk off drops were authored into a wall rising from the region end. Read before touching resolveAirCollision, findGroundCollision or addDirectionalDropEdge.
+name: Wall vs landing tie, rising wall drops, ground truncation, held key arcs and phantom regions (graph v73 to v76)
+description: Sweep traps fixed by traffic in v73 to v76. Air steps that cross a floor and reach a wall resolved to the wall and fell through; walk off drops were authored into a wall rising from the region end. Read before touching resolveAirCollision, findGroundCollision or addDirectionalDropEdge.
 type: project
 ---
 # Wall vs landing tie, and walk off drops into a rising wall (graph v73)
@@ -48,12 +48,30 @@ the EXP log). Both reproduce in `BotEdgeSweepCli`.
   foothold in the band, fh 25, 9 px up.
 - **Fix:** also probe 2 px above the position and keep the closest ground of the three.
 
-## Still open (after v75)
+## Phantom regions from right to left footholds (v76)
 
-- 220000100 JUMP r4->r5 from (597,83): region 4 is fh 25, drawn right to left (x1 > x2). The ground
-  probe never stands on it, so the region is a phantom: the sweep spawns a bot there and it snaps onto
-  the box top at y 77. Harmless live (nothing can enter r4); the builder should not make regions from
-  footholds the ground probe skips. 7 EXP log visits.
+- **Symptom:** 220000100 JUMP r4->r5 from (597,83): region 4 was fh 25, drawn right to left (x1 > x2).
+  The sweep spawned a bot there and it snapped onto the box floor at y 77, so the jump never started.
+  Harmless live (nothing could enter r4), but it was the last stuck move in the gate. 7 EXP log visits.
+- **Root cause:** the builder made walk regions from every foothold, while the ground probe only stands
+  on footholds with x1 < x2 (right to left ones are undersides of solid blocks). The graph had regions
+  no bot can occupy.
+- **Fix:** `BotPhysicsEngine.isStandable(fh)` states the probe's rule (x1 < x2; `findBelowIndexed` only
+  matches x1 <= x <= x2) and the builder collects walkable footholds through it. Test: `BotPhantomRegionTest` (220000100 fh 25,
+  800000000 fh 252) checks no region is built on an underside.
+- **Side effect:** region ids shift on maps that had phantoms, and per bot route jitter is keyed by
+  `edgeKey` (which includes `toRegionId`), so some bots pick different near equal routes after v76.
+  Tests that pin one route should commit it and set `entry.navGraph` to the served graph, or
+  `resolveTarget` drops the committed route as stale.
+- **Lost way the gate caught:** the box on 220000100 (walls fh 29 and fh 31, floor fh 32 at y 77, ceiling
+  fh 30 at y 0 drawn right to left) is left on foot only by a jump from exactly x 600, a one pixel launch
+  window. Its only seed anchor was the center of the ceiling's old region, projected onto the floor below
+  (`buildFeatureXsByRegionId`). With the ceiling no longer a region the window went unsampled, the JUMP
+  out vanished, and bots that jumped in were trapped (10 trips, 10/10 failures). Undersides now seed
+  feature anchors directly (ends, plus the center when 64 px wide or less), since a ceiling's ends change
+  a jump's arc as a platform's do. Test: `BotPhantomRegionTest.theBoxFloorKeepsItsJumpOutAfterItsCeilingStopsBeingARegion`.
+- **Lesson:** removing regions can remove launch anchors other regions relied on. A gate lost way next to
+  a removed region points at anchors, not physics; compare the physics sim on both versions first.
 
 ## Offline arc stopped dead at a wall; the executor keeps the key held (v75)
 

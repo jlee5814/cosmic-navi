@@ -982,6 +982,12 @@ class BotNavigationManagerTest {
         entry.movementProfile = BotMovementProfile.base();
         entry.climbing = true;
         entry.climbRope = new Rope(1265, 289, 597, false);
+        // Commit the optimal route: the bot's own search adds per bot jitter keyed by region ids, which can
+        // pick the near equal climb to the top instead. What this checks is that the rope exit executes.
+        entry.navGraph = graph; // the served graph, so resolveTarget keeps the committed route
+        entry.committedRoute = path;
+        entry.committedRouteTargetRegionId = targetRegionId;
+        entry.committedRouteTargetPos = new Point(target);
 
         BotNavigationManager.NavigationDirective directive =
                 BotNavigationManager.resolveTarget(entry, target, true);
