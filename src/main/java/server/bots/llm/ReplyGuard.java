@@ -57,6 +57,15 @@ final class ReplyGuard {
         return null;
     }
 
+    private static final Pattern QUESTION = Pattern.compile(
+            "\\?|^\\s*(?:what|wat|wut|whats|how|hows|where|which|when|who|why|do|does|did|are|r|is|can|got|any|u|ur)\\b");
+
+    /** Whether {@code message} reads as a question: then a wrong number in the reply is answered with the
+     *  fact; after "gg" a report would be a non sequitur, so the reply is just dropped. */
+    static boolean isQuestion(String message) {
+        return message != null && QUESTION.matcher(message.toLowerCase(Locale.ROOT)).find();
+    }
+
     static boolean claimsOtherLevel(String reply, int level) {
         Matcher mt = LEVEL_CLAIM.matcher(reply);
         while (mt.find()) {
