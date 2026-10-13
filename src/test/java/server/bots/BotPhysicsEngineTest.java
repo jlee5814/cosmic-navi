@@ -1252,6 +1252,20 @@ class BotPhysicsEngineTest {
     }
 
     @Test
+    void shouldStayOnTheSlopeItStandsOnWhenAnotherBranchRunsJustAbove() {
+        // Ellinia 101000301: branch fh 26 slopes under fh 25, which ends 9 px above it. At x 2360 fh 26's
+        // interpolated height truncates to just above the bot's stored y, so the probe from the position
+        // skipped it and the slope-up probe returned fh 25: a bot walking left on 26 hopped onto 25 and
+        // never reached the drop it was walking to.
+        MapleMap map = BotNavigationMapLoader.loadMapGeometry(101000301);
+
+        assertEquals(26, BotPhysicsEngine.findGroundFoothold(map, new Point(2360, -351)).getId());
+        assertEquals(-352, BotPhysicsEngine.findGroundPoint(map, new Point(2360, -351)).y, "fh 26, not fh 25 at -360");
+        assertEquals(25, BotPhysicsEngine.findGroundFoothold(map, new Point(2333, -375)).getId(),
+                "standing on fh 25 itself still finds it");
+    }
+
+    @Test
     void shouldLandOnAFloorCrossedBeforeTheWallInTheSameStep() {
         // New Leaf City 600000000: platforms at y 409 and 479 run through a tall wall at x 5136. A jump up
         // to 409 met the wall at its apex, fell back pressing into it, and crossed 409 in a step that also

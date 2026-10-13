@@ -376,19 +376,30 @@ final class BotPhysicsEngine {
             return null;
         }
 
-        Foothold exact = findBelowIndexed(map, position);
-        Foothold offset = findBelowIndexed(map, new Point(position.x, position.y - cfg.MAX_SLOPE_UP));
-        if (exact == null) return offset;
-        if (offset == null) return exact;
-
         // On sloped footholds, integer truncation of the interpolated Y can make the foothold's
-        // computed Y fall 1px above the player's stored position, causing findBelow to skip it
-        // and return a distant platform instead. Mirror findGroundPoint: pick the closer result.
-        Point exactGround = pointBelowIndexed(map, position);
-        Point offsetGround = pointBelowIndexed(map, new Point(position.x, position.y - cfg.MAX_SLOPE_UP));
-        if (exactGround == null) return offset;
-        if (offsetGround == null) return exact;
-        return Math.abs(offsetGround.y - position.y) < Math.abs(exactGround.y - position.y) ? offset : exact;
+        // computed Y fall a pixel above the player's stored position, so findBelow from the position
+        // skips it. The slope-up probe finds the TOPMOST foothold in the band above, which on stacked
+        // branches is another platform (Ellinia 101000301: fh 25 runs 9 px above fh 26, and a bot
+        // walking on 26 hopped onto 25 and could never reach its drop). Probe just above the position
+        // too and take whichever ground is closest. Mirrors findGroundPoint.
+        Foothold best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (int lift : groundProbeLifts()) {
+            Point probe = new Point(position.x, position.y - lift);
+            Point ground = pointBelowIndexed(map, probe);
+            Foothold foothold = ground == null ? null : findBelowIndexed(map, probe);
+            if (foothold != null && Math.abs(ground.y - position.y) < bestDistance) {
+                best = foothold;
+                bestDistance = Math.abs(ground.y - position.y);
+            }
+        }
+        return best;
+    }
+
+    /** Heights above a position probed for its ground: the position itself, a truncation pixel or two,
+     *  and the full slope-up band. The closest ground wins; a tie keeps the earlier (lower) probe. */
+    private static int[] groundProbeLifts() {
+        return new int[]{0, 2, cfg.MAX_SLOPE_UP};
     }
 
     static Point findGroundPoint(MapleMap map, Point position) {
@@ -396,18 +407,14 @@ final class BotPhysicsEngine {
             return null;
         }
 
-        Point exactGround = pointBelowIndexed(map, position);
-        Point offsetGround = pointBelowIndexed(map, new Point(position.x, position.y - cfg.MAX_SLOPE_UP));
-        if (exactGround == null) {
-            return offsetGround;
+        Point best = null;
+        for (int lift : groundProbeLifts()) {
+            Point ground = pointBelowIndexed(map, new Point(position.x, position.y - lift));
+            if (ground != null && (best == null || Math.abs(ground.y - position.y) < Math.abs(best.y - position.y))) {
+                best = ground;
+            }
         }
-        if (offsetGround == null) {
-            return exactGround;
-        }
-
-        int exactDistance = Math.abs(exactGround.y - position.y);
-        int offsetDistance = Math.abs(offsetGround.y - position.y);
-        return offsetDistance < exactDistance ? offsetGround : exactGround;
+        return best;
     }
 
     /**
