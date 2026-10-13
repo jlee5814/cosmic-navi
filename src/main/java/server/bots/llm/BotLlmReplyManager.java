@@ -134,23 +134,19 @@ public final class BotLlmReplyManager {
             }
         }
 
-        Optional<String> raw;
-        if (chat != null) {
-            Optional<BotTurn.Result> turn = BotTurn.take(chat);
-            // A question game state answers exactly goes to the command's own report: the model only named it.
-            // Only the owner's: everyone else's info questions stay with the model's chat line, as before.
-            if (turn.isPresent() && turn.get().ask() != null && relation == SenderRelation.OWNER
-                    && BotChatManager.answerStateQuestion(entry, turn.get().ask())) {
+        // An owner's question game state answers exactly goes to the command's own report: the model only
+        // names it. Everyone else's info questions stay with the chat reply, as before.
+        if (relation == SenderRelation.OWNER) {
+            String question = BotTurn.classify(message);
+            if (question != null && BotChatManager.answerStateQuestion(entry, question)) {
                 if (BotLlmConfig.debugLog) {
-                    log.info("llm[{}] asks {} ({} ms): answered from state", botName, turn.get().ask(),
+                    log.info("llm[{}] asks {} ({} ms): answered from state", botName, question,
                             System.currentTimeMillis() - t0);
                 }
                 return;
             }
-            raw = turn.map(BotTurn.Result::reply);
-        } else {
-            raw = LlmClient.generate(prompt, system);
         }
+        Optional<String> raw = chat != null ? LlmClient.chat(chat) : LlmClient.generate(prompt, system);
         long elapsed = System.currentTimeMillis() - t0;
 
         if (raw.isEmpty()) {

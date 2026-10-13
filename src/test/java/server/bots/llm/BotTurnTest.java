@@ -3,46 +3,51 @@ package server.bots.llm;
 import client.Character;
 import constants.game.ExpTable;
 import org.junit.jupiter.api.Test;
+import server.bots.BotChatManager;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** The one model call for unmatched chat: question or reply ({@link BotTurn}), and the guard on replies ({@link ReplyGuard}). */
+/** Naming an owner's state question ({@link BotTurn}), and the guard on chat replies ({@link ReplyGuard}). */
 class BotTurnTest {
     private static final List<String> QUESTIONS = List.of("where", "level", "mesos");
 
     @Test
-    void aNamedQuestionGoesToCodeAndANoneTurnCarriesTheReply() {
-        BotTurn.Result asks = BotTurn.parse("{\"ask\":\"mesos\",\"reply\":\"\"}", QUESTIONS);
-        assertEquals("mesos", asks.ask());
-        assertNull(asks.reply());
-
-        BotTurn.Result chats = BotTurn.parse("{\"ask\":\"none\",\"reply\":\"ya just grinding lol\"}", QUESTIONS);
-        assertNull(chats.ask());
-        assertEquals("ya just grinding lol", chats.reply());
-
-        assertNull(BotTurn.parse("{\"ask\":\"trade\",\"reply\":\"ok\"}", QUESTIONS).ask(), "only listed questions");
-        assertEquals("sure", BotTurn.parse("sure", QUESTIONS).reply(), "a server ignoring the schema still replies");
-        assertNull(BotTurn.parse("{\"ask\":\"none\"", QUESTIONS).reply(), "cut off JSON says nothing");
+    void aFactQuestionIsNamedAndChatIsNot() {
+        assertEquals("mesos", BotTurn.parse("{\"fact_question\": true, \"ask\": \"mesos\"}", "u rich?", QUESTIONS));
+        assertNull(BotTurn.parse("{\"fact_question\": false, \"ask\": \"chat\"}", "gg", QUESTIONS));
+        assertNull(BotTurn.parse("{\"fact_question\": false, \"ask\": \"where\"}", "gg", QUESTIONS),
+                "the yes or no decides");
+        assertNull(BotTurn.parse("{\"fact_question\": true, \"ask\": \"trade\"}", "trade me", QUESTIONS),
+                "only listed questions");
+        assertNull(BotTurn.parse("{\"fact_question\": true, \"ask\": \"level\"}", "im lv 50 now", QUESTIONS),
+                "the sender's own news asks the bot nothing");
+        assertEquals("level", BotTurn.parse("{\"fact_question\": true, \"ask\": \"level\"}", "my bad, ur lvl?",
+                QUESTIONS));
+        assertNull(BotTurn.parse("{\"fact_question\": tr", "u rich?", QUESTIONS), "cut off JSON names nothing");
     }
 
     @Test
-    void theSchemaListsEveryQuestionAndCapsTheReply() {
+    void theSchemaAndPromptCoverEveryQuestion() {
         String schema = BotTurn.schema(QUESTIONS);
-        assertTrue(schema.contains("\"enum\":[\"none\",\"where\",\"level\",\"mesos\"]"), schema);
-        assertTrue(schema.contains("\"maxLength\":" + BotLlmConfig.maxReplyChars()), schema);
-        assertTrue(schema.contains("\"required\":[\"ask\",\"reply\"]"), schema);
-        assertTrue(BotTurn.rule(QUESTIONS).contains("where (the map you are in), level, mesos"), BotTurn.rule(QUESTIONS));
+        assertTrue(schema.contains("\"enum\":[\"chat\",\"where\",\"level\",\"mesos\"]"), schema);
+        assertTrue(schema.contains("\"required\":[\"fact_question\",\"ask\"]"), schema);
+        assertTrue(BotTurn.prompt(QUESTIONS).contains("(where they are, level, mesos)"), BotTurn.prompt(QUESTIONS));
+        for (String[] e : BotTurn.EXAMPLES) {
+            assertTrue(e[1] == null || BotChatManager.stateQuestions().contains(e[1]), e[0] + " -> " + e[1]);
+        }
 
-        String body = OpenAiChatClient.buildBody(List.of(new ChatMessage("user", "how rich r u")), 40,
-                "{\"type\":\"json_schema\"}");
+        String body = OpenAiChatClient.buildBody(List.of(new ChatMessage("user", "how rich r u")), 24,
+                "{\"type\":\"json_schema\"}", 0.0);
         assertTrue(body.endsWith(",\"response_format\":{\"type\":\"json_schema\"}}"), body);
-        assertTrue(!OpenAiChatClient.buildBody(List.of(new ChatMessage("user", "hi")), 24, null)
+        assertTrue(body.contains("\"temperature\":0.0"), body);
+        assertFalse(OpenAiChatClient.buildBody(List.of(new ChatMessage("user", "hi")), 24, null)
                 .contains("response_format"));
     }
 

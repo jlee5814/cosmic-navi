@@ -48,11 +48,12 @@ public final class OpenAiChatClient {
     record Structured(String content, boolean formatRejected) {
     }
 
-    /** {@link #sendChat} with the output constrained to a JSON schema ({@code response_format: json_schema}). */
+    /** {@link #sendChat} with the output constrained to a JSON schema ({@code response_format: json_schema}),
+     *  sampled greedily: a classification, not chat. */
     static Structured sendChatStructured(java.util.List<ChatMessage> messages, int maxTokens, int timeoutMs,
                                          String schemaJson) {
         String format = "{\"type\":\"json_schema\",\"json_schema\":{\"name\":\"turn\",\"schema\":" + schemaJson + "}}";
-        HttpResponse<String> resp = post(buildBody(messages, maxTokens, format), timeoutMs);
+        HttpResponse<String> resp = post(buildBody(messages, maxTokens, format, 0.0), timeoutMs);
         if (resp == null) return new Structured(null, false);
         if (resp.statusCode() != 200) {
             log.warn("openai: structured HTTP {} body: {}", resp.statusCode(), abbrev(resp.body(), 200));
@@ -93,8 +94,14 @@ public final class OpenAiChatClient {
         return buildBody(messages, maxTokens, null);
     }
 
-    /** {@code responseFormat} is the raw {@code response_format} JSON, or null for free text. */
     static String buildBody(java.util.List<ChatMessage> messages, int maxTokens, String responseFormat) {
+        return buildBody(messages, maxTokens, responseFormat, null);
+    }
+
+    /** {@code responseFormat} is the raw {@code response_format} JSON, or null for free text; a null
+     *  {@code temperature} keeps the configured sampler. */
+    static String buildBody(java.util.List<ChatMessage> messages, int maxTokens, String responseFormat,
+                            Double temperature) {
         StringBuilder sb = new StringBuilder(512);
         sb.append("{\"model\":\"").append(OllamaClient.jsonEscape(BotLlmConfig.model)).append("\",");
         sb.append("\"stream\":false,\"messages\":[");
@@ -106,7 +113,7 @@ public final class OpenAiChatClient {
         }
         sb.append("],");
         sb.append("\"max_tokens\":").append(maxTokens)
-                .append(",\"temperature\":").append(BotLlmConfig.temperature)
+                .append(",\"temperature\":").append(temperature != null ? temperature : BotLlmConfig.temperature)
                 .append(",\"top_p\":").append(BotLlmConfig.topP)
                 .append(",\"top_k\":").append(BotLlmConfig.topK)
                 .append(",\"min_p\":").append(BotLlmConfig.minP)
