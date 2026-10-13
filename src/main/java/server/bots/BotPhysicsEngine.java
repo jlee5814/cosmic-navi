@@ -2632,7 +2632,15 @@ final class BotPhysicsEngine {
         int yAtX = (int) Math.round(previousPos.y + (nextPos.y - previousPos.y) * progress);
         AirCollision landing = landingAtProbeY(map, previousPos, x, yAtX, progress, previousPos.y + 1, false);
         if (landing.type() == AirCollisionType.LAND) {
-            return landing;
+            // The column scan finds the floor at the first column whose sampled height has passed it, but
+            // the path met the floor earlier. Report where it did, so a wall the same step reaches later
+            // doesn't win the tie and put the bot below the floor it crossed. A near vertical fall against
+            // a wall has one column: the floor showed up at progress 1, tied with the wall, and the bot
+            // fell through (New Leaf City 600000000, the jump onto y 409 by the wall at x 5136).
+            double crossing = nextPos.y > previousPos.y
+                    ? (landing.point().y - previousPos.y) / (double) (nextPos.y - previousPos.y) : progress;
+            return new AirCollision(AirCollisionType.LAND, landing.point(), landing.foothold(),
+                    Math.max(0.0, Math.min(progress, crossing)));
         }
 
         // Catch tangential landings at the jump apex when the next platform sits exactly at the
