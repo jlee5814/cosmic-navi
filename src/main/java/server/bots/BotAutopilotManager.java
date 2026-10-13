@@ -1096,6 +1096,20 @@ final class BotAutopilotManager {
         return "assigned: " + p.rosterRole() + "; " + training + "; " + status;
     }
 
+    /** "where are you": the room and its area, plus what the bot does there when it is on its plan's map.
+     *  Only the place; {@link #statusReport} carries the role and the plan. */
+    static String locationReport(BotEntry entry, Character bot) {
+        if (bot == null) {
+            return "not sure where i am rn";
+        }
+        String street = MapFactory.loadStreetName(bot.getMapId());
+        String where = "im in " + currentMapName(bot) + (street == null || street.isBlank() ? "" : " (" + street + ")");
+        if (entry != null && isActive(entry) && !entry.loggingOut && bot.getMapId() == entry.autopilotMapId) {
+            return where + ", " + presentObjective(entry.autopilotObjectiveSummary);
+        }
+        return where;
+    }
+
     private static String activityStatusReport(BotEntry entry, Character bot) {
         String currentMap = currentMapName(bot);
         if (entry == null || bot == null) {

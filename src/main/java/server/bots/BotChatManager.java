@@ -141,7 +141,7 @@ public class BotChatManager {
             Pattern.CASE_INSENSITIVE);
 
     private static final Pattern STATS_PATTERN = Pattern.compile(
-            INFO_PFX + "(stats?|str(ength)?|dex(terity)?|int(elligence)?|luk|level|lv)\\b"
+            INFO_PFX + "(stats?|str(ength)?|dex(terity)?|int(elligence)?|luk)\\b"
             + "|\\bwhat\\s+(are|r)\\s+(your|ur)\\s+stats\\b",
             Pattern.CASE_INSENSITIVE);
 
@@ -154,6 +154,27 @@ public class BotChatManager {
             INFO_PFX + "(?:move\\s*speed|movespeed|speed|jump|movement|mobility)(?:\\s+stats?)?\\b"
             + "|\\bwhat.?s\\s+(your|ur)\\s+(?:move\\s*speed|movespeed|speed|jump)\\b"
             + "|\\bhow\\s+fast\\s+(are|r)\\s+(you|u)\\b",
+            Pattern.CASE_INSENSITIVE);
+    // Facts the game state answers exactly get a code reply, never a model guess: level, location (below),
+    // stats, mesos, exp, inventory. "level" alone used to fall into the stats line.
+    private static final Pattern LEVEL_PATTERN = Pattern.compile(
+            "^\\s*(?:"
+            + "(?:what|wat|wut)\\s+(?:level|lvl|lv)\\s+(?:are|r)\\s+(?:you|u|ya)(?:\\s+now)?"
+            + "|(?:what.?s|what\\s+is)\\s+(?:your|ur)\\s+(?:level|lvl|lv)"
+            + "|(?:your|ur)\\s+(?:level|lvl|lv)"
+            + "|how\\s+high\\s+(?:level\\s+)?(?:are|r)\\s+(?:you|u|ya)"
+            + "|(?:level|lvl|lv)"
+            + ")\\s*[?!.,]*\\s*$",
+            Pattern.CASE_INSENSITIVE);
+    // Where the bot is, and only that: the room, not its plan ("what are you doing" still gets the status).
+    private static final Pattern WHERE_PATTERN = Pattern.compile(
+            "^\\s*(?:"
+            + "where\\s+(?:are|r)\\s+(?:you|u|ya)(?:\\s+at)?"
+            + "|where\\s+(?:are|r)?\\s*(?:you|u|ya)\\s+at"
+            + "|where\\s*(?:r|are)?\\s*u"
+            + "|(?:what|which)\\s+map\\s+(?:are|r)\\s+(?:you|u|ya)(?:\\s+(?:in|on|at))?"
+            + "|(?:location|loc|where)"
+            + ")\\s*[?!.,]*\\s*$",
             Pattern.CASE_INSENSITIVE);
     private static final Pattern LOCATION_STATUS_PATTERN = Pattern.compile(
             "^\\s*(?:"
@@ -866,9 +887,18 @@ public class BotChatManager {
             BotManager.after(BotManager.randMs(500, 700), () -> reportHelp(entry));
             return;
         }
+        if (isWhereQuery(message)) {
+            BotManager.after(BotManager.randMs(500, 700), () ->
+                    BotManager.getInstance().botReply(entry, BotAutopilotManager.locationReport(entry, entry.bot)));
+            return;
+        }
         if (isLocationStatusQuery(message)) {
             BotManager.after(BotManager.randMs(500, 700), () ->
                     BotManager.getInstance().botReply(entry, BotAutopilotManager.statusReport(entry, entry.bot)));
+            return;
+        }
+        if (isLevelQuery(message)) {
+            BotManager.after(BotManager.randMs(500, 700), () -> queueBotReply(entry, buildLevelReport(entry.bot)));
             return;
         }
         if (matchesWholeCommand(CREW_PATTERN, message)) {
@@ -1835,6 +1865,19 @@ public class BotChatManager {
         return matchesWholeCommand(MOVEMENT_STATS_PATTERN, message);
     }
 
+    static boolean isWhereQuery(String message) {
+        return message != null && WHERE_PATTERN.matcher(message).matches();
+    }
+
+    static boolean isLevelQuery(String message) {
+        return message != null && LEVEL_PATTERN.matcher(message).matches();
+    }
+
+    /** "lv67, 34% to 68": the level and how far into it, from the character itself. */
+    static String buildLevelReport(Character bot) {
+        return "lv" + bot.getLevel() + ", " + buildExpReport(bot.getExp(), bot.getLevel()) + " to " + (bot.getLevel() + 1);
+    }
+
     static boolean isLocationStatusQuery(String message) {
         return message != null && LOCATION_STATUS_PATTERN.matcher(message).matches();
     }
@@ -1854,6 +1897,7 @@ public class BotChatManager {
             return false;
         }
         return matchesWholeCommand(STATS_PATTERN, message)
+                || isLevelQuery(message)
                 || matchesWholeCommand(RANGE_PATTERN, message)
                 || isMovementStatsQuery(message)
                 || matchesWholeCommand(BUILD_PATTERN, message)
