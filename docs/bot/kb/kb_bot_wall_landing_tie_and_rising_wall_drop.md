@@ -51,7 +51,7 @@ the EXP log). Both reproduce in `BotEdgeSweepCli`.
 ## Phantom regions from right to left footholds (v76)
 
 - **Symptom:** 220000100 JUMP r4->r5 from (597,83): region 4 was fh 25, drawn right to left (x1 > x2).
-  The sweep spawned a bot there and it snapped onto the box top at y 77, so the jump never started.
+  The sweep spawned a bot there and it snapped onto the box floor at y 77, so the jump never started.
   Harmless live (nothing could enter r4), but it was the last stuck move in the gate. 7 EXP log visits.
 - **Root cause:** the builder made walk regions from every foothold, while the ground probe only stands
   on footholds with x1 < x2 (right to left ones are undersides of solid blocks). The graph had regions
@@ -63,6 +63,15 @@ the EXP log). Both reproduce in `BotEdgeSweepCli`.
   `edgeKey` (which includes `toRegionId`), so some bots pick different near equal routes after v76.
   Tests that pin one route should commit it and set `entry.navGraph` to the served graph, or
   `resolveTarget` drops the committed route as stale.
+- **Lost way the gate caught:** the box on 220000100 (walls fh 29 and fh 31, floor fh 32 at y 77, ceiling
+  fh 30 at y 0 drawn right to left) is left on foot only by a jump from exactly x 600, a one pixel launch
+  window. Its only seed anchor was the center of the ceiling's old region, projected onto the floor below
+  (`buildFeatureXsByRegionId`). With the ceiling no longer a region the window went unsampled, the JUMP
+  out vanished, and bots that jumped in were trapped (10 trips, 10/10 failures). Undersides now seed
+  feature anchors directly (ends, plus the center when 64 px wide or less), since a ceiling's ends change
+  a jump's arc as a platform's do. Test: `BotPhantomRegionTest.theBoxFloorKeepsItsJumpOutAfterItsCeilingStopsBeingARegion`.
+- **Lesson:** removing regions can remove launch anchors other regions relied on. A gate lost way next to
+  a removed region points at anchors, not physics; compare the physics sim on both versions first.
 
 ## Offline arc stopped dead at a wall; the executor keeps the key held (v75)
 
