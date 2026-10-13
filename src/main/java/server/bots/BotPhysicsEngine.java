@@ -2603,6 +2603,13 @@ final class BotPhysicsEngine {
         return nearest;
     }
 
+    /** A foothold a bot can stand on: drawn left to right. The ground probe ({@link #findBelowIndexed}, like the
+     *  server's own {@code findBelow}) only matches {@code x1 <= x <= x2}, so a foothold drawn right to left is
+     *  never ground (it is the underside of a structure), and a vertical one is a wall. */
+    static boolean isStandable(Foothold fh) {
+        return fh != null && fh.getX1() < fh.getX2();
+    }
+
     /** Bot-side drop-in for {@code MapleMap.getPointBelow} (calcPointBelow), same math. */
     static Point pointBelowIndexed(MapleMap map, Point initial) {
         if (map == null) {
