@@ -1,5 +1,5 @@
 ---
-name: Wall vs landing tie, rising wall drops and ground truncation (graph v73, v74)
+name: Wall vs landing tie, rising wall drops, ground truncation and held key arcs (graph v73 to v75)
 description: Sweep traps fixed by traffic in v73 and v74, plus the ones still open. Air steps that cross a floor and reach a wall resolved to the wall and fell through; walk off drops were authored into a wall rising from the region end. Read before touching resolveAirCollision, findGroundCollision or addDirectionalDropEdge.
 type: project
 ---
@@ -48,13 +48,23 @@ the EXP log). Both reproduce in `BotEdgeSweepCli`.
   foothold in the band, fh 25, 9 px up.
 - **Fix:** also probe 2 px above the position and keep the closest ground of the three.
 
-## Still open (low traffic, after v74)
+## Still open (after v75)
 
 - 220000100 JUMP r4->r5 from (597,83): region 4 is fh 25, drawn right to left (x1 > x2). The ground
   probe never stands on it, so the region is a phantom: the sweep spawns a bot there and it snaps onto
   the box top at y 77. Harmless live (nothing can enter r4); the builder should not make regions from
   footholds the ground probe skips. 7 EXP log visits.
-- 541000000 JUMP (-908,-258)->(-914,-284) and 600020200 JUMP (-162,-654)->(-168,-700): the jump meets a
-  wall on the way up. The offline arc (`simulateLanding`) sets `stepX = 0` after a wall and lands on the
-  near platform; the live bot keeps steering, drifts over the wall's top and lands back at the start.
-  The offline sim should keep the held direction after a wall the way `stepAirborne` does. 1 and 3 visits.
+
+## Offline arc stopped dead at a wall; the executor keeps the key held (v75)
+
+- **Symptom:** 541000000 JUMP (-908,-258)->(-914,-284) and 600020200 JUMP (-162,-654)->(-168,-700): the
+  jump met a low wall on the way up, and the bot landed back at the start.
+- **Root cause:** `simulateLanding` set `stepX = 0` at a wall and fell straight down onto the near
+  platform. The executor sets `moveDir` from the launch velocity (`tickAirborne`) and never clears it in
+  flight, so the launch key stays held. Above the input band (walk speed / 14) holding is a no-op, which
+  is why arcs match before any wall; after a wall zeroes `airVelX`, `applyAirSteering` accelerates the bot
+  again at 200 px/s^2 up to the band (about 0.43 px per tick), and once it rises past the wall's top it
+  drifts over and falls on the far side.
+- **Fix:** `simulateLanding` applies the same held key steering every tick (profile walk speed, map
+  slipperiness). Test: `BotPhysicsEngineTest.shouldCarryAJumpOverAWallTopWhenTheLaunchKeyIsStillHeld`
+  checks the arc and a live `stepAirborne` flight land on the same spot past the wall.
