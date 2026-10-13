@@ -156,10 +156,10 @@ public final class BotLlmReplyManager {
         String reply = stripSpeakerLabel(sanitize(raw.get()), botName, senderName);
         String wrongFact = ReplyGuard.contradiction(entry.getBot(), message, reply);
         if (wrongFact != null) {
-            // The reply misstates the bot's own level, exp or mesos: say the fact from state instead (owner),
-            // or say nothing rather than a wrong number.
+            // The reply misstates the bot's own level, exp or mesos: answer an owner's question with the fact
+            // from state, and otherwise say nothing rather than a wrong number.
             log.info("llm[{}] guard: reply misstates {}: {}", botName, wrongFact, reply);
-            if (relation == SenderRelation.OWNER) {
+            if (relation == SenderRelation.OWNER && ReplyGuard.isQuestion(message)) {
                 BotChatManager.answerStateQuestion(entry, wrongFact);
             }
             return;

@@ -77,6 +77,16 @@ class BotTurnTest {
     }
 
     @Test
+    void onlyAQuestionGetsTheFactWhenTheGuardFires() {
+        for (String q : java.util.List.of("r u broke", "how close?", "u rich yet", "whats ur lvl", "got cash")) {
+            assertTrue(ReplyGuard.isQuestion(q), q);
+        }
+        for (String chat : java.util.List.of("gg", "nice job", "lol that orc almost got me", "brb")) {
+            assertFalse(ReplyGuard.isQuestion(chat), chat);
+        }
+    }
+
+    @Test
     void amountsReadGroupedAndCompactForms() {
         assertEquals(19_021_749d, ReplyGuard.amount("19,021,749", null));
         assertEquals(1_200_000d, ReplyGuard.amount("1.2", "m"), 0.5);

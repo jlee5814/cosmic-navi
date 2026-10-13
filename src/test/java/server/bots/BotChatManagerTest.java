@@ -237,6 +237,17 @@ class BotChatManagerTest {
     }
 
     @Test
+    void anInfoReportCountsAsHandledSoTheLlmDoesNotAnswerItAgain() {
+        Character bot = mock(Character.class);
+        when(bot.getId()).thenReturn(910_781);
+        BotEntry entry = new BotEntry(bot, null, null);
+        for (String q : List.of("mesos", "stats", "pots", "exp", "slots")) {
+            BotChatManager.handleChat(entry, q);
+            assertTrue(BotChatManager.wasLastChatHandled(), q);
+        }
+    }
+
+    @Test
     void everyStateQuestionTheModelMayNameIsAReadOnlyCommand() {
         assertFalse(BotChatManager.stateQuestions().isEmpty());
         for (String q : BotChatManager.stateQuestions()) {
