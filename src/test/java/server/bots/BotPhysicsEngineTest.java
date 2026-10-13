@@ -1252,6 +1252,41 @@ class BotPhysicsEngineTest {
     }
 
     @Test
+    void shouldCarryAJumpOverAWallTopWhenTheLaunchKeyIsStillHeld() {
+        // 541000000 and 600020200: a jump left meets a low wall on the way up. The executor keeps the launch
+        // key held, so once the bot rises above the wall's top it drifts over and lands on the far side. The
+        // builder's arc used to stop dead at the wall and land back by the wall's foot, an edge the bot
+        // never completed. Both must now agree on the far side.
+        MapleMap map = createEmptyTestMap(910000058);
+        server.maps.FootholdTree footholds = map.getFootholds();
+        Foothold wall = new Foothold(new Point(50, 60), new Point(50, 100), 1);
+        Foothold near = new Foothold(new Point(50, 100), new Point(200, 100), 2);
+        Foothold far = new Foothold(new Point(-100, 150), new Point(49, 150), 3);
+        wall.setNext(near.getId());
+        near.setPrev(wall.getId());
+        footholds.insert(wall);
+        footholds.insert(near);
+        footholds.insert(far);
+
+        BotPhysicsEngine.JumpLanding planned = BotPhysicsEngine.simulateJumpLanding(map, new Point(56, 100), -6);
+        assertNotNull(planned);
+        assertEquals(150, planned.point().y, "the arc lands past the wall, on the far floor");
+
+        Character bot = mockBot(new Point(56, 100), map);
+        BotEntry entry = new BotEntry(bot, null, null);
+        entry.inAir = true;
+        entry.physX = 56;
+        entry.physY = 100;
+        entry.velY = -BotPhysicsEngine.jumpForcePerTick(BotMovementProfile.base());
+        entry.airVelX = -6;
+        entry.fixedAirArc = true;
+        entry.moveDir = -1;
+        for (int t = 0; t < 120 && BotPhysicsEngine.stepAirborne(entry, bot) != BotPhysicsEngine.AirborneStepResult.LANDED; t++) {
+        }
+        assertEquals(planned.point(), bot.getPosition(), "the live flight lands where the arc said");
+    }
+
+    @Test
     void shouldStayOnTheSlopeItStandsOnWhenAnotherBranchRunsJustAbove() {
         // Ellinia 101000301: branch fh 26 slopes under fh 25, which ends 9 px above it. At x 2360 fh 26's
         // interpolated height truncates to just above the bot's stored y, so the probe from the position

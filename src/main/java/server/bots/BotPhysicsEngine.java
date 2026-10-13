@@ -1797,7 +1797,7 @@ final class BotPhysicsEngine {
     }
 
     static JumpLanding simulateJumpLanding(MapleMap map, Point from, int stepX, BotMovementProfile profile) {
-        return simulateLanding(map, from, -jumpForcePerTick(profile), stepX, 0L);
+        return simulateLanding(map, from, -jumpForcePerTick(profile), stepX, 0L, profile);
     }
 
     private record FlashImpulse(int hStep, float velY) {}
@@ -1811,7 +1811,7 @@ final class BotPhysicsEngine {
     static JumpLanding simulateFlashJumpLanding(MapleMap map, Point from, int stepX, BotMovementProfile profile) {
         int dashStep = Math.round(Integer.signum(stepX) * flashJumpHPerTick());
         return simulateLanding(map, from, -jumpForcePerTick(profile), stepX, 0L,
-                new FlashImpulse(dashStep, flashJumpVPerTick()));
+                new FlashImpulse(dashStep, flashJumpVPerTick()), profile);
     }
 
     static PostLandingJump simulateJumpLandingWithPostLandingTicks(MapleMap map,
@@ -1848,7 +1848,7 @@ final class BotPhysicsEngine {
     }
 
     static JumpLanding simulateRopeJumpLanding(MapleMap map, Point from, int stepX, BotMovementProfile profile) {
-        return simulateLanding(map, from, -ropeJumpForcePerTick(profile), stepX, 0L);
+        return simulateLanding(map, from, -ropeJumpForcePerTick(profile), stepX, 0L, profile);
     }
 
     static int estimateJumpLandingTimeMs(MapleMap map, Point from, int stepX) {
@@ -1856,7 +1856,7 @@ final class BotPhysicsEngine {
     }
 
     static int estimateJumpLandingTimeMs(MapleMap map, Point from, int stepX, BotMovementProfile profile) {
-        return estimateLandingTimeMs(map, from, -jumpForcePerTick(profile), stepX, 0L);
+        return estimateLandingTimeMs(map, from, -jumpForcePerTick(profile), stepX, 0L, profile);
     }
 
     static int estimateDownJumpLandingTimeMs(MapleMap map, Point from) {
@@ -1872,7 +1872,7 @@ final class BotPhysicsEngine {
     }
 
     static int estimateRopeJumpLandingTimeMs(MapleMap map, Point from, int stepX, BotMovementProfile profile) {
-        return estimateLandingTimeMs(map, from, -ropeJumpForcePerTick(profile), stepX, 0L);
+        return estimateLandingTimeMs(map, from, -ropeJumpForcePerTick(profile), stepX, 0L, profile);
     }
 
     static int estimateGroundJumpRopeGrabTimeMs(MapleMap map, Point from, int stepX, Rope targetRope) {
@@ -3038,18 +3038,37 @@ final class BotPhysicsEngine {
                                                float initialVelY,
                                                int stepX,
                                                long landingGraceMs) {
-        return simulateLanding(map, from, initialVelY, stepX, landingGraceMs, null);
+        return simulateLanding(map, from, initialVelY, stepX, landingGraceMs, null, BotMovementProfile.base());
     }
 
-    /** {@code flashImpulse} non-null models Flash Jump: a one-time apex (velocityY>=0) override of
-     *  (hStep, velY) that mirrors the {@link #stepAirborne} injection, so generated FLASH_JUMP edges
-     *  land where execution will actually fly. */
     private static JumpLanding simulateLanding(MapleMap map,
                                                Point from,
                                                float initialVelY,
                                                int stepX,
                                                long landingGraceMs,
-                                               FlashImpulse flashImpulse) {
+                                               BotMovementProfile profile) {
+        return simulateLanding(map, from, initialVelY, stepX, landingGraceMs, null, profile);
+    }
+
+    /** {@code flashImpulse} non-null models Flash Jump: a one-time apex (velocityY>=0) override of
+     *  (hStep, velY) that mirrors the {@link #stepAirborne} injection, so generated FLASH_JUMP edges
+     *  land where execution will actually fly.
+     *  <p>The launch direction stays held for the whole flight, as the executor holds it ({@code moveDir} is
+     *  set from the launch velocity and kept): above the input band that is a no-op, so the arc keeps its
+     *  constant step, but after a wall zeroes the horizontal speed the held key accelerates the bot again
+     *  ({@link #applyAirSteering}), which can carry it over the wall's top. Stopping dead at the wall
+     *  instead authored landings the bot never made (541000000 x -914, 600020200 x -168). */
+    private static JumpLanding simulateLanding(MapleMap map,
+                                               Point from,
+                                               float initialVelY,
+                                               int stepX,
+                                               long landingGraceMs,
+                                               FlashImpulse flashImpulse,
+                                               BotMovementProfile profile) {
+        final int holdDir = Integer.signum(stepX);
+        final double band = walkSpeedPerTick(profile) * mapGroundSlipScale(map, profile) / cfg.AIR_INPUT_BAND_DIVISOR;
+        final double steerAccel = cfg.AIR_CONTROL_ACCEL_PXSS * mapGroundSlipScale(map, profile) * tickS() * tickS();
+        double vx = stepX;
         float velocityY = initialVelY;
         double physX = from.x;
         double physY = from.y;
@@ -3067,23 +3086,27 @@ final class BotPhysicsEngine {
 
             if (flashImpulse != null && !flashInjected && velocityY >= 0f) {
                 flashInjected = true;
-                stepX = flashImpulse.hStep();
+                vx = flashImpulse.hStep();
                 velocityY = flashImpulse.velY();
             }
+            if (holdDir != 0 && vx * holdDir < band) {
+                vx = Math.min(band, vx * holdDir + steerAccel) * holdDir; // the held key, as applyAirSteering
+            }
 
-            physX += stepX;
+            int previousX = (int) Math.round(physX);
+            physX += vx;
             physY += velocityY + 0.5f * gravity;
             velocityY = Math.min(velocityY + gravity, maxFall);
 
             int x = (int) Math.round(physX);
             int intY = (int) Math.round(physY);
-            Point previousPoint = new Point((int) Math.round(physX - stepX), previousIntY);
+            Point previousPoint = new Point(previousX, previousIntY);
             Point nextPoint = new Point(x, intY);
             AirCollision collision = resolveAirCollision(map, previousPoint, nextPoint);
             if (collision.type() == AirCollisionType.WALL) {
                 physX = collision.point().x;
                 physY = collision.point().y;
-                stepX = 0;
+                vx = 0;
                 previousIntY = collision.point().y;
                 continue;
             }
@@ -3114,7 +3137,16 @@ final class BotPhysicsEngine {
                                              float initialVelY,
                                              int stepX,
                                              long landingGraceMs) {
-        JumpLanding landing = simulateLanding(map, from, initialVelY, stepX, landingGraceMs);
+        return estimateLandingTimeMs(map, from, initialVelY, stepX, landingGraceMs, BotMovementProfile.base());
+    }
+
+    private static int estimateLandingTimeMs(MapleMap map,
+                                             Point from,
+                                             float initialVelY,
+                                             int stepX,
+                                             long landingGraceMs,
+                                             BotMovementProfile profile) {
+        JumpLanding landing = simulateLanding(map, from, initialVelY, stepX, landingGraceMs, profile);
         return landing != null ? landing.timeMs() : Integer.MAX_VALUE;
     }
 }
