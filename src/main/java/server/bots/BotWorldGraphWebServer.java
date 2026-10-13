@@ -185,6 +185,7 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/fleetops/incidents", BotWorldGraphWebServer::serveFleetIncidents);
             s.createContext("/api/fleetops/act", BotWorldGraphWebServer::serveFleetAct);
             s.createContext("/api/learned/readiness", BotWorldGraphWebServer::serveLearnedReadiness);
+            s.createContext("/api/chat", BotWorldGraphWebServer::serveChat);
             s.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "bot-worldmap-web");
                 t.setDaemon(true);
@@ -223,6 +224,34 @@ public final class BotWorldGraphWebServer {
     /** GET /api/learned/readiness: how close the grind decision log is to worth training on (stage 2 gate). */
     private static void serveLearnedReadiness(HttpExchange ex) throws IOException {
         send(ex, 200, "application/json", BotGrindTargetLog.readinessJson().getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** GET /api/chat?id=botCharId: the dashboard conversation with that bot. POST /api/chat?id=botCharId with
+     *  the message as the plain text body: say it to the bot as its owner (BotDashboardChat). Only managed
+     *  bots, the same as /api/command: a bot whose player owner is online is talked to in game. */
+    private static void serveChat(HttpExchange ex) throws IOException {
+        int id;
+        try {
+            id = Integer.parseInt(queryParams(ex.getRequestURI().getRawQuery()).getOrDefault("id", "").trim());
+        } catch (NumberFormatException e) {
+            send(ex, 400, "application/json", "{\"error\":\"id required\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        if ("POST".equals(ex.getRequestMethod())) {
+            String message = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8).strip();
+            BotEntry e = lookupBotEntry(id);
+            if (e == null || !commandableEntry(e)) {
+                send(ex, 409, "application/json",
+                        "{\"error\":\"not a managed bot online\"}".getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            if (message.isEmpty() || message.length() > 200) {
+                send(ex, 400, "application/json", "{\"error\":\"1 to 200 characters\"}".getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            BotDashboardChat.send(e, message);
+        }
+        send(ex, 200, "application/json", BotDashboardChat.json(id).getBytes(StandardCharsets.UTF_8));
     }
 
     /** POST /api/fleetops/act {"bot":id,"action":"rescue|hold_errands|sell_trash|park","arg":n,"reason":"..."}:

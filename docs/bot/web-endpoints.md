@@ -16,7 +16,7 @@ the LAN (accepted: private game-server LAN). Open `http://<server-lan-ip>:8089/`
 | `/` | GET | Legacy bot world-graph page (`botworld.html`). |
 | `/map` | GET | RTS world map (`worldmap.html`): graph over WorldMap continent images, live positions, RTS control, collapsible per-map detail. |
 | `/admin` | GET | Admin/settings menu (`admin.html`): edit bot config live, drive the population scheduler + LLM toggle, danger zone (disconnect-all / wipe). Front end for `/api/settings`. |
-| `/mapgraph?id=<mapId>` | GET | Single-map nav-graph preview (`mapgraph.html`): regions (footholds/ropes), typed edges, NPCs, portals, live characters. Click a region for its `!pos` report; the **Pathfind** button lets you pick a source then target region to preview + verdict the route (`/api/pathfind`). **`show:` view toggles** (all client-side, all default OFF): `partition` colours regions by reachability component (SCC over the walk-only edge set — the same adjacency `BotNavigationGraph.canReach` uses; one colour = fully connected, multiple = a split map); `downjumps` (DROP edges), `jump-downs` (JUMP landing lower), `fj-downs` (FLASH_JUMP landing lower) show those normally-hidden down-edge classes. Opened from a world-map node's detail-panel button (same tab) or by middle-clicking a node (new tab). |
+| `/mapgraph?id=<mapId>` | GET | Single-map nav-graph preview (`mapgraph.html`): regions (footholds/ropes), typed edges, NPCs, portals, live characters. Click a region for its `!pos` report; the **Pathfind** button lets you pick a source then target region to preview + verdict the route (`/api/pathfind`). **`show:` view toggles** (all client-side, all default OFF): `partition` colours regions by reachability component (SCC over the walk-only edge set — the same adjacency `BotNavigationGraph.canReach` uses; one colour = fully connected, multiple = a split map); `downjumps` (DROP edges), `jump-downs` (JUMP landing lower), `fj-downs` (FLASH_JUMP landing lower) show those normally-hidden down-edge classes. Opened from a world-map node's detail-panel button or by double-clicking a node (same tab), or by middle-clicking it (new tab); for a spot that merges several maps it opens the map someone is on, players first. |
 | `/wm/{worldmapId}.png` | GET | A WorldMap continent background image from `wz-WorldMap/`; `/wm/overview.png` is the Maple World overview the map page opens on. |
 
 ## Read APIs (JSON, GET)
@@ -256,6 +256,16 @@ Live admin/tuning surface behind `/admin`. Same SSOT as the GM commands: `BotCon
 Destructive verbs require the exact `confirm` token (the page prompts for it) — no real auth, LAN-only.
 
 ## Write API
+
+### `/api/chat` (GET, POST)
+Dashboard chat with one managed bot (`BotDashboardChat`). `GET /api/chat?id=botCharId` returns the
+conversation `{"lines":[{"t","bot","m"}, ...]}` (epoch ms, `bot` true for the bot's lines, message), oldest
+first, last 40 lines, in memory only. `POST /api/chat?id=botCharId` with the message as the plain text body
+(1 to 200 characters) says it to the bot as its owner, like an owner whisper: chat commands first, then the
+LLM reply when no command matches. Replies go to reply channel `DASHBOARD`, so they appear here and nothing
+is said in game; the channel stays until the owner next talks to the bot in game. Returns the same JSON as
+GET, or `409 {"error"}` when the bot isn't online or isn't managed (a bot whose player owner is online is
+talked to in game). The world map page opens it from the **chat** button on a bot's row in the right panel.
 
 ### `/api/command` (POST)
 RTS control. Body `{"cmd","ids":[botCharId,...],"maps":[mapId,...]?,"target":charId?,"x":int?,"y":int?}`.
