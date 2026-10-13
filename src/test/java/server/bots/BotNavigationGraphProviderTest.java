@@ -864,7 +864,7 @@ class BotNavigationGraphProviderTest {
         Point badLaunch = new Point(-294, -45);
 
         assertEquals(12, fromRegionId); // 14 before v76 dropped the map's phantom regions
-        assertEquals(9, targetRegionId);
+        assertEquals(8, targetRegionId); // 9 before v76
 
         BotPhysicsEngine.JumpLanding landing =
                 BotPhysicsEngine.simulateJumpLanding(kerningPharmacy(), badLaunch, 0, profile);
@@ -889,7 +889,7 @@ class BotNavigationGraphProviderTest {
         int stepX = BotPhysicsEngine.walkStep(mushroomShrine(), profile);
 
         assertEquals(47, fromRegionId); // 55 before v76 dropped the map's phantom regions
-        assertEquals(48, targetRegionId);
+        assertEquals(44, targetRegionId); // 48 before v76
 
         BotPhysicsEngine.JumpLanding landing =
                 BotPhysicsEngine.simulateJumpLanding(mushroomShrine(), badLaunch, stepX, profile);
