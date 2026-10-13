@@ -241,9 +241,13 @@ class BotChatManagerTest {
         Character bot = mock(Character.class);
         when(bot.getId()).thenReturn(910_781);
         BotEntry entry = new BotEntry(bot, null, null);
-        for (String q : List.of("mesos", "stats", "pots", "exp", "slots")) {
-            BotChatManager.handleChat(entry, q);
-            assertTrue(BotChatManager.wasLastChatHandled(), q);
+        // The reports run later on the game timer; only the handled flag is checked here.
+        try (org.mockito.MockedStatic<server.TimerManager> timer = org.mockito.Mockito.mockStatic(server.TimerManager.class)) {
+            timer.when(server.TimerManager::getInstance).thenReturn(mock(server.TimerManager.class));
+            for (String q : List.of("mesos", "stats", "pots", "exp", "slots")) {
+                BotChatManager.handleChat(entry, q);
+                assertTrue(BotChatManager.wasLastChatHandled(), q);
+            }
         }
     }
 
