@@ -1918,6 +1918,48 @@ public class BotChatManager {
                 || ITEM_QUERY_PATTERN.matcher(message).matches();
     }
 
+    /**
+     * Questions about the bot that game state answers exactly, keyed by the name the LLM turn may give
+     * ({@code server.bots.llm.BotTurn}), each mapped to the command whose report answers it. The model only
+     * names the question; the command's own report writes the answer, so any wording of "how rich are
+     * you" gets the same reply as "mesos". Read-only commands only: nothing here moves items or changes plans.
+     */
+    private static final Map<String, String> STATE_QUESTIONS = new java.util.LinkedHashMap<>();
+    static {
+        STATE_QUESTIONS.put("where", "where are you");
+        STATE_QUESTIONS.put("doing", "what are you doing");
+        STATE_QUESTIONS.put("level", "level");
+        STATE_QUESTIONS.put("exp", "exp");
+        STATE_QUESTIONS.put("mesos", "mesos");
+        STATE_QUESTIONS.put("stats", "stats");
+        STATE_QUESTIONS.put("damage", "damage");
+        STATE_QUESTIONS.put("build", "build");
+        STATE_QUESTIONS.put("skills", "skills");
+        STATE_QUESTIONS.put("inventory", "inventory");
+        STATE_QUESTIONS.put("slots", "slots");
+        STATE_QUESTIONS.put("pots", "pots");
+        STATE_QUESTIONS.put("scrolls", "scrolls");
+    }
+
+    /** The question names {@link #answerStateQuestion} takes, in a stable order. */
+    public static List<String> stateQuestions() {
+        return List.copyOf(STATE_QUESTIONS.keySet());
+    }
+
+    static String stateQuestionCommand(String question) {
+        return STATE_QUESTIONS.get(question);
+    }
+
+    /** Answers a state question from its owner with the command's own report; false for an unknown name. */
+    public static boolean answerStateQuestion(BotEntry entry, String question) {
+        String command = STATE_QUESTIONS.get(question);
+        if (entry == null || command == null) {
+            return false;
+        }
+        handleChat(entry, command);
+        return wasLastChatHandled();
+    }
+
     private static final List<String> INFO_REFUSAL_REPLIES = List.of(
             "no", "nope", "nah", "lol no", "not telling ya", "not gonna tell you that",
             "thats my business", "mind ya business", "why would i tell you that",

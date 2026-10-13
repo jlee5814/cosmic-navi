@@ -3,6 +3,7 @@ package server.bots.llm;
 import client.Character;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import server.bots.BotChatManager;
 import server.bots.BotEntry;
 import server.bots.BotManager;
 
@@ -133,6 +134,18 @@ public final class BotLlmReplyManager {
             }
         }
 
+        // An owner's question game state answers exactly goes to the command's own report: the model only
+        // names it. Everyone else's info questions stay with the chat reply, as before.
+        if (relation == SenderRelation.OWNER) {
+            String question = BotTurn.classify(message);
+            if (question != null && BotChatManager.answerStateQuestion(entry, question)) {
+                if (BotLlmConfig.debugLog) {
+                    log.info("llm[{}] asks {} ({} ms): answered from state", botName, question,
+                            System.currentTimeMillis() - t0);
+                }
+                return;
+            }
+        }
         Optional<String> raw = chat != null ? LlmClient.chat(chat) : LlmClient.generate(prompt, system);
         long elapsed = System.currentTimeMillis() - t0;
 
@@ -141,6 +154,16 @@ public final class BotLlmReplyManager {
             return;
         }
         String reply = stripSpeakerLabel(sanitize(raw.get()), botName, senderName);
+        String wrongFact = ReplyGuard.contradiction(entry.getBot(), message, reply);
+        if (wrongFact != null) {
+            // The reply misstates the bot's own level, exp or mesos: say the fact from state instead (owner),
+            // or say nothing rather than a wrong number.
+            log.info("llm[{}] guard: reply misstates {}: {}", botName, wrongFact, reply);
+            if (relation == SenderRelation.OWNER) {
+                BotChatManager.answerStateQuestion(entry, wrongFact);
+            }
+            return;
+        }
         if (BotLlmConfig.debugLog) {
             log.info("llm[{}] raw ({} ms, {} chars): {}", botName, elapsed, raw.get().length(), raw.get());
             log.info("llm[{}] sanitized ({} chars): {}", botName, reply.length(), reply);

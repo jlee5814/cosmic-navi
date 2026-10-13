@@ -237,6 +237,17 @@ class BotChatManagerTest {
     }
 
     @Test
+    void everyStateQuestionTheModelMayNameIsAReadOnlyCommand() {
+        assertFalse(BotChatManager.stateQuestions().isEmpty());
+        for (String q : BotChatManager.stateQuestions()) {
+            String command = BotChatManager.stateQuestionCommand(q);
+            assertTrue(BotChatManager.isReadOnlyInfoQuery(command) || BotChatManager.isWhereQuery(command)
+                    || BotChatManager.isLocationStatusQuery(command), q + " -> " + command);
+        }
+        assertNull(BotChatManager.stateQuestionCommand("trade"), "no action command can be named");
+    }
+
+    @Test
     void shouldMatchLocationStatusQueriesNaturally() {
         assertTrue(BotChatManager.isLocationStatusQuery("where are you"));
         assertTrue(BotChatManager.isLocationStatusQuery("where ru?"));

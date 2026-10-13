@@ -67,7 +67,7 @@ class ChatTurnsTest {
                 new ChatMessage("system", "rules"),
                 new ChatMessage("user", "hi"),
                 new ChatMessage("assistant", "yo"),
-                new ChatMessage("user", "pt?")), 24);
+                new ChatMessage("user", "pt?")), 24, null);
         assertTrue(body.contains("\"messages\":[{\"role\":\"system\",\"content\":\"rules\"},"
                 + "{\"role\":\"user\",\"content\":\"hi\"},{\"role\":\"assistant\",\"content\":\"yo\"},"
                 + "{\"role\":\"user\",\"content\":\"pt?\"}]"), body);

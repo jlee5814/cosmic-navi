@@ -32,32 +32,58 @@ public final class OpenAiChatClient {
     }
 
     static Optional<String> sendChat(java.util.List<ChatMessage> messages, int maxTokens, int timeoutMs) {
+        HttpResponse<String> resp = post(buildBody(messages, maxTokens, null), timeoutMs);
+        if (resp == null) return Optional.empty();
+        if (resp.statusCode() != 200) {
+            log.warn("openai: HTTP {} body: {}", resp.statusCode(), abbrev(resp.body(), 200));
+            return Optional.empty();
+        }
+        String text = extractContent(resp.body());
+        if (text == null || text.isBlank()) return Optional.empty();
+        return Optional.of(text.trim());
+    }
+
+    /** One structured reply: {@code content} is the model's JSON text (null when there is none), and
+     *  {@code formatRejected} says the server refused {@code response_format} (HTTP 400), so asking again is pointless. */
+    record Structured(String content, boolean formatRejected) {
+    }
+
+    /** {@link #sendChat} with the output constrained to a JSON schema ({@code response_format: json_schema}),
+     *  sampled greedily: a classification, not chat. */
+    static Structured sendChatStructured(java.util.List<ChatMessage> messages, int maxTokens, int timeoutMs,
+                                         String schemaJson) {
+        String format = "{\"type\":\"json_schema\",\"json_schema\":{\"name\":\"turn\",\"schema\":" + schemaJson + "}}";
+        HttpResponse<String> resp = post(buildBody(messages, maxTokens, format, 0.0), timeoutMs);
+        if (resp == null) return new Structured(null, false);
+        if (resp.statusCode() != 200) {
+            log.warn("openai: structured HTTP {} body: {}", resp.statusCode(), abbrev(resp.body(), 200));
+            return new Structured(null, resp.statusCode() == 400);
+        }
+        String text = extractContent(resp.body());
+        return new Structured(text == null || text.isBlank() ? null : text.trim(), false);
+    }
+
+    /** The response, or null when the request could not be built or sent (logged). */
+    private static HttpResponse<String> post(String body, int timeoutMs) {
         HttpRequest req;
         try {
             req = HttpRequest.newBuilder(URI.create(BotLlmConfig.endpoint + "/v1/chat/completions"))
                     .timeout(Duration.ofMillis(timeoutMs))
                     .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(buildBody(messages, maxTokens)))
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
                     .build();
         } catch (Exception e) {
             log.warn("openai: request build failed: {}", e.toString());
-            return Optional.empty();
+            return null;
         }
         try {
-            HttpResponse<String> resp = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() != 200) {
-                log.warn("openai: HTTP {} body: {}", resp.statusCode(), abbrev(resp.body(), 200));
-                return Optional.empty();
-            }
-            String text = extractContent(resp.body());
-            if (text == null || text.isBlank()) return Optional.empty();
-            return Optional.of(text.trim());
+            return HTTP.send(req, HttpResponse.BodyHandlers.ofString());
         } catch (java.net.http.HttpTimeoutException te) {
             log.info("openai: timeout after {}ms", timeoutMs);
-            return Optional.empty();
+            return null;
         } catch (Exception e) {
             log.warn("openai: send failed: {}", e.toString());
-            return Optional.empty();
+            return null;
         }
     }
 
@@ -65,10 +91,17 @@ public final class OpenAiChatClient {
         java.util.List<ChatMessage> messages = new java.util.ArrayList<>(2);
         if (system != null && !system.isEmpty()) messages.add(new ChatMessage("system", system));
         messages.add(new ChatMessage("user", prompt));
-        return buildBody(messages, maxTokens);
+        return buildBody(messages, maxTokens, null);
     }
 
-    static String buildBody(java.util.List<ChatMessage> messages, int maxTokens) {
+    static String buildBody(java.util.List<ChatMessage> messages, int maxTokens, String responseFormat) {
+        return buildBody(messages, maxTokens, responseFormat, null);
+    }
+
+    /** {@code responseFormat} is the raw {@code response_format} JSON, or null for free text; a null
+     *  {@code temperature} keeps the configured sampler. */
+    static String buildBody(java.util.List<ChatMessage> messages, int maxTokens, String responseFormat,
+                            Double temperature) {
         StringBuilder sb = new StringBuilder(512);
         sb.append("{\"model\":\"").append(OllamaClient.jsonEscape(BotLlmConfig.model)).append("\",");
         sb.append("\"stream\":false,\"messages\":[");
@@ -80,7 +113,7 @@ public final class OpenAiChatClient {
         }
         sb.append("],");
         sb.append("\"max_tokens\":").append(maxTokens)
-                .append(",\"temperature\":").append(BotLlmConfig.temperature)
+                .append(",\"temperature\":").append(temperature != null ? temperature : BotLlmConfig.temperature)
                 .append(",\"top_p\":").append(BotLlmConfig.topP)
                 .append(",\"top_k\":").append(BotLlmConfig.topK)
                 .append(",\"min_p\":").append(BotLlmConfig.minP)
@@ -88,6 +121,9 @@ public final class OpenAiChatClient {
                 .append(",\"repetition_penalty\":").append(BotLlmConfig.repeatPenalty);
         if (BotLlmConfig.disableThinking) {
             sb.append(",\"chat_template_kwargs\":{\"enable_thinking\":false}");
+        }
+        if (responseFormat != null) {
+            sb.append(",\"response_format\":").append(responseFormat);
         }
         sb.append('}');
         return sb.toString();

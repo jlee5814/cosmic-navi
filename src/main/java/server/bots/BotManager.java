@@ -1732,7 +1732,8 @@ public class BotManager {
     /**
      * Conversation from the player registered in bot_owners to one of their self-owned roster bots,
      * addressed by name ("SipsBuddy1 hows the grind"). Those bots play on their own autopilot, so
-     * this path never runs commands; it only hands the line to the LLM. Name matching is in memory;
+     * this path runs no action commands; it hands the line to the LLM, which may name a read-only state
+     * question that its command's report then answers. Name matching is in memory;
      * the one ownership lookup happens only after a self-owned bot was named.
      */
     boolean maybeChatWithRegisteredBot(Character speaker, String message, ReplyChannel channel) {
