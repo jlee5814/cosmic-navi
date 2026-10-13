@@ -427,19 +427,25 @@ public class MapFactory {
         return builder.toString();
     }
 
+    // The JDK parser builds a deferred DOM that expands nodes on first read, so concurrent reads of one
+    // document can fail; bots and the web server look names up from many threads. Reads share one lock.
     public static String loadPlaceName(int mapid) {
-        try {
-            return DataTool.getString("mapName", nameData.getChildByPath(getMapStringName(mapid)), "");
-        } catch (Exception e) {
-            return "";
+        synchronized (nameData) {
+            try {
+                return DataTool.getString("mapName", nameData.getChildByPath(getMapStringName(mapid)), "");
+            } catch (Exception e) {
+                return "";
+            }
         }
     }
 
     public static String loadStreetName(int mapid) {
-        try {
-            return DataTool.getString("streetName", nameData.getChildByPath(getMapStringName(mapid)), "");
-        } catch (Exception e) {
-            return "";
+        synchronized (nameData) {
+            try {
+                return DataTool.getString("streetName", nameData.getChildByPath(getMapStringName(mapid)), "");
+            } catch (Exception e) {
+                return "";
+            }
         }
     }
 
