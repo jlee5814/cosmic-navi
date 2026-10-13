@@ -68,7 +68,15 @@ public final class BotLlmReplyManager {
         if (relation == SenderRelation.STRANGER && entry.getReplyChannel() == server.bots.ReplyChannel.WHISPER) {
             return;
         }
+        respond(entry, relation, sender.getName(), message);
+    }
 
+    /** The reply itself, for a sender known by relation and name only (the dashboard speaks as the owner,
+     *  who may not be logged in). */
+    public static void respond(BotEntry entry, SenderRelation relation, String senderName, String message) {
+        if (!BotLlmConfig.enabled || entry == null || entry.getBot() == null || message == null || message.isBlank()) {
+            return;
+        }
         int botId = entry.getBot().getId();
         AtomicInteger inflight = inflightByBotId.computeIfAbsent(botId, k -> new AtomicInteger(0));
         if (!compareAndIncrement(inflight, 0, 1)) {
@@ -82,7 +90,6 @@ public final class BotLlmReplyManager {
             return;
         }
 
-        final String senderName = sender.getName();
         EXEC.submit(() -> {
             try {
                 runReply(entry, senderName, relation, message);

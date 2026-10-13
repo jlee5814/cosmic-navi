@@ -6322,20 +6322,22 @@ public class BotManager {
 
     void botSay(Character bot, ReplyChannel channel, String text) {
         switch (channel) {
-            case PARTY, WHISPER -> botSayParty(bot, text);
+            case PARTY, WHISPER, DASHBOARD -> botSayParty(bot, text);
             default -> botSay(bot, text);
         }
     }
 
-    /** Bot-to-bot visible say — routes MAP→map broadcast, PARTY→party, WHISPER→party fallback. */
+    /** Bot-to-bot visible say — routes MAP→map broadcast, PARTY→party, WHISPER and DASHBOARD→party fallback. */
     void botSay(BotEntry entry, String text) {
         botSay(entry.bot, entry.replyChannel, text);
     }
 
-    /** Owner-directed reply — routes MAP→map broadcast, PARTY→party, WHISPER→whisper to owner. */
+    /** Owner-directed reply — routes MAP→map broadcast, PARTY→party, WHISPER→whisper to owner, DASHBOARD→the
+     *  dashboard chat log. */
     public void botReply(BotEntry entry, String text) {
         switch (entry.replyChannel) {
             case PARTY -> botSayParty(entry.bot, text);
+            case DASHBOARD -> BotDashboardChat.reply(entry, sanitizeChat(text));
             case WHISPER -> {
                 // While an admin debug binding is fresh, whisper replies go to the commander.
                 Character owner = commanderOrOwner(entry);

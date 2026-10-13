@@ -27,6 +27,10 @@
   button{background:#2a3346;color:#cdd6e4;border:1px solid #3a4761;border-radius:4px;padding:5px 9px;cursor:pointer;margin:2px 0}
   button:hover{background:#34405a}
   .ggBtn{font-size:10px;padding:1px 6px;margin:0 0 0 4px}
+  #chatBox{margin-top:10px;border-top:1px solid #283143;padding-top:8px}
+  #chatLog{max-height:220px;overflow:auto;line-height:1.45;font-size:12px;margin:4px 0}
+  #chatLog .you{color:#9fb0c8}
+  #chatLog .bot{color:#ffd9a8}
   a{color:#6cc6ff}
   input{width:100%;box-sizing:border-box;background:#0d1017;color:#cdd6e4;border:1px solid #283143;border-radius:4px;padding:5px 7px;margin:4px 0}
   #status{margin-top:8px;color:#9fb0c8}
@@ -140,7 +144,7 @@
   <div id="fontRow">font size<input id="fontSlider" type="range" min="10" max="22" value="13"></div>
   <h1>Bot World Map</h1>
   <p class="sub">drag map to move &middot; click map to resize &middot; scroll to zoom<br>
-     click node: detail &middot; middle-click node: map graph &middot; right-click node: custom anchor (relative/absolute)</p>
+     click node: detail &middot; double-click node: map graph (middle-click: new tab) &middot; right-click node: custom anchor (relative/absolute)</p>
   <button id="lockBtn">&#128274; Locked</button>
   <button id="export">Export positions</button>
   <button id="fit">Reset view</button>
@@ -153,6 +157,12 @@
     <div style="margin-top:3px"><span style="background:#23262e;border:2px dashed #7a8290"></span>unreachable by bot &#8856;</div>
   </div>
   <div id="detail"></div>
+  <div id="chatBox" hidden>
+    <div><b id="chatWho"></b> <button class="ggBtn" onclick="closeChat()">close</button></div>
+    <div class="meta">you speak as its owner: commands and chat, replies show here only</div>
+    <div id="chatLog"></div>
+    <form id="chatForm"><input id="chatIn" maxlength="200" autocomplete="off" placeholder="say something"></form>
+  </div>
 </div>
 <div id="tip"></div>
 <div id="picker"></div>
@@ -210,6 +220,12 @@ const status = t => { document.getElementById('status').textContent = t; };
 const wmAbs = (img, lx, ly) => { const s = img.scaleX(); return {x: img.x()+s*lx, y: img.y()+s*ly}; };
 
 // occupancy aggregates over a node's constituent maps (a merged node can cover several)
+// A spot can merge many maps (the Ellinia tree dungeons are one spot): its map graph is the map where
+// someone is, players first, else the spot's own map.
+function graphMapOf(inst){
+  for(const kind of ['players','bots']) for(const m of inst.maps){ const o = live[m]; if(o && o[kind].length) return m; }
+  return inst.id;
+}
 function instOccupants(inst){
   const out = [];
   for(const m of inst.maps){ const o = live[m]; if(!o) continue;
@@ -402,9 +418,12 @@ function nodeBlock(inst){
                  inst.danger?'UNRETURNABLE':null, inst.unreachable?'UNREACHABLE BY BOT':null,
                  inst.leaf?'dead-end':null].filter(Boolean).join(' &middot; ');
   const head = '<div class="meta" style="margin-top:6px">WorldMap'+inst.wm+(flags?' &middot; '+flags:'')+'</div>';
-  return head + inst.maps.map((m,i) =>
+  // Only the maps someone is on; an empty spot shows just its own map. The id stays in the hover title.
+  const shown = inst.maps.map((m,i) => [m,i]).filter(([m]) => occupants(m).length);
+  const list = shown.length ? shown : [[inst.id, Math.max(0, inst.maps.indexOf(inst.id))]];
+  return head + list.map(([m,i]) =>
     '<details data-map="'+m+'"'+(occupants(m).length ? ' open' : '')+' style="margin-top:4px">'
-    + '<summary>'+esc(inst.names[i])+' ('+m+') '
+    + '<summary title="map '+m+'">'+esc(inst.names[i])+' '
     + '<button class="ggBtn" onclick="event.stopPropagation();location.href=\'/mapgraph?id='+m+'\'" title="open map nav-graph preview">map graph</button>'
     + '</summary>'
     + '<div class="body" style="margin:4px 0 0 10px">loading…</div></details>').join('');
@@ -453,7 +472,7 @@ function detailBody(mapId){
   // @botstatus (from /api/live) shows for in-map AND off-map members; an off-map member with no status
   // falls back to a "@ map" location chip. Either way the row is click-to-locate.
   const meta = it => (it.bot && it.c.status) ? esc(it.c.status) : '';
-  const inRow  = it => rowHtml(it, {meta: meta(it)});
+  const inRow  = it => rowHtml(it, {meta: meta(it), chat: true});
   const offRow = it => rowHtml(it, {off:true, meta: meta(it) || '@ '+esc(mapName(it.map)), click:'locateChar('+it.map+')'});
   const offHtml = arr => sortRows(arr).map(offRow).join('');
   const items = occ.map(([k,c]) => ({c, map:mapId, bot:k==='B'}));
@@ -482,6 +501,38 @@ function crewBoxes(items, mapId, inRow, offRow, partyHasOff){
   }
   return out + sortRows(loose).map(inRow).join('');
 }
+
+// ---- dashboard chat with one managed bot (/api/chat) -------------------------------------------------
+let chatId = 0, chatTimer = null, chatSig = '';
+function openChat(id, name){
+  chatId = id; chatSig = '';
+  document.getElementById('chatWho').textContent = 'Chat with ' + name;
+  document.getElementById('chatBox').hidden = false;
+  document.getElementById('chatIn').focus();
+  pollChat(); clearInterval(chatTimer); chatTimer = setInterval(pollChat, 1500);
+}
+function closeChat(){ chatId = 0; clearInterval(chatTimer); document.getElementById('chatBox').hidden = true; }
+function showChat(d){
+  const sig = JSON.stringify(d.lines); if(sig === chatSig) return; chatSig = sig;
+  const log = document.getElementById('chatLog');
+  log.innerHTML = d.lines.length ? d.lines.map(l => '<div class="'+(l.bot?'bot':'you')+'">'
+      + '<span class="meta">'+new Date(l.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})+'</span> '
+      + (l.bot ? '' : 'you: ') + esc(l.m) + '</div>').join('')
+    : '<span class="meta">no messages yet</span>';
+  log.scrollTop = log.scrollHeight;
+}
+function pollChat(){ const id = chatId; if(!id) return;
+  fetch('/api/chat?id='+id).then(r=>r.json()).then(d => { if(chatId === id) showChat(d); }).catch(()=>{}); }
+document.getElementById('chatForm').addEventListener('submit', ev => {
+  ev.preventDefault();
+  const inp = document.getElementById('chatIn'), msg = inp.value.trim(), id = chatId;
+  if(!msg || !id) return;
+  inp.value = '';
+  fetch('/api/chat?id='+id, {method:'POST', body: msg}).then(r => r.json()).then(d => {
+    if(d.error){ document.getElementById('chatLog').insertAdjacentHTML('beforeend', '<div class="meta">'+esc(d.error)+'</div>'); return; }
+    if(chatId === id) showChat(d);
+  }).catch(()=>{});
+});
 
 // ---- shared hover tooltip (map nodes + roster rows) -----------------------------------------------
 const mobCache = {};   // mapId -> [{name,level,spawns}] | 'pending'  (mob spawn data is static WZ -> cache forever)
@@ -515,7 +566,8 @@ function paintTip(inst){
   const occ = instOccupants(inst);
   const occHtml = occ.length ? occ.map(([k,c]) => occLine(k,c)).join('<br>') : '(empty)';
   const mobs = mobPreviewHtml(inst);
-  tipAt('<b>'+esc(inst.name)+'</b><br>' + occHtml + (mobs ? '<br>'+mobs : ''), tipXY.x, tipXY.y);
+  tipAt('<b>'+esc(inst.name)+'</b><br>' + occHtml + (mobs ? '<br>'+mobs : '')
+        + '<br><span class="meta">double-click: map graph</span>', tipXY.x, tipXY.y);
 }
 function showTip(inst, evt){
   tipNode = inst; tipXY = {x:evt.clientX, y:evt.clientY};
@@ -600,6 +652,8 @@ function rowHtml(it, opts){
     + ' onmouseenter="rosterTip(event,'+it.c.id+','+it.map+','+(it.bot?1:0)+')" onmouseleave="hideTip()"'
     + ' onclick="'+click+'">'
     + (it.bot?'&#129302; ':'&#128100; ') + esc(it.c.n) + ' <span class="meta">Lv'+it.c.l+' '+esc(it.c.j)+'</span>'
+    + (opts.chat && it.bot && it.c.c ? '<button class="ggBtn" title="chat with this bot" onclick="event.stopPropagation();openChat('
+        + it.c.id + ',this.dataset.n)" data-n="'+esc(it.c.n).replace(/"/g,'&quot;')+'">chat</button>' : '')
     + (meta!=='' ? '<br><span class="meta">'+meta+'</span>' : '') + '</div>';
 }
 // nesting: party (outer box) > crew (inner box) > loose rows. Boxes only form at >=2 members.
@@ -716,8 +770,11 @@ function mapHitsHtml(hits){
         showDetail(inst);
       });
       circle.on('contextmenu', e => { e.evt.preventDefault(); e.cancelBubble = true; cycleCustom(inst); });
+      circle.on('dblclick dbltap', e => { e.cancelBubble = true;
+        if(rtsMode && (followArm || moveArmed)) return;            // the first click already used the pick
+        location.href = '/mapgraph?id=' + graphMapOf(inst); });     // double-click: map graph
       circle.on('mousedown', e => { if(e.evt.button === 1){ e.evt.preventDefault(); e.cancelBubble = true;
-        window.open('/mapgraph?id=' + inst.id, '_blank'); } });   // middle-click: map graph in a new tab
+        window.open('/mapgraph?id=' + graphMapOf(inst), '_blank'); } });   // middle-click: map graph in a new tab
       circle.on('dragmove', () => { const p = inst.circle.position();
         if(inst.center) inst.center.position(p); drawEdges(inst.wm); });
       circle.on('dragend', () => {
