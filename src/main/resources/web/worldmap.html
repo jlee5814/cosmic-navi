@@ -226,6 +226,13 @@ function graphMapOf(inst){
   for(const kind of ['players','bots']) for(const m of inst.maps){ const o = live[m]; if(o && o[kind].length) return m; }
   return inst.id;
 }
+// The maps of a spot worth showing: the ones someone is on, else just the spot's own map. The tree
+// dungeons and Haunted House rooms are each one spot, and only the room the bot is in matters.
+function shownMaps(inst){
+  const busy = inst.maps.filter(m => { const o = live[m]; return o && (o.players.length || o.bots.length); });
+  return busy.length ? busy : [inst.id];
+}
+function spotMapName(inst, m){ const i = inst.maps.indexOf(m); return i >= 0 ? inst.names[i] : mapName(m); }
 function instOccupants(inst){
   const out = [];
   for(const m of inst.maps){ const o = live[m]; if(!o) continue;
@@ -418,12 +425,9 @@ function nodeBlock(inst){
                  inst.danger?'UNRETURNABLE':null, inst.unreachable?'UNREACHABLE BY BOT':null,
                  inst.leaf?'dead-end':null].filter(Boolean).join(' &middot; ');
   const head = '<div class="meta" style="margin-top:6px">WorldMap'+inst.wm+(flags?' &middot; '+flags:'')+'</div>';
-  // Only the maps someone is on; an empty spot shows just its own map. The id stays in the hover title.
-  const shown = inst.maps.map((m,i) => [m,i]).filter(([m]) => occupants(m).length);
-  const list = shown.length ? shown : [[inst.id, Math.max(0, inst.maps.indexOf(inst.id))]];
-  return head + list.map(([m,i]) =>
+  return head + shownMaps(inst).map(m =>
     '<details data-map="'+m+'"'+(occupants(m).length ? ' open' : '')+' style="margin-top:4px">'
-    + '<summary title="map '+m+'">'+esc(inst.names[i])+' '
+    + '<summary title="map '+m+'">'+esc(spotMapName(inst, m))+' '
     + '<button class="ggBtn" onclick="event.stopPropagation();location.href=\'/mapgraph?id='+m+'\'" title="open map nav-graph preview">map graph</button>'
     + '</summary>'
     + '<div class="body" style="margin:4px 0 0 10px">loading…</div></details>').join('');
@@ -553,7 +557,7 @@ let tipNode = null, tipXY = {x:0, y:0};
 // merged top-8-by-spawns mob lines for a node's maps — no header (compact), dim. '' while nothing known.
 function mobPreviewHtml(inst){
   const agg = {}; let pending = false;
-  for(const m of inst.maps){ const c = mobCache[m];
+  for(const m of shownMaps(inst)){ const c = mobCache[m];
     if(Array.isArray(c)) for(const mb of c){ const a = agg[mb.name] || (agg[mb.name]={name:mb.name,level:mb.level,spawns:0}); a.spawns += mb.spawns; }
     else pending = true;
   }
@@ -566,12 +570,12 @@ function paintTip(inst){
   const occ = instOccupants(inst);
   const occHtml = occ.length ? occ.map(([k,c]) => occLine(k,c)).join('<br>') : '(empty)';
   const mobs = mobPreviewHtml(inst);
-  tipAt('<b>'+esc(inst.name)+'</b><br>' + occHtml + (mobs ? '<br>'+mobs : '')
+  tipAt('<b>'+esc(shownMaps(inst).map(m => spotMapName(inst, m)).join(' / '))+'</b><br>' + occHtml + (mobs ? '<br>'+mobs : '')
         + '<br><span class="meta">double-click: map graph</span>', tipXY.x, tipXY.y);
 }
 function showTip(inst, evt){
   tipNode = inst; tipXY = {x:evt.clientX, y:evt.clientY};
-  inst.maps.forEach(m => ensureMobs(m, () => { if(tipNode===inst) paintTip(inst); }));
+  shownMaps(inst).forEach(m => ensureMobs(m, () => { if(tipNode===inst) paintTip(inst); }));
   paintTip(inst);
 }
 function hideTip(){ tipNode = null; document.getElementById('tip').style.display = 'none'; }
