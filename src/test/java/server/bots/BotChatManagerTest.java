@@ -237,6 +237,21 @@ class BotChatManagerTest {
     }
 
     @Test
+    void anInfoReportCountsAsHandledSoTheLlmDoesNotAnswerItAgain() {
+        Character bot = mock(Character.class);
+        when(bot.getId()).thenReturn(910_781);
+        BotEntry entry = new BotEntry(bot, null, null);
+        // The reports run later on the game timer; only the handled flag is checked here.
+        try (org.mockito.MockedStatic<server.TimerManager> timer = org.mockito.Mockito.mockStatic(server.TimerManager.class)) {
+            timer.when(server.TimerManager::getInstance).thenReturn(mock(server.TimerManager.class));
+            for (String q : List.of("mesos", "stats", "pots", "exp", "slots")) {
+                BotChatManager.handleChat(entry, q);
+                assertTrue(BotChatManager.wasLastChatHandled(), q);
+            }
+        }
+    }
+
+    @Test
     void everyStateQuestionTheModelMayNameIsAReadOnlyCommand() {
         assertFalse(BotChatManager.stateQuestions().isEmpty());
         for (String q : BotChatManager.stateQuestions()) {

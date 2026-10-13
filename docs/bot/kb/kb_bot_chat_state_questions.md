@@ -18,8 +18,9 @@ A chat line goes through these stages, and each fact has one source.
    the bot ("im lv 50 now") is never a question, whatever the model says.
 3. **Reply** (the normal chat call, unchanged), for chat and for questions the classify call missed.
 4. **Guard** (`ReplyGuard`) on that reply: a first person claim of the bot's level, exp percent or mesos must
-   match the character (exp within 2 points either reading, mesos within 15%). On a mismatch the owner gets
-   that question's report instead; anyone else gets silence. Numbers only, not meaning.
+   match the character (exp within 2 points either reading, mesos within 15%). On a mismatch an owner line
+   that reads as a question ("r u broke") gets that question's report instead; anything else ("gg") gets
+   silence, since a report there would be a non sequitur. Numbers only, not meaning.
 
 ## Why two calls, not one
 
@@ -44,6 +45,13 @@ answers the wrong fact ("did u max heal yet" got the level). Measured with
 - Chat costs one extra short call per owner line no command matched; fact questions cost one call in all.
 - The rewrite step from agent-of-record (model rewords the code draft) is left out on purpose: command
   replies already sound like the bot (`lv70, 7.05% to 71`).
+
+## Pitfall: the handled flag
+
+`handleChat` marks a line handled unless it falls off the end, and the LLM fallback runs only for unhandled
+lines. The stats, mesos, exp, slots, pots and scrolls reports are `if`s without `return` (one line may ask
+for several), so until the fix they fell off the end: a typed `mesos` got the report and a model reply, and
+`answerStateQuestion` returned false. After those reports, `isReadOnlyInfoQuery` now returns.
 
 ## Serving
 

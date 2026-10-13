@@ -1421,6 +1421,11 @@ public class BotChatManager {
             BotManager.after(BotManager.randMs(900, 1100), () -> reportCritDebug(entry, entry.bot));
         if (matchesWholeCommand(POT_DEBUG_PATTERN, message))
             BotManager.after(BotManager.randMs(900, 1100), () -> reportPotDebug(entry, entry.bot));
+        // The reports above don't return, since one line may ask for several; once any matched, the line is
+        // handled, so the LLM fallback doesn't answer it a second time ("mesos" got the report and a model reply).
+        if (isReadOnlyInfoQuery(message)) {
+            return;
+        }
 
         // Job advancement — check if message contains a valid job selection
         if (JOB_SELECT_PATTERN.matcher(message).find()) {
