@@ -69,7 +69,7 @@ final class BotHealArena {
         static final int CLERIC_MP_RECOVERY_LEVEL = 16; // SipsBuddy12's Improved MP Recovery
     }
 
-    enum Arm { A1_COMMAND, A2_REACTIVE, B_RESPONSIBILITY }
+    enum Arm { A1_COMMAND, A2_REACTIVE, B_RESPONSIBILITY, B2_EAGER }
 
     enum Role { OWNER, MELEE_BOT, RANGED_BOT, CLERIC }
 
@@ -201,6 +201,7 @@ final class BotHealArena {
             case A1_COMMAND -> null;
             case A2_REACTIVE -> new BotHealPolicy.Reactive();
             case B_RESPONSIBILITY -> new BotHealPolicy.KeepPartyAlive();
+            case B2_EAGER -> new BotHealPolicy.KeepPartyAlive(true);
         };
     }
 

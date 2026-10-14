@@ -113,6 +113,16 @@ interface BotHealPolicy {
         private record Seen(int hp, long lastHitMs, int bigHit, long bigHitMs) {}
 
         private final Map<Integer, Seen> seen = new HashMap<>();
+        /** Top up as today's rule does (anyone in the box under the target ratio) instead of at the potion line. */
+        private final boolean eagerTopUp;
+
+        KeepPartyAlive() {
+            this(false);
+        }
+
+        KeepPartyAlive(boolean eagerTopUp) {
+            this.eagerTopUp = eagerTopUp;
+        }
 
         @Override
         public Decision decide(View v) {
@@ -151,6 +161,11 @@ interface BotHealPolicy {
                 if (x != v.self().x()) {
                     return new Decision(Kind.MOVE, x, saveMp, "reach " + reach.id());
                 }
+            }
+
+            if (eagerTopUp) {
+                Decision today = new Reactive().decide(v);
+                return today.kind() == Kind.CAST ? Decision.cast(saveMp, "top up") : new Decision(Kind.HOLD, 0, saveMp, "");
             }
 
             // Routine top up: a heal costs a little MP and restores thousands of HP across the box; a potion

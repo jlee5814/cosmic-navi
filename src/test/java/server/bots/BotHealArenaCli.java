@@ -41,9 +41,13 @@ public final class BotHealArenaCli {
                             mean(rs, r -> r.exp() / h), mean(rs, r -> r.hpPots() / h), mean(rs, r -> r.mpPots() / h),
                             mean(rs, r -> r.resupplies() / h), mean(rs, r -> r.heals() / h));
                 }
-                for (BotHealArena.Arm base : List.of(BotHealArena.Arm.A1_COMMAND, BotHealArena.Arm.A2_REACTIVE)) {
-                    List<BotHealArena.Result> b = byArm.get(BotHealArena.Arm.B_RESPONSIBILITY), a = byArm.get(base);
-                    System.out.printf("diff\t%d/%s\tB-%s\t%d\tdeaths/h %s\tunder30 s/fieldh %s\texp/h %s"
+                for (BotHealArena.Arm[] pair : new BotHealArena.Arm[][]{
+                        {BotHealArena.Arm.B_RESPONSIBILITY, BotHealArena.Arm.A2_REACTIVE},
+                        {BotHealArena.Arm.B2_EAGER, BotHealArena.Arm.A2_REACTIVE},
+                        {BotHealArena.Arm.A2_REACTIVE, BotHealArena.Arm.A1_COMMAND}}) {
+                    List<BotHealArena.Result> b = byArm.get(pair[0]), a = byArm.get(pair[1]);
+                    String base = pair[0] + "-" + pair[1];
+                    System.out.printf("diff\t%d/%s\t%s\t%d\tdeaths/h %s\tunder30 s/fieldh %s\texp/h %s"
                                     + "\thpPots/h %s\tmpPots/h %s\tresupplies/h %s%n", density, sup, base, seeds,
                             paired(b, a, r -> r.deaths() / h), paired(b, a, BotHealArenaCli::under30),
                             paired(b, a, r -> r.exp() / h), paired(b, a, r -> r.hpPots() / h),
