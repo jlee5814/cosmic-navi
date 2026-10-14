@@ -1121,25 +1121,20 @@ final class BotNavigationGraphProvider {
                 continue;
             }
 
-            DropLanding anchorDrop = validateDownJumpLaunchX(from, map, regionIdByFootholdId, anchor.x, movementProfile);
-            if (anchorDrop == null) {
-                continue;
+            // One edge per region the drop can rest in: a drop that hurts rests where the recoil throws the bot,
+            // which depends on its facing, and the executor turns to the one the edge needs.
+            for (DropLanding anchorDrop : dropLandings(from, map, regionIdByFootholdId, anchor.x, movementProfile)) {
+                JumpLaunchWindow launchWindow = expandDownJumpLaunchWindow(
+                        from, map, regionIdByFootholdId, anchor.x, anchorDrop.regionId(), movementProfile);
+                BotNavigationGraph.Region below = regionsById.get(anchorDrop.regionId());
+                if (launchWindow == null || below == null) {
+                    continue;
+                }
+                addEdge(from.id, below.id, BotNavigationGraph.EdgeType.DROP,
+                        launchWindow.startPoint(), launchWindow.endPoint(),
+                        launchWindow.minX(), launchWindow.maxX(),
+                        0, 0, launchWindow.landingTimeMs(), outgoing, edgeKeys);
             }
-            JumpLaunchWindow launchWindow = expandDownJumpLaunchWindow(
-                    from, map, regionIdByFootholdId, anchor.x, anchorDrop.regionId(), movementProfile);
-            if (launchWindow == null) {
-                continue;
-            }
-
-            BotNavigationGraph.Region below = regionsById.get(anchorDrop.regionId());
-            if (below == null) {
-                continue;
-            }
-
-            addEdge(from.id, below.id, BotNavigationGraph.EdgeType.DROP,
-                    launchWindow.startPoint(), launchWindow.endPoint(),
-                    launchWindow.minX(), launchWindow.maxX(),
-                    0, 0, launchWindow.landingTimeMs(), outgoing, edgeKeys);
         }
     }
 
@@ -2016,14 +2011,6 @@ final class BotNavigationGraphProvider {
     private record DropLanding(BotPhysicsEngine.JumpLanding landing, int regionId, Point restPoint) {
     }
 
-    private static DropLanding validateDownJumpLaunchX(BotNavigationGraph.Region from,
-                                                       MapleMap map,
-                                                       Map<Integer, Integer> regionIdByFootholdId,
-                                                       int launchX,
-                                                       BotMovementProfile movementProfile) {
-        return validateDownJumpLaunchX(from, map, regionIdByFootholdId, launchX, movementProfile, Integer.MIN_VALUE);
-    }
-
     private static boolean isValidDownJumpLaunchX(BotNavigationGraph.Region from,
                                                   MapleMap map,
                                                   Map<Integer, Integer> regionIdByFootholdId,
@@ -2038,51 +2025,59 @@ final class BotNavigationGraphProvider {
                                                        Map<Integer, Integer> regionIdByFootholdId,
                                                        int launchX,
                                                        BotMovementProfile movementProfile,
-                                                       int requiredTargetRegionId) {
+                                                       int targetRegionId) {
+        for (DropLanding drop : dropLandings(from, map, regionIdByFootholdId, launchX, movementProfile)) {
+            if (drop.regionId() == targetRegionId) {
+                return drop;
+            }
+        }
+        return null;
+    }
+
+    /** Where a straight drop from {@code launchX} can come to rest, each in another region: where it lands, or,
+     *  when the landing hurts, where each facing's recoil leaves the bot. Empty when it can't drop there. */
+    private static List<DropLanding> dropLandings(BotNavigationGraph.Region from,
+                                                  MapleMap map,
+                                                  Map<Integer, Integer> regionIdByFootholdId,
+                                                  int launchX,
+                                                  BotMovementProfile movementProfile) {
         if (from == null || from.isRopeRegion || map == null) {
-            return null;
+            return List.of();
         }
         Point launchPoint = from.pointAt(launchX);
         if (isBlockedWallBoundaryLaunch(map, launchPoint)) {
-            return null;
+            return List.of();
         }
         if (!BotPhysicsEngine.canStartDownJump(map, launchPoint)
                 || from.isForbidFallDownAt(launchX)
                 || dropLaunchStep(from, map, launchPoint, movementProfile) != 0) {
-            return null;
+            return List.of();
         }
 
         BotPhysicsEngine.JumpLanding landing = BotPhysicsEngine.simulateDownJumpLanding(map, launchPoint);
         if (landing == null || landing.point().y <= launchPoint.y + 4) {
-            return null;
+            return List.of();
         }
 
         // A long drop hurts on landing and the recoil throws the bot back from where it faces. A straight drop
         // faces wherever the bot last walked, so the executor turns first, as a player would, to the facing whose
-        // recoil rests in the target (straightDropFacing). The drop targets and ends where one facing rests (an
-        // end point on the foothold it touched first sent the router to that region instead); a window probe
-        // for a given target accepts either facing. A drop that doesn't hurt targets where it lands, as before
-        // (settling those removed working drops).
-        int landingRegionId = regionIdByFootholdId.getOrDefault(landing.foothold().getId(), -1);
-        Point restPoint = landing.point();
-        if (BotCombatManager.fallDamageFromDistance(landing.fallPx()) > 0) {
-            BotPhysicsEngine.PostLandingJump right = settledLanding(map, landing, 1, movementProfile);
-            BotPhysicsEngine.PostLandingJump left = settledLanding(map, landing, -1, movementProfile);
-            int rightRegionId = restRegionId(right, regionIdByFootholdId);
-            boolean useRight = requiredTargetRegionId != Integer.MIN_VALUE
-                    ? rightRegionId == requiredTargetRegionId
-                    : rightRegionId >= 0 && rightRegionId != from.id;
-            BotPhysicsEngine.PostLandingJump rest = useRight ? right : left;
-            landingRegionId = restRegionId(rest, regionIdByFootholdId);
-            restPoint = rest == null ? null : rest.finalPoint();
+        // recoil rests in the target (straightDropFacing). Such a drop targets and ends where that facing rests (an
+        // end point on the foothold it touched first sent the router to that region instead). A drop that doesn't
+        // hurt targets where it lands, as before (settling those removed working drops).
+        if (BotCombatManager.fallDamageFromDistance(landing.fallPx()) <= 0) {
+            int regionId = regionIdByFootholdId.getOrDefault(landing.foothold().getId(), -1);
+            return regionId < 0 || regionId == from.id ? List.of()
+                    : List.of(new DropLanding(landing, regionId, landing.point()));
         }
-        if (landingRegionId < 0 || landingRegionId == from.id) {
-            return null;
+        List<DropLanding> rests = new ArrayList<>(2);
+        for (int facing : new int[]{1, -1}) {
+            BotPhysicsEngine.PostLandingJump rest = settledLanding(map, landing, facing, movementProfile);
+            int regionId = restRegionId(rest, regionIdByFootholdId);
+            if (regionId >= 0 && regionId != from.id && (rests.isEmpty() || rests.get(0).regionId() != regionId)) {
+                rests.add(new DropLanding(landing, regionId, rest.finalPoint()));
+            }
         }
-        if (requiredTargetRegionId != Integer.MIN_VALUE && landingRegionId != requiredTargetRegionId) {
-            return null;
-        }
-        return new DropLanding(landing, landingRegionId, restPoint);
+        return rests;
     }
 
     private static boolean isApproachableJumpLaunchX(BotNavigationGraph.Region from, MapleMap map, int launchX) {
