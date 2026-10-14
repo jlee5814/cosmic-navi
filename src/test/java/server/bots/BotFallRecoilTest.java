@@ -93,6 +93,31 @@ class BotFallRecoilTest {
                 "rests in r" + drop.toRegionId + ", got " + end + (entry.climbing ? " on a rope" : ""));
     }
 
+    /** Eos Tower 221023400: a jump right from (-69,-1815) lands at (147,-926) and the recoil throws the bot off that
+     *  ledge, further down the tower. The edge must end where it rests, in its target: an end point on the ledge
+     *  sent the router to the ledge's region instead (in the sweep, through a portal). */
+    @Test
+    void aJumpThatHurtsEndsInItsTarget() {
+        MapleMap map = load(221023400);
+        Point launch = new Point(-69, -1815);
+        BotNavigationGraph graph = BotNavigationGraphProvider.rebuildGraph(map);
+        int from = graph.findRegionId(map, launch);
+        boolean checked = false;
+        for (BotNavigationGraph.Edge e : graph.getOutgoing(from)) {
+            if (e.type != BotNavigationGraph.EdgeType.JUMP || e.launchStepX <= 0 || !e.containsLaunchX(launch.x)) {
+                continue;
+            }
+            BotPhysicsEngine.JumpLanding touch = BotPhysicsEngine.simulateJumpLanding(map, e.startPoint, e.launchStepX);
+            if (touch == null || BotCombatManager.fallDamageFromDistance(touch.fallPx()) <= 0) {
+                continue;
+            }
+            assertTrue(graph.findRegionId(map, e.endPoint) == e.toRegionId,
+                    "jump r" + from + "->r" + e.toRegionId + " ends at " + e.endPoint + " in r" + graph.findRegionId(map, e.endPoint));
+            checked = true;
+        }
+        assertTrue(checked, "a jump right from x -69 that hurts");
+    }
+
     /** A short drop deals no fall damage and settles where it lands, as before. */
     @Test
     void aShortLandingIsUnchanged() {

@@ -1866,8 +1866,12 @@ final class BotNavigationGraphProvider {
             return null;
         }
 
-        return new JumpLaunchWindow(minX, maxX, representativeStart, representativeSimulation.landing().point(),
-                representativeSimulation.landing().timeMs());
+        // A landing that hurts ends where the recoil leaves the bot, in the target; its touch point can lie in
+        // another region, and the router heads for an edge's end point (graph v78).
+        BotPhysicsEngine.JumpLanding touch = representativeSimulation.landing();
+        Point endPoint = BotCombatManager.fallDamageFromDistance(touch.fallPx()) > 0
+                ? representativeSimulation.finalPoint() : touch.point();
+        return new JumpLaunchWindow(minX, maxX, representativeStart, endPoint, touch.timeMs());
     }
 
     private static JumpLaunchWindow expandDownJumpLaunchWindow(BotNavigationGraph.Region from,
