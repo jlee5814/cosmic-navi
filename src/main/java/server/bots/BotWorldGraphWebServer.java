@@ -186,6 +186,7 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/fleetops/act", BotWorldGraphWebServer::serveFleetAct);
             s.createContext("/api/learned/readiness", BotWorldGraphWebServer::serveLearnedReadiness);
             s.createContext("/api/chat", BotWorldGraphWebServer::serveChat);
+            s.createContext("/api/inventory", BotWorldGraphWebServer::serveInventory);
             s.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "bot-worldmap-web");
                 t.setDaemon(true);
@@ -252,6 +253,57 @@ public final class BotWorldGraphWebServer {
             BotDashboardChat.send(e, message);
         }
         send(ex, 200, "application/json", BotDashboardChat.json(id).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static final client.inventory.InventoryType[] BAG_TABS = {
+            client.inventory.InventoryType.EQUIP, client.inventory.InventoryType.USE,
+            client.inventory.InventoryType.SETUP, client.inventory.InventoryType.ETC};
+
+    /** GET /api/inventory?id=botCharId: an online bot's four bag tabs, live, with what the sell pipeline does with
+     *  each item (BotInventoryManager.bagVerdicts). Drives the dashboard item window. */
+    private static void serveInventory(HttpExchange ex) throws IOException {
+        int id;
+        try {
+            id = Integer.parseInt(queryParams(ex.getRequestURI().getRawQuery()).getOrDefault("id", "").trim());
+        } catch (NumberFormatException e) {
+            send(ex, 400, "application/json", "{\"error\":\"id required\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        BotEntry e = lookupBotEntry(id);
+        Character bot = e == null ? null : e.bot;
+        if (bot == null) {
+            send(ex, 404, "application/json", "{\"error\":\"bot not online\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        String body;
+        try {
+            body = inventoryJson(e, bot);
+        } catch (RuntimeException err) { // the game thread can move items mid read; the page polls again
+            send(ex, 503, "application/json", "{\"error\":\"bag changed, retry\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        send(ex, 200, "application/json", body.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String inventoryJson(BotEntry e, Character bot) {
+        server.ItemInformationProvider ii = server.ItemInformationProvider.getInstance();
+        Map<client.inventory.Item, BotInventoryManager.BagVerdict> verdicts = BotInventoryManager.bagVerdicts(e, bot);
+        List<String> tabs = new ArrayList<>();
+        for (client.inventory.InventoryType type : BAG_TABS) {
+            client.inventory.Inventory inv = bot.getInventory(type);
+            List<String> items = new ArrayList<>();
+            for (client.inventory.Item item : inv.list()) {
+                String name = ii.getName(item.getItemId());
+                BotInventoryManager.BagVerdict v = verdicts.get(item);
+                items.add("{\"s\":" + item.getPosition() + ",\"id\":" + item.getItemId()
+                        + ",\"n\":" + jsonStr(name == null ? "" : name) + ",\"q\":" + item.getQuantity()
+                        + (v == null ? "" : ",\"v\":" + jsonStr(v.verdict()) + ",\"r\":" + jsonStr(v.reason())) + "}");
+            }
+            tabs.add("{\"type\":" + jsonStr(type.name()) + ",\"limit\":" + inv.getSlotLimit()
+                    + ",\"items\":" + rawArr(items) + "}");
+        }
+        return "{\"id\":" + bot.getId() + ",\"name\":" + jsonStr(bot.getName()) + ",\"meso\":" + bot.getMeso()
+                + ",\"map\":" + bot.getMapId() + ",\"tabs\":" + rawArr(tabs) + "}";
     }
 
     /** POST /api/fleetops/act {"bot":id,"action":"rescue|hold_errands|sell_trash|park","arg":n,"reason":"..."}:
