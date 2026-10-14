@@ -2033,11 +2033,15 @@ final class BotNavigationGraphProvider {
         }
 
         // A long drop hurts on landing and the recoil throws the bot back from where it faces, which a straight
-        // drop doesn't fix: it faces wherever it last walked. So the drop goes where it rests facing either way,
-        // and a drop whose two recoils part (off a narrow ledge one way, onto a rope the other) is no edge.
-        int landingRegionId = settledRegionId(map, landing, 1, regionIdByFootholdId, movementProfile);
-        if (landingRegionId != settledRegionId(map, landing, -1, regionIdByFootholdId, movementProfile)) {
-            return null;
+        // drop doesn't fix: it faces wherever it last walked. So a drop that hurts goes where the bot rests facing
+        // either way, and one whose two recoils part (off a narrow ledge one way, onto a rope the other) is no
+        // edge. A drop that doesn't hurt targets where it lands, as before (settling those removed working drops).
+        int landingRegionId = regionIdByFootholdId.getOrDefault(landing.foothold().getId(), -1);
+        if (BotCombatManager.fallDamageFromDistance(landing.fallPx()) > 0) {
+            landingRegionId = settledRegionId(map, landing, 1, regionIdByFootholdId, movementProfile);
+            if (landingRegionId != settledRegionId(map, landing, -1, regionIdByFootholdId, movementProfile)) {
+                return null;
+            }
         }
         if (landingRegionId < 0 || landingRegionId == from.id) {
             return null;
