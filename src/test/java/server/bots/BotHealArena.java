@@ -93,6 +93,7 @@ final class BotHealArena {
         long nextAttackMs;
         long nextPotMs;
         long ownerPotDueMs = -1; // owner: when the scheduled pot press lands
+        int hpPotsLeft, mpPotsLeft;  // supply; Integer.MAX_VALUE for unlimited
         Mob target;
 
         Fighter(int id, Role role, Character stats, int maxHp, int dmgPerHit, long attackGapMs, int x) {
@@ -144,7 +145,8 @@ final class BotHealArena {
     private long askDueMs = -1;
     private boolean askPending;
 
-    BotHealArena(Arm arm, int seed, int mobId, int mobsPer1000Px) {
+    /** {@code potSupply}: HP potions each member carries, and the cleric's MP potions; negative for unlimited. */
+    BotHealArena(Arm arm, int seed, int mobId, int mobsPer1000Px, int potSupply) {
         this.arm = arm;
         this.seed = seed;
         this.rng = new Random(seed);
@@ -168,6 +170,9 @@ final class BotHealArena {
         add(Role.RANGED_BOT, Job.HUNTER, 43, 40, 170, 4, 4, 90, 1100, 700, 600L, 450);
         cleric = add(Role.CLERIC, Job.CLERIC, 43, 4, 4, 223, 4, 60, 817, 450, 750L, 600);
         cleric.mp = cleric.maxMp = 2506;
+        for (Fighter f : party) {
+            f.hpPotsLeft = f.mpPotsLeft = potSupply < 0 ? Integer.MAX_VALUE : potSupply;
+        }
 
         int count = Math.max(1, Assumptions.PLATFORM_PX * mobsPer1000Px / 1000);
         for (int i = 0; i < count; i++) {
@@ -428,14 +433,16 @@ final class BotHealArena {
     private void potions(Fighter f) {
         if (f == owner) {
             ownerPotions();
-        } else if (now >= f.nextPotMs && f.hp < f.maxHp * BotManager.cfg.AUTOPOT_HP_THRESH) {
+        } else if (now >= f.nextPotMs && f.hp < f.maxHp * BotManager.cfg.AUTOPOT_HP_THRESH && f.hpPotsLeft > 0) {
             f.hp = Math.min(f.maxHp, f.hp + Assumptions.HP_POT);
             hpPots++;
+            f.hpPotsLeft--;
             f.nextPotMs = now + Assumptions.BOT_POT_GAP_MS;
         }
-        if (f == cleric && now >= f.nextPotMs && f.mp < f.maxMp * BotManager.cfg.AUTOPOT_MP_THRESH) {
+        if (f == cleric && now >= f.nextPotMs && f.mp < f.maxMp * BotManager.cfg.AUTOPOT_MP_THRESH && f.mpPotsLeft > 0) {
             f.mp = Math.min(f.maxMp, f.mp + Assumptions.MP_POT);
             mpPots++;
+            f.mpPotsLeft--;
             f.nextPotMs = now + Assumptions.BOT_POT_GAP_MS;
         }
     }
@@ -455,9 +462,10 @@ final class BotHealArena {
         if (now < owner.ownerPotDueMs) {
             return;
         }
-        if (owner.hp < owner.maxHp * (Assumptions.OWNER_POT_RATIO + 0.1)) {
+        if (owner.hp < owner.maxHp * (Assumptions.OWNER_POT_RATIO + 0.1) && owner.hpPotsLeft > 0) {
             owner.hp = Math.min(owner.maxHp, owner.hp + Assumptions.HP_POT);
             hpPots++;
+            owner.hpPotsLeft--;
             owner.ownerPotDueMs = now + Assumptions.OWNER_POT_GAP_MS; // keeps pressing until back above
         } else {
             owner.ownerPotDueMs = -1;

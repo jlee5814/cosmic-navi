@@ -93,8 +93,8 @@ interface BotHealPolicy {
      *   <li>Duration: as long as the policy is held.</li>
      *   <li>Reconsider when: a member's HP projected over the next second falls into danger (heal before the
      *       hit lands, not after); an endangered member is out of reach (walk to them); MP drops under the
-     *       reserve (stop spending MP on attacks); someone in the box nears their potion line (top up, unless the
-     *       heal would land fully on nobody).</li>
+     *       reserve (stop spending MP on attacks); someone in the box is one seen hit from their potion line (top
+     *       up, unless the heal would mostly land on full HP).</li>
      * </ul>
      * Damage rates come from the HP the healer watches change, as a player sees a party HP bar.
      */
@@ -102,16 +102,14 @@ interface BotHealPolicy {
         /** Cast lock plus a decision of reaction: how far ahead a heal has to look. */
         static final long HORIZON_MS = 1_000L;
         static final double URGENT_RATIO = 0.45;
-        /** Routine heals keep members above the line where bots drink a potion: a heal costs a little MP and
-         *  restores thousands of HP across the box, a potion restores a few hundred. */
-        static final double ROUTINE_MARGIN = 0.05;
         static final int RESERVE_HEALS = 3;
         /** How far from the owner the healer will walk to reach someone. */
         static final int LEASH_PX = 350;
         /** Damage per second decays toward the last window with this weight. */
         static final double DPS_SMOOTHING = 0.5;
 
-        private record Seen(int hp, long atMs, double dps) {}
+        /** Last HP seen, when, the smoothed damage rate, and the biggest single drop seen (about one hit). */
+        private record Seen(int hp, long atMs, double dps, int bigHit) {}
 
         private final Map<Integer, Seen> seen = new HashMap<>();
 
@@ -149,9 +147,9 @@ interface BotHealPolicy {
                 }
             }
 
-            // Routine top up: keep everyone in the box off potions, but skip a cast that lands fully on nobody.
-            // The heal splits across the box, so the per member amount depends on who stands in it.
-            double routineRatio = BotManager.cfg.AUTOPOT_HP_THRESH + ROUTINE_MARGIN;
+            // Routine top up: a heal costs a little MP and restores thousands of HP across the box; a potion
+            // restores a few hundred. So heal whoever in the box is one hit from the line where bots drink, unless
+            // the heal (split across the box) would mostly land on full HP.
             int affected = 1;
             boolean routine = false;
             for (Member m : members(v)) {
@@ -161,16 +159,16 @@ interface BotHealPolicy {
                 if (m != v.self()) {
                     affected++;
                 }
-                routine |= projectedRatio(m) < routineRatio;
+                routine |= projectedHp(m) - bigHit(m) < BotManager.cfg.AUTOPOT_HP_THRESH * m.maxHp();
             }
             int perMember = v.healPer().applyAsInt(affected);
-            int mostMissing = 0;
+            int missing = 0;
             for (Member m : members(v)) {
                 if (m.alive() && (m == v.self() || v.inBox(m, v.self().x()))) {
-                    mostMissing = Math.max(mostMissing, m.maxHp() - projectedHp(m));
+                    missing += Math.min(perMember, Math.max(0, m.maxHp() - projectedHp(m)));
                 }
             }
-            if (routine && !saveMp && mostMissing >= perMember) {
+            if (routine && !saveMp && missing >= perMember) {
                 return Decision.cast(false, "top up");
             }
             return new Decision(Kind.HOLD, 0, saveMp, saveMp ? "saving mp" : "");
@@ -201,22 +199,28 @@ interface BotHealPolicy {
                 return;
             }
             if (s == null) {
-                seen.put(m.id(), new Seen(m.hp(), now, 0.0));
+                seen.put(m.id(), new Seen(m.hp(), now, 0.0, 0));
                 return;
             }
             long dt = now - s.atMs();
             if (dt < 200) {
                 return; // too short a window to read a rate; keep the last one
             }
-            double windowDps = Math.max(0, s.hp() - m.hp()) * 1000.0 / dt;
+            int drop = Math.max(0, s.hp() - m.hp());
+            double windowDps = drop * 1000.0 / dt;
             double dps = s.dps() + DPS_SMOOTHING * (windowDps - s.dps());
-            seen.put(m.id(), new Seen(m.hp(), now, dps));
+            seen.put(m.id(), new Seen(m.hp(), now, dps, Math.max(s.bigHit(), drop)));
         }
 
         private int projectedHp(Member m) {
             Seen s = seen.get(m.id());
             double dps = s == null ? 0 : s.dps();
             return (int) Math.max(0, m.hp() - dps * HORIZON_MS / 1000.0);
+        }
+
+        private int bigHit(Member m) {
+            Seen s = seen.get(m.id());
+            return s == null ? 0 : s.bigHit();
         }
 
         private double projectedRatio(Member m) {
