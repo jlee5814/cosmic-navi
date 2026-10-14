@@ -88,4 +88,23 @@ class BotWalkOffMapEdgeTest {
         assertFalse(left, "no walk off drop to the left of region " + valley);
         assertTrue(right, "the ledge at x 1748 keeps its walk off drop");
     }
+
+    /** Henesys stairs: walking right off the step at (290,88), a bot lands on the 24 px stair at (349,113) when it
+     *  leaves at 6 px a tick and mostly clears it to (364,137) at 7, so where it lands is a coin flip of the walk's
+     *  carry phase. The sweep's live bot cleared it while the old edge targeted the near stair. No drop is authored
+     *  where the phases disagree; the pet walking road's walk off, where nearly all of them agree, stays
+     *  ({@code BotMovementSimulationLabTest.shouldUsePetWalkingRoadLocalWalkOffDrop}). */
+    @org.junit.jupiter.api.Test
+    void aStairWalkOffWhoseLandingIsACoinFlipOfTheWalkPhaseIsNotAuthored() {
+        if (System.getProperty("wz-path") == null) {
+            System.setProperty("wz-path", Path.of("wz").toAbsolutePath().toString());
+        }
+        MapleMap henesys = BotNavigationMapLoader.loadMapGeometry(100000000);
+        BotNavigationGraph graph = BotNavigationGraphProvider.rebuildGraph(henesys);
+        int from = graph.findRegionId(henesys, new java.awt.Point(290, 88));
+        for (BotNavigationGraph.Edge e : graph.getOutgoing(from)) {
+            assertFalse(e.type == BotNavigationGraph.EdgeType.DROP && e.launchStepX > 0,
+                    "walk off drop r" + from + "->r" + e.toRegionId);
+        }
+    }
 }

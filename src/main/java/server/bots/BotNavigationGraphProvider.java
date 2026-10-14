@@ -45,7 +45,7 @@ final class BotNavigationGraphProvider {
     //     inside an 8.93 x fs px/s band (no walkSpeed air cap; counter-strafe pins at the
     //     band edge) and no-input flight drags 1 x fs (100 x fs at terminal fall). Committed
     //     arcs still fly the launch key held, so constant-stepX arc sims stay exact.
-    private static final int GRAPH_VERSION = 76; // 51: kinetic slippery model + snowshoes; 52: brake-to-stop landings; 53: glide-unless-edge stop policy (slipperyStopDir); 56: uncap straight-drop launch windows (full droppable span, no +/-20 fragmentation); 57: remove the (empirically wrong) 300px down-jump drop cap - down-jumps fall until landing; 58: rope-grab reach counts descent below the ledge (mid-rope jump-grabs from adjacent platforms); 59: fall-sim caps to map height not 1500ms - long single-fall descents (tall shafts: Ellinia tree, Perion) now generate DROP/JUMP/ROPE edges; 60: teleport (mage) + flash-jump (thief) skill edges; 61: teleport snap = physics SSOT intent (BotPhysicsEngine.teleportLanding — horizontal same-level priority, blocked-if-none); 62: rope-exit/transfer CLIMB edges carry a Y launch window [launchMinY,launchMaxY] (collapses ~anchorYs×3 near-duplicate same-region jump-offs into one windowed edge, mirroring ground-jump X windows); 63: serialized source-bucketed routes from every region to every portal region; 64: flash-jump edges carry an X launch window (same expand/boundary treatment as ground JUMP) — collapses ~per-anchor FJ point-edges into one windowed edge, mirroring JUMP/DROP/rope windows; 65: teleport edges carry an X launch window too (same treatment; exec computes the blink dest live from the bot's position via the physics SSOT) + down-teleport snaps to FURTHEST platform within range + horizontal y-snap band 70→75; 66: ground-walk follows the standing foothold's prev/next chain across a joined fork (client SN model) instead of snapping down onto the lower overlapping arm — fixes the region-11 (100040000) fork walk-trap that stranded/oscillated bots on the dead-end spur; 67: skip phantom cross-region JUMP/FLASH_JUMP edges whose landing is on ground the SOURCE region already covers (overlapping/coincident chains, e.g. map 600020100 r73 ramp-foot over r97 flat) — such an edge can never change region (client tracks the standing-foothold chain) and trapped bots oscillating against an unexecutable jump-pos gate; 68: the ground probe (findBelowIndexed) returns the NEAREST foothold below, not the first in Foothold.compareTo order, which ties a long steep slope with every flat platform in its y range (map 682000100: falls passed through the stair rail and jumps passed through the 325 floor, so the lower floor had no path up); 69: ground walking passes a wall whose foot stands on another chain's floor (BotPhysicsEngine.wallFootJoins; map 600020100: the layer 3 wall at x -1315 on the layer 5 floor stopped every bot from portal st00, the physics half of 67; 70: the ground wall check reads the standing foothold's whole floor chain (BotPhysicsEngine.wallJoinsChain), so walk off drops are no longer authored into a wall that rises from the chain's far end (maps 800030000 x 84, 800000000 x 4461: issue #30); 71: no walk off drop where the first step off the ledge is blocked, which catches a platform ending at the map's side edge (35 phantom drops on 18 maps found by BotEdgeSweepCli); 72: no walk off drop where the first step past the ledge stays on the ground, as when a small wall joins the rest of the chain (map 600000000 x 1715 and x 4077); 73: no walk off drop where the step into the region end is blocked by a wall rising from it (map 600000000 x 1748), and a landing beats a wall reached later in the same air step (map 600000000 x 5136); 74: ground detection probes just above the position too and takes the closest ground, so a slope whose height truncates a pixel above the bot is not swapped for a branch above it (map 101000301 fh 26 under fh 25); 75: offline arcs keep the launch key held after a wall, as the executor does, so a jump that rises past a low wall drifts over it instead of landing back at its foot (maps 541000000, 600020200); 76: walk regions only from footholds drawn left to right, the ground the probe stands on; right to left ones (undersides) made phantom regions (220000100, 800000000), and they stay jump feature anchors)
+    private static final int GRAPH_VERSION = 77; // 51: kinetic slippery model + snowshoes; 52: brake-to-stop landings; 53: glide-unless-edge stop policy (slipperyStopDir); 56: uncap straight-drop launch windows (full droppable span, no +/-20 fragmentation); 57: remove the (empirically wrong) 300px down-jump drop cap - down-jumps fall until landing; 58: rope-grab reach counts descent below the ledge (mid-rope jump-grabs from adjacent platforms); 59: fall-sim caps to map height not 1500ms - long single-fall descents (tall shafts: Ellinia tree, Perion) now generate DROP/JUMP/ROPE edges; 60: teleport (mage) + flash-jump (thief) skill edges; 61: teleport snap = physics SSOT intent (BotPhysicsEngine.teleportLanding — horizontal same-level priority, blocked-if-none); 62: rope-exit/transfer CLIMB edges carry a Y launch window [launchMinY,launchMaxY] (collapses ~anchorYs×3 near-duplicate same-region jump-offs into one windowed edge, mirroring ground-jump X windows); 63: serialized source-bucketed routes from every region to every portal region; 64: flash-jump edges carry an X launch window (same expand/boundary treatment as ground JUMP) — collapses ~per-anchor FJ point-edges into one windowed edge, mirroring JUMP/DROP/rope windows; 65: teleport edges carry an X launch window too (same treatment; exec computes the blink dest live from the bot's position via the physics SSOT) + down-teleport snaps to FURTHEST platform within range + horizontal y-snap band 70→75; 66: ground-walk follows the standing foothold's prev/next chain across a joined fork (client SN model) instead of snapping down onto the lower overlapping arm — fixes the region-11 (100040000) fork walk-trap that stranded/oscillated bots on the dead-end spur; 67: skip phantom cross-region JUMP/FLASH_JUMP edges whose landing is on ground the SOURCE region already covers (overlapping/coincident chains, e.g. map 600020100 r73 ramp-foot over r97 flat) — such an edge can never change region (client tracks the standing-foothold chain) and trapped bots oscillating against an unexecutable jump-pos gate; 68: the ground probe (findBelowIndexed) returns the NEAREST foothold below, not the first in Foothold.compareTo order, which ties a long steep slope with every flat platform in its y range (map 682000100: falls passed through the stair rail and jumps passed through the 325 floor, so the lower floor had no path up); 69: ground walking passes a wall whose foot stands on another chain's floor (BotPhysicsEngine.wallFootJoins; map 600020100: the layer 3 wall at x -1315 on the layer 5 floor stopped every bot from portal st00, the physics half of 67; 70: the ground wall check reads the standing foothold's whole floor chain (BotPhysicsEngine.wallJoinsChain), so walk off drops are no longer authored into a wall that rises from the chain's far end (maps 800030000 x 84, 800000000 x 4461: issue #30); 71: no walk off drop where the first step off the ledge is blocked, which catches a platform ending at the map's side edge (35 phantom drops on 18 maps found by BotEdgeSweepCli); 72: no walk off drop where the first step past the ledge stays on the ground, as when a small wall joins the rest of the chain (map 600000000 x 1715 and x 4077); 73: no walk off drop where the step into the region end is blocked by a wall rising from it (map 600000000 x 1748), and a landing beats a wall reached later in the same air step (map 600000000 x 5136); 74: ground detection probes just above the position too and takes the closest ground, so a slope whose height truncates a pixel above the bot is not swapped for a branch above it (map 101000301 fh 26 under fh 25); 75: offline arcs keep the launch key held after a wall, as the executor does, so a jump that rises past a low wall drifts over it instead of landing back at its foot (maps 541000000, 600020200); 76: walk regions only from footholds drawn left to right, the ground the probe stands on; right to left ones (undersides) made phantom regions (220000100, 800000000), and they stay jump feature anchors; 77: walk off drops fall from past the end at every walk carry phase (1 to 7 px out, 6 or 7 px/tick) and target the region where at least three in four of them settle, or none (stairs on 100000000, 103000000: live bots landed 10 to 19 px further; Henesys x 321 stair is a coin flip))
     /** The nav-graph cache version. The partition cache derives from these graphs, so it keys its own
      *  on-disk cache by this number — a graph-version bump invalidates persisted partitions too. */
     static int graphVersion() {
@@ -1209,12 +1209,45 @@ final class BotNavigationGraphProvider {
                 || BotPhysicsEngine.isGroundStepBlockedByWall(map, from.pointAt(endpoint.x - stepX), stepX)) {
             return;
         }
-        BotPhysicsEngine.JumpLanding landing = BotPhysicsEngine.simulateFallLanding(map, endpoint, stepX);
-        if (landing == null) {
+        // Live walking loses ground on the step past the end, so the fall starts past the end, not at the end
+        // itself; falling from the end put 144 of 230 missed walk offs 10 to 19 px short of where live bots
+        // landed (Henesys and Kerning stairs). Where past the end, and how fast, depends on the walk's carry
+        // phase: a tick moves the bot 6 or 7 px, so it leaves 1 to 6 px out at 6 px/tick or 1 to 7 px out at 7.
+        // On a narrow step that decides where it lands (Henesys x 321: 6 px lands on the 24 px step below, 7 px
+        // mostly clears it). So every phase is simulated and the drop targets the region where they settle,
+        // authored only when at least three in four agree; the rest replan from where they land. A coin flip
+        // is no edge (the Henesys stairs). The executor steers to the landing point once airborne, so the
+        // settle holds no key.
+        Map<Integer, Integer> settledCount = new HashMap<>();
+        Map<Integer, BotPhysicsEngine.JumpLanding> landingByRegion = new HashMap<>();
+        int phases = 0;
+        for (int speed : BotPhysicsEngine.walkOffStepRange(movementProfile)) {
+            for (int out = 1; out <= speed; out++) {
+                phases++;
+                BotPhysicsEngine.JumpLanding phaseLanding = BotPhysicsEngine.simulateFallLanding(map,
+                        new Point(endpoint.x + out * direction, endpoint.y), speed * direction);
+                int regionId = settledRegionId(map, phaseLanding, regionIdByFootholdId, movementProfile);
+                if (regionId >= 0) {
+                    settledCount.merge(regionId, 1, Integer::sum);
+                    // The nominal phase (one walk step out at walk speed) gives the endpoint when it agrees.
+                    if (!landingByRegion.containsKey(regionId) || speed * direction == stepX && out == speed) {
+                        landingByRegion.put(regionId, phaseLanding);
+                    }
+                }
+            }
+        }
+        int toRegionId = -1;
+        for (Map.Entry<Integer, Integer> e : settledCount.entrySet()) {
+            if (e.getValue() * 4 >= phases * 3) {
+                toRegionId = e.getKey();
+            }
+        }
+        if (toRegionId < 0) {
             return;
         }
+        BotPhysicsEngine.JumpLanding landing = landingByRegion.get(toRegionId);
+        Point offLedge = new Point(endpoint.x + stepX, endpoint.y);
 
-        int toRegionId = regionIdByFootholdId.getOrDefault(landing.foothold().getId(), -1);
         BotNavigationGraph.Region below = regionsById.get(toRegionId);
         if (below == null || below.id == from.id) {
             return;
@@ -1223,7 +1256,7 @@ final class BotNavigationGraphProvider {
             return;
         }
 
-        int travelMs = BotPhysicsEngine.estimateFallLandingTimeMs(map, endpoint, stepX)
+        int travelMs = BotPhysicsEngine.estimateFallLandingTimeMs(map, offLedge, stepX)
                 + estimateHorizontalTravelTimeMs(actualRunway, movementProfile);
 
         addEdge(from.id, below.id, BotNavigationGraph.EdgeType.DROP,
@@ -1234,6 +1267,22 @@ final class BotNavigationGraphProvider {
                 travelMs,
                 outgoing,
                 edgeKeys);
+    }
+
+    /** The region a walk off landing comes to rest in, no key held, or -1 when it misses or slides off. */
+    private static int settledRegionId(MapleMap map,
+                                       BotPhysicsEngine.JumpLanding landing,
+                                       Map<Integer, Integer> regionIdByFootholdId,
+                                       BotMovementProfile movementProfile) {
+        if (landing == null) {
+            return -1;
+        }
+        BotPhysicsEngine.PostLandingJump settled = BotPhysicsEngine.simulatePostLandingGroundTicks(
+                map, landing, 0, movementProfile, JUMP_POST_LANDING_STABILITY_TICKS);
+        if (settled.lostGround() || settled.finalFoothold() == null) {
+            return -1;
+        }
+        return regionIdByFootholdId.getOrDefault(settled.finalFoothold().getId(), -1);
     }
 
     /**
