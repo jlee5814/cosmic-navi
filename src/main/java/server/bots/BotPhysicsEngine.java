@@ -161,6 +161,8 @@ final class BotPhysicsEngine {
         private final double incomingDeltaX;
         private final double incomingDeltaY;
         private final int ticks;
+        /** Peak to landing descent (px), what fall damage scales with. */
+        private final int fallPx;
 
         JumpLanding(Point point, Foothold foothold) {
             this(point, foothold, 0.0, 0.0, 0);
@@ -171,6 +173,12 @@ final class BotPhysicsEngine {
         }
 
         JumpLanding(Point point, Foothold foothold, double incomingDeltaX, double incomingDeltaY, int ticks) {
+            this(point, foothold, incomingDeltaX, incomingDeltaY, ticks, 0);
+        }
+
+        JumpLanding(Point point, Foothold foothold, double incomingDeltaX, double incomingDeltaY, int ticks,
+                    int fallPx) {
+            this.fallPx = fallPx;
             this.point = point;
             this.foothold = foothold;
             this.incomingDeltaX = incomingDeltaX;
@@ -196,6 +204,10 @@ final class BotPhysicsEngine {
 
         int timeMs() {
             return ticks * cfg.TICK_MS;
+        }
+
+        int fallPx() {
+            return fallPx;
         }
     }
 
@@ -1832,7 +1844,47 @@ final class BotPhysicsEngine {
         if (landing == null) {
             return null;
         }
-        return simulatePostLandingGroundTicks(map, landing, Integer.compare(stepX, 0), profile, postLandingTicks);
+        int dir = Integer.compare(stepX, 0);
+        return settleLanding(map, landing, dir, dir, profile, postLandingTicks);
+    }
+
+    /**
+     * Where a landing comes to rest, as the live tick plays it. A landing that deals fall damage
+     * ({@link BotCombatManager#applyFallDamage}) knocks the bot back first: it flies the recoil arc away from
+     * where it faces, with UP held as knockback recovery holds it, so a rope the arc reaches is grabbed and
+     * there is no ground to rest on ({@code lostGround}). A recoil that falls far enough hurts again once the
+     * hit invincibility has run out. {@code facingDir} 0 is unknown and skips the recoil; callers that don't
+     * know the facing settle both ways. Then {@link #simulatePostLandingGroundTicks} with {@code holdDir}.
+     */
+    static PostLandingJump settleLanding(MapleMap map, JumpLanding landing, int facingDir, int holdDir,
+                                         BotMovementProfile profile, int ticks) {
+        if (landing == null) {
+            return null;
+        }
+        JumpLanding current = landing;
+        for (int hit = 0; hit < 3 && facingDir != 0; hit++) {
+            if (BotCombatManager.fallDamageFromDistance(current.fallPx()) <= 0
+                    || (hit > 0 && current.timeMs() < BotCombatManager.cfg.MOB_HIT_COOLDOWN_MS)) {
+                break;
+            }
+            int airVelX = BotCombatManager.knockbackAirVelX(-facingDir);
+            float velY = BotCombatManager.knockbackVelY();
+            Point from = current.point();
+            for (Rope rope : map.getRopes()) {
+                if (simulateRopeGrabCore(map, from, velY, airVelX, rope, 0L) != null) {
+                    return new PostLandingJump(landing, from, null, true);
+                }
+            }
+            JumpLanding recoil = simulateLanding(map, from, velY, airVelX, 0L, null, profile, 0);
+            if (recoil == null) {
+                return new PostLandingJump(landing, from, null, true);
+            }
+            current = recoil;
+            holdDir = 0;
+        }
+        PostLandingJump settled = simulatePostLandingGroundTicks(map, current, holdDir, profile, ticks);
+        return settled == null ? null
+                : new PostLandingJump(landing, settled.finalPoint(), settled.finalFoothold(), settled.lostGround());
     }
 
     // A down-jump falls through the platform and keeps falling until it lands — NO drop-distance
@@ -3081,7 +3133,19 @@ final class BotPhysicsEngine {
                                                long landingGraceMs,
                                                FlashImpulse flashImpulse,
                                                BotMovementProfile profile) {
-        final int holdDir = Integer.signum(stepX);
+        return simulateLanding(map, from, initialVelY, stepX, landingGraceMs, flashImpulse, profile,
+                Integer.signum(stepX));
+    }
+
+    /** {@code holdDir}: the key held through the flight; 0 for an arc nobody steers, like a knockback. */
+    private static JumpLanding simulateLanding(MapleMap map,
+                                               Point from,
+                                               float initialVelY,
+                                               int stepX,
+                                               long landingGraceMs,
+                                               FlashImpulse flashImpulse,
+                                               BotMovementProfile profile,
+                                               int holdDir) {
         final double band = walkSpeedPerTick(profile) * mapGroundSlipScale(map, profile) / cfg.AIR_INPUT_BAND_DIVISOR;
         final double steerAccel = cfg.AIR_CONTROL_ACCEL_PXSS * mapGroundSlipScale(map, profile) * tickS() * tickS();
         double vx = stepX;
@@ -3094,6 +3158,7 @@ final class BotPhysicsEngine {
         final float maxFall = maxFallPerTick();
         final int floorY = mapFloorY(map);
         boolean flashInjected = false;
+        double peakY = physY;
 
         for (int tick = 0; tick < FALL_SIM_TICK_CAP; tick++) {
             if (remainingLandingGraceMs > 0L) {
@@ -3113,6 +3178,7 @@ final class BotPhysicsEngine {
             physX += vx;
             physY += velocityY + 0.5f * gravity;
             velocityY = Math.min(velocityY + gravity, maxFall);
+            peakY = Math.min(peakY, physY);
 
             int x = (int) Math.round(physX);
             int intY = (int) Math.round(physY);
@@ -3136,7 +3202,8 @@ final class BotPhysicsEngine {
             if (collision.type() == AirCollisionType.LAND
                     && landingResolves(remainingLandingGraceMs == 0L, collision)) {
                 return new JumpLanding(collision.point(), collision.foothold(),
-                        nextPoint.x - previousPoint.x, nextPoint.y - previousPoint.y, tick + 1);
+                        nextPoint.x - previousPoint.x, nextPoint.y - previousPoint.y, tick + 1,
+                        (int) Math.round(collision.point().y - peakY));
             }
 
             if (intY > floorY) {
