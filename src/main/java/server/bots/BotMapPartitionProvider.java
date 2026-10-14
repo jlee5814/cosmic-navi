@@ -163,8 +163,11 @@ final class BotMapPartitionProvider {
         return built;
     }
 
-    /** Partition for a map id, served from cache when persisted (no map load), else loading the map via
-     *  {@code mf} to derive it. Null when the map can't be loaded. Used by the cross-map router. */
+    /** Partition for a map id, served from cache when persisted, or derived from the map when {@code mf} already
+     *  has it in memory. Otherwise null, and the partition is derived off-thread: the router runs on bot ticks and
+     *  searches outward through every map it reaches, and loading each one (a WZ parse that also spawns its
+     *  monsters) stalled a tick for up to a second after a graph version bump emptied the cache. Null is a dead
+     *  end, so the caller falls back to the map level route until the partition lands. */
     static BotMapPartition forMapId(MapManager mf, int mapId) {
         ensureLoaded();
         BotMapPartition cached = CACHE.get(mapId);
@@ -174,7 +177,40 @@ final class BotMapPartitionProvider {
         if (mf == null) {
             return null;
         }
-        return forMap(mf.getMap(mapId));
+        if (mf.isMapLoaded(mapId)) {
+            return forMap(mf.getMap(mapId));
+        }
+        deriveAsync(mapId);
+        return null;
+    }
+
+    private static final java.util.Set<Integer> DERIVING = ConcurrentHashMap.newKeySet();
+    private static final java.util.concurrent.ExecutorService DERIVE = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "bot-partition-derive");
+        t.setDaemon(true);
+        t.setPriority(Thread.MIN_PRIORITY); // never steal CPU from live ticks
+        return t;
+    });
+
+    /** Derives a map's partition from its geometry alone (portals, footholds, ropes; no monsters), at most once
+     *  per map, on a background thread. A real partition is persisted by {@link #forMap}; a swim map's or a failed
+     *  graph build's fully connected answer is kept in memory, so the map is not queued again. */
+    private static void deriveAsync(int mapId) {
+        if (!DERIVING.add(mapId)) {
+            return;
+        }
+        DERIVE.execute(() -> {
+            try {
+                MapleMap geometry = BotNavigationMapLoader.loadMapGeometry(mapId);
+                BotNavigationGraphProvider.getGraph(geometry, BotMovementProfile.base()); // build or load, blocking
+                BotMapPartition derived = forMap(geometry);
+                if (derived != null) {
+                    CACHE.putIfAbsent(mapId, derived);
+                }
+            } catch (RuntimeException e) {
+                log.debug("partition derive failed for map {}: {}", mapId, e.toString());
+            }
+        });
     }
 
     /** Drop a map's cached partition (e.g. after a nav graph rebuild for that map). Memory only — the
