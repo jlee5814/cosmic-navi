@@ -200,8 +200,8 @@ final class BotHealArena {
         policy = switch (arm) {
             case A1_COMMAND -> null;
             case A2_REACTIVE -> new BotHealPolicy.Reactive();
-            case B_RESPONSIBILITY -> new BotHealPolicy.KeepPartyAlive();
-            case B2_EAGER -> new BotHealPolicy.KeepPartyAlive(true);
+            case B_RESPONSIBILITY -> new BotHealResponsibility();
+            case B2_EAGER -> new BotHealResponsibility(true);
         };
     }
 

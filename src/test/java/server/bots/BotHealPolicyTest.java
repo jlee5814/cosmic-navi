@@ -33,7 +33,7 @@ class BotHealPolicyTest {
 
     @Test
     void theResponsibilityWalksToAnEndangeredMemberOutOfReachWithinTheLeash() {
-        BotHealPolicy b = new BotHealPolicy.KeepPartyAlive();
+        BotHealPolicy b = new BotHealResponsibility();
         BotHealPolicy.Member cleric = m(4, 500, 817, 817, false);
         b.decide(view(0, 2506, cleric, m(1, 900, 1600, 2800, true)));
         // Hit for 600 and still in contact: one more like it puts him under 30%, and he is outside the box.
@@ -44,7 +44,7 @@ class BotHealPolicyTest {
 
     @Test
     void anUrgentMemberInTheBoxIsHealedBeforeWalkingToOneOutsideIt() {
-        BotHealPolicy b = new BotHealPolicy.KeepPartyAlive();
+        BotHealPolicy b = new BotHealResponsibility();
         BotHealPolicy.Member cleric = m(4, 500, 817, 817, false);
         b.decide(view(0, 2506, cleric, m(1, 900, 1600, 2800, true), m(2, 600, 1300, 2500, false)));
         BotHealPolicy.Decision d = b.decide(view(500, 2506, cleric, m(1, 900, 1000, 2800, true),
@@ -55,7 +55,7 @@ class BotHealPolicyTest {
 
     @Test
     void itPlansForOneMoreHitLikeTheLastWhileTheMemberIsStillBeingHit() {
-        BotHealPolicy b = new BotHealPolicy.KeepPartyAlive();
+        BotHealPolicy b = new BotHealResponsibility();
         BotHealPolicy.Member cleric = m(4, 500, 817, 817, false);
         b.decide(view(0, 2506, cleric, m(1, 600, 2000, 2800, true)));
         // 50% after a 600 hit: one more puts him at 29%.
@@ -68,17 +68,17 @@ class BotHealPolicyTest {
 
     @Test
     void itTopsUpBeforeThePotionLineSkipsChipsAndSavesMpUnderItsReserve() {
-        BotHealPolicy b = new BotHealPolicy.KeepPartyAlive();
+        BotHealPolicy b = new BotHealResponsibility();
         BotHealPolicy.Member cleric = m(4, 500, 817, 817, false);
         // 2451 split over 4 is 612 each. A member 400 short is above the potion line: no cast for a chip. Under
         // the line where bots drink (70%), the heal tops him up instead of a potion.
         BotHealPolicy.Decision chip = b.decide(view(0, 2506, cleric, m(1, 600, 2400, 2800, true),
                 m(2, 550, 2500, 2500, false), m(3, 450, 1100, 1100, false)));
         assertEquals(BotHealPolicy.Kind.HOLD, chip.kind(), chip.reason());
-        BotHealPolicy.Decision topUp = new BotHealPolicy.KeepPartyAlive().decide(view(0, 2506, cleric,
+        BotHealPolicy.Decision topUp = new BotHealResponsibility().decide(view(0, 2506, cleric,
                 m(1, 600, 1900, 2800, true), m(2, 550, 2500, 2500, false), m(3, 450, 1100, 1100, false)));
         assertEquals(BotHealPolicy.Kind.CAST, topUp.kind(), topUp.reason());
-        BotHealPolicy.Decision low = new BotHealPolicy.KeepPartyAlive().decide(view(0, 120, cleric,
+        BotHealPolicy.Decision low = new BotHealResponsibility().decide(view(0, 120, cleric,
                 m(1, 600, 2800, 2800, true)));
         assertTrue(low.saveMp(), "under three heals of MP it stops spending MP on attacks");
     }
