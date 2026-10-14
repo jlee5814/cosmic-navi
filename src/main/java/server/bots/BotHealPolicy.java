@@ -65,7 +65,7 @@ interface BotHealPolicy {
     final class Reactive implements BotHealPolicy {
         @Override
         public Decision decide(View v) {
-            double target = BotCombatManager.cfg.SUPPORT_HEAL_TARGET_RATIO;
+            float target = BotCombatManager.cfg.SUPPORT_HEAL_TARGET_RATIO;
             if (needs(v.self(), target)) {
                 return Decision.cast(false, "self");
             }
@@ -77,8 +77,8 @@ interface BotHealPolicy {
             return Decision.HOLD;
         }
 
-        /** Same integer threshold as the live check: HP below round(maxHp x ratio). */
-        static boolean needs(Member m, double ratio) {
+        /** The live check's threshold, in float as it was: HP below round(maxHp x ratio). */
+        static boolean needs(Member m, float ratio) {
             return m.alive() && m.maxHp() > 0 && m.hp() < Math.round(m.maxHp() * ratio);
         }
     }
@@ -91,81 +91,87 @@ interface BotHealPolicy {
      *   <li>Scope: every party member on the map, not only those inside the box.</li>
      *   <li>Constraints: legal cast cadence (the caller's animation lock), MP reserve, a leash to the owner.</li>
      *   <li>Duration: as long as the policy is held.</li>
-     *   <li>Reconsider when: a member's HP projected over the next second falls into danger (heal before the
-     *       hit lands, not after); an endangered member is out of reach (walk to them); MP drops under the
-     *       reserve (stop spending MP on attacks); someone in the box is one seen hit from their potion line (top
-     *       up, unless the heal would mostly land on full HP).</li>
+     *   <li>Reconsider when: one more hit like the last would put a member under 30% while they are still being
+     *       hit (heal now if they are in the box, walk to them if not); MP drops under the reserve (stop spending
+     *       MP on attacks); someone in the box is one remembered hit from their potion line (top up, unless the
+     *       heal would mostly land on full HP).</li>
      * </ul>
-     * Damage rates come from the HP the healer watches change, as a player sees a party HP bar.
+     * Hits come from the HP the healer watches drop, as a player reads a party HP bar. Touch damage lands at
+     * most once per invincibility window, longer than a heal cycle, so one more hit is the danger to plan for.
      */
     final class KeepPartyAlive implements BotHealPolicy {
-        /** Cast lock plus a decision of reaction: how far ahead a heal has to look. */
-        static final long HORIZON_MS = 1_000L;
-        static final double URGENT_RATIO = 0.45;
+        static final double URGENT_RATIO = 0.30;
+        /** A member hit this recently is still in contact and can take another. */
+        static final long IN_CONTACT_MS = 3_000L;
+        /** How long the biggest hit seen on a member is remembered. */
+        static final long HIT_MEMORY_MS = 10_000L;
         static final int RESERVE_HEALS = 3;
         /** How far from the owner the healer will walk to reach someone. */
         static final int LEASH_PX = 350;
-        /** Damage per second decays toward the last window with this weight. */
-        static final double DPS_SMOOTHING = 0.5;
 
-        /** Last HP seen, when, the smoothed damage rate, and the biggest single drop seen (about one hit). */
-        private record Seen(int hp, long atMs, double dps, int bigHit) {}
+        /** Last HP seen, when the member was last hit, and the biggest hit remembered with when it landed. */
+        private record Seen(int hp, long lastHitMs, int bigHit, long bigHitMs) {}
 
         private final Map<Integer, Seen> seen = new HashMap<>();
 
         @Override
         public Decision decide(View v) {
-            observe(v.self(), v.nowMs());
-            for (Member m : v.party()) {
-                observe(m, v.nowMs());
+            long now = v.nowMs();
+            List<Member> all = members(v);
+            for (Member m : all) {
+                observe(m, now);
             }
             boolean saveMp = v.mp() < RESERVE_HEALS * v.healMpCost();
             if (v.mp() < v.healMpCost()) {
                 return new Decision(Kind.HOLD, 0, true, "out of mp");
             }
 
-            // Most endangered member by projected HP: who will be in trouble by the time a heal lands.
-            Member worst = null;
-            double worstProjected = Double.MAX_VALUE;
-            for (Member m : members(v)) {
-                double p = projectedRatio(m);
-                if (m.alive() && p < worstProjected) {
-                    worst = m;
-                    worstProjected = p;
+            // Urgent: one more hit would put them under 30%. Heal anyone urgent in the box first; otherwise walk
+            // to the most endangered one out of reach.
+            Member reach = null;
+            int reachMargin = Integer.MAX_VALUE;
+            for (Member m : all) {
+                if (!m.alive()) {
+                    continue;
+                }
+                int margin = m.hp() - nextHit(m, now) - (int) (URGENT_RATIO * m.maxHp());
+                if (margin >= 0) {
+                    continue;
+                }
+                if (m == v.self() || v.inBox(m, v.self().x())) {
+                    return Decision.cast(saveMp, "urgent " + m.id());
+                }
+                if (margin < reachMargin) {
+                    reach = m;
+                    reachMargin = margin;
                 }
             }
-            if (worst == null) {
-                return Decision.HOLD;
-            }
-            if (worstProjected < URGENT_RATIO) {
-                if (worst == v.self() || v.inBox(worst, v.self().x())) {
-                    return Decision.cast(saveMp, "urgent " + worst.id());
-                }
-                int x = reachX(v, worst);
+            if (reach != null) {
+                int x = reachX(v, reach);
                 if (x != v.self().x()) {
-                    return new Decision(Kind.MOVE, x, saveMp, "reach " + worst.id());
+                    return new Decision(Kind.MOVE, x, saveMp, "reach " + reach.id());
                 }
             }
 
             // Routine top up: a heal costs a little MP and restores thousands of HP across the box; a potion
-            // restores a few hundred. So heal whoever in the box is one hit from the line where bots drink, unless
-            // the heal (split across the box) would mostly land on full HP.
+            // restores a few hundred. So heal whoever in the box is one remembered hit from the line where bots
+            // drink, unless the heal (split across the box) would mostly land on full HP.
             int affected = 1;
             boolean routine = false;
-            for (Member m : members(v)) {
+            for (Member m : all) {
                 if (!m.alive() || (m != v.self() && !v.inBox(m, v.self().x()))) {
                     continue;
                 }
                 if (m != v.self()) {
                     affected++;
                 }
-                routine |= projectedHp(m) - bigHit(m) < BotManager.cfg.AUTOPOT_HP_THRESH * m.maxHp();
+                routine |= m.hp() - bigHit(m, now) < BotManager.cfg.AUTOPOT_HP_THRESH * m.maxHp();
             }
             int perMember = v.healPer().applyAsInt(affected);
             int missing = 0;
-            for (Member m : members(v)) {
+            for (Member m : all) {
                 if (m.alive() && (m == v.self() || v.inBox(m, v.self().x()))) {
-                    missing += Math.min(perMember, Math.max(0, m.maxHp() - projectedHp(m)));
+                    missing += Math.min(perMember, Math.max(0, m.maxHp() - m.hp()));
                 }
             }
             if (routine && !saveMp && missing >= perMember) {
@@ -192,39 +198,35 @@ interface BotHealPolicy {
             return x;
         }
 
+        /** A drop between two looks is a hit (a heal or potion in between can hide part of one). */
         private void observe(Member m, long now) {
-            Seen s = seen.get(m.id());
             if (!m.alive()) {
                 seen.remove(m.id());
                 return;
             }
+            Seen s = seen.get(m.id());
             if (s == null) {
-                seen.put(m.id(), new Seen(m.hp(), now, 0.0, 0));
+                seen.put(m.id(), new Seen(m.hp(), Long.MIN_VALUE / 2, 0, Long.MIN_VALUE / 2));
                 return;
             }
-            long dt = now - s.atMs();
-            if (dt < 200) {
-                return; // too short a window to read a rate; keep the last one
+            int drop = s.hp() - m.hp();
+            if (drop <= 0) {
+                seen.put(m.id(), new Seen(m.hp(), s.lastHitMs(), s.bigHit(), s.bigHitMs()));
+                return;
             }
-            int drop = Math.max(0, s.hp() - m.hp());
-            double windowDps = drop * 1000.0 / dt;
-            double dps = s.dps() + DPS_SMOOTHING * (windowDps - s.dps());
-            seen.put(m.id(), new Seen(m.hp(), now, dps, Math.max(s.bigHit(), drop)));
+            boolean replace = drop >= s.bigHit() || now - s.bigHitMs() > HIT_MEMORY_MS;
+            seen.put(m.id(), new Seen(m.hp(), now, replace ? drop : s.bigHit(), replace ? now : s.bigHitMs()));
         }
 
-        private int projectedHp(Member m) {
+        /** The hit to plan for: the biggest remembered, if the member is still being hit. */
+        private int nextHit(Member m, long now) {
             Seen s = seen.get(m.id());
-            double dps = s == null ? 0 : s.dps();
-            return (int) Math.max(0, m.hp() - dps * HORIZON_MS / 1000.0);
+            return s == null || now - s.lastHitMs() > IN_CONTACT_MS ? 0 : bigHit(m, now);
         }
 
-        private int bigHit(Member m) {
+        private int bigHit(Member m, long now) {
             Seen s = seen.get(m.id());
-            return s == null ? 0 : s.bigHit();
-        }
-
-        private double projectedRatio(Member m) {
-            return m.maxHp() <= 0 ? 1.0 : (double) projectedHp(m) / m.maxHp();
+            return s == null || now - s.bigHitMs() > HIT_MEMORY_MS ? 0 : s.bigHit();
         }
     }
 }

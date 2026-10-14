@@ -35,23 +35,35 @@ class BotHealPolicyTest {
     void theResponsibilityWalksToAnEndangeredMemberOutOfReachWithinTheLeash() {
         BotHealPolicy b = new BotHealPolicy.KeepPartyAlive();
         BotHealPolicy.Member cleric = m(4, 500, 817, 817, false);
-        BotHealPolicy.Decision d = b.decide(view(0, 2506, cleric, m(1, 900, 1000, 2800, true)));
+        b.decide(view(0, 2506, cleric, m(1, 900, 1600, 2800, true)));
+        // Hit for 600 and still in contact: one more like it puts him under 30%, and he is outside the box.
+        BotHealPolicy.Decision d = b.decide(view(500, 2506, cleric, m(1, 900, 1000, 2800, true)));
         assertEquals(BotHealPolicy.Kind.MOVE, d.kind(), d.reason());
         assertTrue(d.moveX() > 500 && d.moveX() <= 900, "toward the owner: " + d.moveX());
     }
 
     @Test
-    void itHealsOnWhereHpIsHeadingNotWhereItIs() {
+    void anUrgentMemberInTheBoxIsHealedBeforeWalkingToOneOutsideIt() {
         BotHealPolicy b = new BotHealPolicy.KeepPartyAlive();
         BotHealPolicy.Member cleric = m(4, 500, 817, 817, false);
-        // Falling 600 HP a second from 81%: at 60% it is headed under the urgent line within the next second.
-        assertEquals(BotHealPolicy.Kind.HOLD, b.decide(view(0, 2506, cleric, m(1, 600, 2280, 2800, true))).kind());
-        assertEquals(BotHealPolicy.Kind.HOLD, b.decide(view(500, 2506, cleric, m(1, 600, 1980, 2800, true))).kind());
-        BotHealPolicy.Decision d = b.decide(view(1_000, 2506, cleric, m(1, 600, 1680, 2800, true)));
+        b.decide(view(0, 2506, cleric, m(1, 900, 1600, 2800, true), m(2, 600, 1300, 2500, false)));
+        BotHealPolicy.Decision d = b.decide(view(500, 2506, cleric, m(1, 900, 1000, 2800, true),
+                m(2, 600, 800, 2500, false)));
         assertEquals(BotHealPolicy.Kind.CAST, d.kind(), d.reason());
-        assertEquals(BotHealPolicy.Kind.CAST,
-                new BotHealPolicy.Reactive().decide(view(0, 2506, cleric, m(1, 600, 2280, 2800, true))).kind(),
-                "today's rule casts at 81% whatever the trend");
+        assertEquals("urgent 2", d.reason());
+    }
+
+    @Test
+    void itPlansForOneMoreHitLikeTheLastWhileTheMemberIsStillBeingHit() {
+        BotHealPolicy b = new BotHealPolicy.KeepPartyAlive();
+        BotHealPolicy.Member cleric = m(4, 500, 817, 817, false);
+        b.decide(view(0, 2506, cleric, m(1, 600, 2000, 2800, true)));
+        // 50% after a 600 hit: one more puts him at 29%.
+        BotHealPolicy.Decision hit = b.decide(view(500, 2506, cleric, m(1, 600, 1400, 2800, true)));
+        assertEquals("urgent 1", hit.reason());
+        // The same 50% with no hit in the last three seconds is no emergency (a routine top up instead).
+        BotHealPolicy.Decision calm = b.decide(view(5_000, 2506, cleric, m(1, 600, 1400, 2800, true)));
+        assertEquals("top up", calm.reason());
     }
 
     @Test

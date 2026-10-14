@@ -4,13 +4,13 @@ import client.Character;
 import client.Job;
 import client.Skill;
 import client.SkillFactory;
-import server.StatEffect;
-import server.bots.combat.BotDefenseDataProvider;
-import server.combat.CombatFormulaProvider;
 import provider.Data;
 import provider.DataProviderFactory;
 import provider.DataTool;
 import provider.wz.WZFiles;
+import server.StatEffect;
+import server.bots.combat.BotDefenseDataProvider;
+import server.combat.CombatFormulaProvider;
 import tools.StringUtil;
 
 import java.awt.Point;
@@ -31,11 +31,14 @@ import static org.mockito.Mockito.when;
  * the keys {@code LifeFactory} reads); Heal's MP cost, box, split per member ({@link StatEffect#healPerTarget}) and
  * animation lock, and Energy Bolt's MP cost (Skill.wz); touch damage and the mob's hit chance
  * ({@link BotDefenseDataProvider#physicalTouchDamageAt}, {@link CombatFormulaProvider#calculateBotAvoidChance});
- * the hit invincibility window and heal walk window ({@link BotCombatManager.Config}); bot potion thresholds
- * ({@link BotManager.Config}).
+ * the hit invincibility window, the heal walk window and jump heal ({@link BotCombatManager.Config}); potion
+ * thresholds, the pot count that sends a bot to resupply, and HP and MP regen ({@link BotManager.Config}).
  *
  * <p>Assumed, and listed in {@link Assumptions}: the 1D platform, movement and mob chasing, member stats and
- * damage, potion sizes and the owner's human reaction to low HP.
+ * damage, potion sizes, trip times and the owner's human reaction to low HP.
+ *
+ * <p>Each source of chance has its own stream (mob wandering, each member's touch rolls, damage dealt, the
+ * owner's potions, the owner's heal requests), so two arms on one seed see the same mob behavior and the same hit luck for as long as they can.
  */
 final class BotHealArena {
 
@@ -47,7 +50,9 @@ final class BotHealArena {
         static final int TOUCH_PX = 35;
         static final int MOB_CHASE_PX = 400;           // a hit mob turns on its attacker within this range
         static final long MOB_RESPAWN_MS = 7_000L;
-        static final long DEATH_DOWNTIME_MS = 60_000L; // respawn in town and walk back
+        static final long DEATH_DOWNTIME_MS = 60_000L; // respawn in town, recover and walk back
+        static final long RESUPPLY_MS = 120_000L;      // a trip to a shop and back
+        static final long RETURN_IFRAME_MS = 2_000L;   // map entry protection on the way back in
         static final int HP_POT = 300;                 // White Potion
         static final int MP_POT = 300;                 // Mana Elixir
         static final long BOT_POT_GAP_MS = 300L;
@@ -61,14 +66,16 @@ final class BotHealArena {
         static final int CLERIC_FOLLOW_PX = 100;
         static final int ENERGY_BOLT_RANGE_PX = 300;
         static final int ARCHER_RANGE_PX = 350, ARCHER_MIN_PX = 150;
+        static final int CLERIC_MP_RECOVERY_LEVEL = 16; // SipsBuddy12's Improved MP Recovery
     }
 
     enum Arm { A1_COMMAND, A2_REACTIVE, B_RESPONSIBILITY }
 
     enum Role { OWNER, MELEE_BOT, RANGED_BOT, CLERIC }
 
-    record Result(Arm arm, int seed, long durationMs, int deaths, double secondsUnder30, long exp, int hpPots,
-                  int mpPots, int heals) {}
+    /** {@code fieldSeconds}: member seconds on the field (alive and not away), the exposure under30 is per. */
+    record Result(Arm arm, int seed, long durationMs, int deaths, double secondsUnder30, double fieldSeconds,
+                  long exp, int hpPots, int mpPots, int resupplies, int heals) {}
 
     private static final int HEAL = 2301002;
     private static final int ENERGY_BOLT = 2001005;
@@ -83,20 +90,22 @@ final class BotHealArena {
         final int maxHp;
         final int dmgPerHit;
         final long attackGapMs;
+        final Random touchRng;
         int hp;
         int x;
         int mp, maxMp;
         boolean alive = true;
+        boolean away;          // on a resupply trip
         long backAtMs;
         long iframeUntilMs;
         long lockedUntilMs;
         long nextAttackMs;
         long nextPotMs;
         long ownerPotDueMs = -1; // owner: when the scheduled pot press lands
-        int hpPotsLeft, mpPotsLeft;  // supply; Integer.MAX_VALUE for unlimited
+        int hpPotsLeft, mpPotsLeft;
         Mob target;
 
-        Fighter(int id, Role role, Character stats, int maxHp, int dmgPerHit, long attackGapMs, int x) {
+        Fighter(int id, Role role, Character stats, int maxHp, int dmgPerHit, long attackGapMs, int x, long seed) {
             this.id = id;
             this.role = role;
             this.stats = stats;
@@ -105,6 +114,11 @@ final class BotHealArena {
             this.dmgPerHit = dmgPerHit;
             this.attackGapMs = attackGapMs;
             this.x = x;
+            this.touchRng = new Random(seed * 1_000_003L + id);
+        }
+
+        boolean onField() {
+            return alive && !away;
         }
     }
 
@@ -126,9 +140,9 @@ final class BotHealArena {
 
     private final Arm arm;
     private final int seed;
-    private final Random rng;
-    private final int mobId;
+    private final Random mobRng, dmgRng, ownerRng, askRng;
     private final int mobLevel, mobPad, mobAcc, mobHp, mobExp;
+    private final int potSupply;
     private final List<Fighter> party = new ArrayList<>();
     private final List<Mob> mobs = new ArrayList<>();
     private final Fighter owner, cleric;
@@ -137,10 +151,12 @@ final class BotHealArena {
     private final int boltMp;
     private final BotHealPolicy policy;
     private long now;
-    private int deaths, hpPots, mpPots, heals;
+    private int deaths, hpPots, mpPots, heals, resupplies;
     private long exp;
-    private double underMs;
+    private double underMs, fieldMs;
     private long nextHealMs;
+    private boolean jumpHealing;
+    private long nextRegenMs;
     // Arm A1: the owner's outstanding heal command.
     private long askDueMs = -1;
     private boolean askPending;
@@ -149,8 +165,11 @@ final class BotHealArena {
     BotHealArena(Arm arm, int seed, int mobId, int mobsPer1000Px, int potSupply) {
         this.arm = arm;
         this.seed = seed;
-        this.rng = new Random(seed);
-        this.mobId = mobId;
+        this.mobRng = new Random(seed * 7_919L + 1);
+        this.dmgRng = new Random(seed * 7_919L + 2);
+        this.ownerRng = new Random(seed * 7_919L + 3);
+        this.askRng = new Random(seed * 7_919L + 4);
+        this.potSupply = potSupply < 0 ? Integer.MAX_VALUE : potSupply;
         // The keys LifeFactory.getMonsterStats reads, without its mob skill load (which needs the DB).
         Data info = DataProviderFactory.getDataProvider(WZFiles.MOB)
                 .getData(StringUtil.getLeftPaddedStr(mobId + ".img", '0', 11)).getChildByPath("info");
@@ -171,7 +190,7 @@ final class BotHealArena {
         cleric = add(Role.CLERIC, Job.CLERIC, 43, 4, 4, 223, 4, 60, 817, 450, 750L, 600);
         cleric.mp = cleric.maxMp = 2506;
         for (Fighter f : party) {
-            f.hpPotsLeft = f.mpPotsLeft = potSupply < 0 ? Integer.MAX_VALUE : potSupply;
+            f.hpPotsLeft = f.mpPotsLeft = this.potSupply;
         }
 
         int count = Math.max(1, Assumptions.PLATFORM_PX * mobsPer1000Px / 1000);
@@ -195,7 +214,7 @@ final class BotHealArena {
         when(c.getTotalInt()).thenReturn(intel);
         when(c.getTotalLuk()).thenReturn(luk);
         when(c.getTotalWdef()).thenReturn(wdef);
-        Fighter f = new Fighter(party.size() + 1, role, c, maxHp, dmg, gap, x);
+        Fighter f = new Fighter(party.size() + 1, role, c, maxHp, dmg, gap, x, seed);
         party.add(f);
         return f;
     }
@@ -203,23 +222,29 @@ final class BotHealArena {
     Result run(long durationMs) {
         for (now = 0; now < durationMs; now += TICK_MS) {
             boolean ai = now % AI_MS == 0;
-            revive();
+            comeBack();
+            regen();
             for (Fighter f : party) {
-                if (f.alive && f.hp * 10 < f.maxHp * 3) {
-                    underMs += TICK_MS;
+                if (f.onField()) {
+                    fieldMs += TICK_MS;
+                    if (f.hp * 10 < f.maxHp * 3) {
+                        underMs += TICK_MS;
+                    }
                 }
             }
             tickMobs();
             for (Fighter f : party) {
-                if (!f.alive) {
+                if (!f.onField()) {
                     continue;
                 }
                 potions(f);
+                maybeResupply(f);
+                if (!f.onField() || !ai) {
+                    continue;
+                }
                 if (f == cleric) {
-                    if (ai) {
-                        clericTick();
-                    }
-                } else if (ai) {
+                    clericTick();
+                } else {
                     fighterTick(f);
                 }
             }
@@ -227,15 +252,20 @@ final class BotHealArena {
                 ownerAsks();
             }
         }
-        return new Result(arm, seed, durationMs, deaths, underMs / 1000.0, exp, hpPots, mpPots, heals);
+        return new Result(arm, seed, durationMs, deaths, underMs / 1000.0, fieldMs / 1000.0, exp, hpPots, mpPots,
+                resupplies, heals);
     }
 
     // ---- cleric ----
 
     private void clericTick() {
         if (now < cleric.lockedUntilMs) {
+            if (jumpHealing) {
+                walk(cleric, followX()); // jump heal: the cast plays mid air on the way to the leader
+            }
             return;
         }
+        jumpHealing = false;
         BotHealPolicy.Decision d = decide();
         if (d.kind() == BotHealPolicy.Kind.CAST && now >= nextHealMs && cleric.mp >= heal.getMpCon()) {
             castHeal();
@@ -246,9 +276,9 @@ final class BotHealArena {
             goal = d.moveX();
         }
         walk(cleric, goal);
-        boolean saveMp = d.saveMp();
+        // Attacks wait out the heal walk window as the live attack planner does (moveWindowMs).
         Mob t = nearestMob(cleric.x, Assumptions.ENERGY_BOLT_RANGE_PX);
-        if (t != null && !saveMp && cleric.mp >= boltMp && now >= cleric.nextAttackMs) {
+        if (t != null && !d.saveMp() && cleric.mp >= boltMp && now >= cleric.nextAttackMs && now >= nextHealMs) {
             cleric.mp -= boltMp;
             hit(cleric, t);
             cleric.lockedUntilMs = now + cleric.attackGapMs;
@@ -258,11 +288,10 @@ final class BotHealArena {
 
     private BotHealPolicy.Decision decide() {
         if (arm == Arm.A1_COMMAND) {
-            if (!askPending || now < askDueMs || !owner.alive) {
+            if (!askPending || now < askDueMs || !owner.onField()) {
                 return BotHealPolicy.Decision.HOLD;
             }
             if (heal.calculateBoundingBox(new Point(cleric.x, 0), false).contains(owner.x, 0)) {
-                askPending = false; // cast_skill(heal, owner): one cast, then the instruction is finished
                 return BotHealPolicy.Decision.cast(false, "asked");
             }
             return new BotHealPolicy.Decision(BotHealPolicy.Kind.MOVE, owner.x, false, "asked, walking");
@@ -273,7 +302,7 @@ final class BotHealArena {
     private BotHealPolicy.View view() {
         List<BotHealPolicy.Member> others = new ArrayList<>();
         for (Fighter f : party) {
-            if (f != cleric) {
+            if (f != cleric && f.onField()) { // a member off the map is not in getPartyMembersOnSameMap
                 others.add(member(f));
             }
         }
@@ -283,14 +312,14 @@ final class BotHealArena {
     }
 
     private BotHealPolicy.Member member(Fighter f) {
-        return new BotHealPolicy.Member(f.id, f.x, 0, f.alive ? f.hp : 0, f.maxHp, f.alive, f == owner);
+        return new BotHealPolicy.Member(f.id, f.x, 0, f.hp, f.maxHp, f.onField(), f == owner);
     }
 
     private void castHeal() {
         Rectangle box = heal.calculateBoundingBox(new Point(cleric.x, 0), false);
         List<Fighter> in = new ArrayList<>();
         for (Fighter f : party) {
-            if (f.alive && (f == cleric || box.contains(f.x, 0))) {
+            if (f.onField() && (f == cleric || box.contains(f.x, 0))) {
                 in.add(f);
             }
         }
@@ -300,13 +329,15 @@ final class BotHealArena {
         }
         cleric.mp -= heal.getMpCon();
         heals++;
+        askPending = false; // A1: cast_skill(heal, owner) ran; the instruction is finished
         cleric.lockedUntilMs = now + healLockMs;
         nextHealMs = now + healLockMs + BotCombatManager.cfg.HEAL_MOVE_WINDOW_MS;
+        jumpHealing = Math.abs(followX() - cleric.x) >= BotCombatManager.cfg.JUMP_HEAL_LEADER_AHEAD_PX;
     }
 
     private int followX() {
-        Fighter anchor = owner.alive ? owner : firstAlive();
-        if (anchor == null || anchor == cleric) {
+        Fighter anchor = owner.onField() ? owner : firstOnField();
+        if (anchor == null) {
             return cleric.x;
         }
         int facing = anchor.target != null && anchor.target.x < anchor.x ? -1 : 1;
@@ -320,7 +351,7 @@ final class BotHealArena {
             return;
         }
         if (f.target == null || !f.target.alive) {
-            f.target = nearestMob(f.role == Role.RANGED_BOT && owner.alive ? owner.x : f.x, Integer.MAX_VALUE);
+            f.target = nearestMob(f.role == Role.RANGED_BOT && owner.onField() ? owner.x : f.x, Integer.MAX_VALUE);
         }
         Mob t = f.target;
         if (t == null) {
@@ -348,7 +379,7 @@ final class BotHealArena {
     }
 
     private void hit(Fighter f, Mob t) {
-        t.hp -= (int) (f.dmgPerHit * (0.8 + 0.4 * rng.nextDouble()));
+        t.hp -= (int) (f.dmgPerHit * (0.8 + 0.4 * dmgRng.nextDouble()));
         if (Math.abs(t.x - f.x) <= Assumptions.MOB_CHASE_PX) {
             t.chasing = f;
         }
@@ -373,20 +404,20 @@ final class BotHealArena {
                 }
                 continue;
             }
-            if (m.chasing != null && m.chasing.alive) {
-                m.x += (int) Math.round(Math.signum(m.chasing.x - m.x) * Math.min(step, Math.abs(m.chasing.x - m.x)));
+            if (m.chasing != null && m.chasing.onField()) {
+                m.x += (int) (Math.signum(m.chasing.x - m.x) * Math.min(step, Math.abs(m.chasing.x - m.x)));
             } else {
                 m.chasing = null;
-                if (rng.nextDouble() < 0.02) {
+                if (mobRng.nextDouble() < 0.02) {
                     m.wanderDir = -m.wanderDir;
                 }
                 if (Math.abs(m.x + m.wanderDir * step - m.spawnX) > 150) {
                     m.wanderDir = -m.wanderDir;
                 }
-                m.x += (int) Math.round(m.wanderDir * step);
+                m.x += (int) (m.wanderDir * step);
             }
             for (Fighter f : party) {
-                if (f.alive && now >= f.iframeUntilMs && Math.abs(m.x - f.x) <= Assumptions.TOUCH_PX) {
+                if (f.onField() && now >= f.iframeUntilMs && Math.abs(m.x - f.x) <= Assumptions.TOUCH_PX) {
                     touch(f);
                 }
             }
@@ -398,10 +429,12 @@ final class BotHealArena {
         var formulas = CombatFormulaProvider.getInstance();
         double pHit = formulas.calculateBotAvoidChance(mobAcc, mobLevel, f.stats.getLevel(),
                 formulas.getTotalAvoidability(f.stats));
-        if (rng.nextDouble() > pHit) {
+        double hitRoll = f.touchRng.nextDouble();
+        double dmgRoll = f.touchRng.nextDouble();
+        if (hitRoll > pHit) {
             return;
         }
-        f.hp -= BotDefenseDataProvider.getInstance().physicalTouchDamageAt(f.stats, mobPad, mobLevel, rng.nextDouble());
+        f.hp -= BotDefenseDataProvider.getInstance().physicalTouchDamageAt(f.stats, mobPad, mobLevel, dmgRoll);
         if (f.hp <= 0) {
             f.hp = 0;
             f.alive = false;
@@ -415,14 +448,51 @@ final class BotHealArena {
         }
     }
 
-    private void revive() {
+    /** Back from death or a resupply trip: full HP and MP, entering from the platform's edge. */
+    private void comeBack() {
         for (Fighter f : party) {
-            if (!f.alive && now >= f.backAtMs) {
+            if (!f.onField() && now >= f.backAtMs) {
+                if (f.away) {
+                    f.hpPotsLeft = f.mpPotsLeft = potSupply;
+                }
                 f.alive = true;
+                f.away = false;
                 f.hp = f.maxHp;
+                f.mp = f.maxMp;
                 f.x = 0;
+                f.iframeUntilMs = now + Assumptions.RETURN_IFRAME_MS;
+            }
+        }
+    }
+
+    /** Below POT_STOP HP (or, for the cleric, MP) potions a member stops grinding and goes to buy more. */
+    private void maybeResupply(Fighter f) {
+        int stop = BotManager.cfg.POT_STOP;
+        if (f.hpPotsLeft < stop || (f == cleric && f.mpPotsLeft < stop)) {
+            f.away = true;
+            f.backAtMs = now + Assumptions.RESUPPLY_MS;
+            f.target = null;
+            resupplies++;
+            if (f == owner) {
+                askPending = false;
+                owner.ownerPotDueMs = -1;
+            }
+        }
+    }
+
+    /** Passive recovery every MP_RECOVERY_INTERVAL_MS, as BotManager applies it. */
+    private void regen() {
+        if (now < nextRegenMs) {
+            return;
+        }
+        nextRegenMs = now + BotManager.cfg.MP_RECOVERY_INTERVAL_MS;
+        int mpRegen = BotManager.cfg.BASE_MP_RECOVERY
+                + 43 * Assumptions.CLERIC_MP_RECOVERY_LEVEL / BotManager.cfg.IMPROVED_MP_RECOVERY_DIVISOR;
+        for (Fighter f : party) {
+            if (f.onField()) {
+                f.hp = Math.min(f.maxHp, f.hp + BotManager.cfg.BASE_HP_RECOVERY);
                 if (f == cleric) {
-                    cleric.mp = cleric.maxMp;
+                    f.mp = Math.min(f.maxMp, f.mp + mpRegen);
                 }
             }
         }
@@ -452,7 +522,7 @@ final class BotHealArena {
         if (owner.ownerPotDueMs < 0) {
             if (low) {
                 long delay = between(Assumptions.OWNER_REACT_MIN_MS, Assumptions.OWNER_REACT_MAX_MS);
-                if (rng.nextDouble() < Assumptions.OWNER_LAPSE_CHANCE) {
+                if (ownerRng.nextDouble() < Assumptions.OWNER_LAPSE_CHANCE) {
                     delay += between(Assumptions.OWNER_LAPSE_MIN_MS, Assumptions.OWNER_LAPSE_MAX_MS);
                 }
                 owner.ownerPotDueMs = now + delay;
@@ -473,9 +543,10 @@ final class BotHealArena {
     }
 
     private void ownerAsks() {
-        if (!askPending && owner.alive && owner.hp < owner.maxHp * Assumptions.OWNER_ASK_HEAL_RATIO) {
+        if (!askPending && owner.onField() && owner.hp < owner.maxHp * Assumptions.OWNER_ASK_HEAL_RATIO) {
             askPending = true;
-            askDueMs = now + between(Assumptions.OWNER_ASK_MIN_MS, Assumptions.OWNER_ASK_MAX_MS);
+            askDueMs = now + Assumptions.OWNER_ASK_MIN_MS
+                    + (long) (askRng.nextDouble() * (Assumptions.OWNER_ASK_MAX_MS - Assumptions.OWNER_ASK_MIN_MS));
         }
     }
 
@@ -497,9 +568,9 @@ final class BotHealArena {
         return best;
     }
 
-    private Fighter firstAlive() {
+    private Fighter firstOnField() {
         for (Fighter f : party) {
-            if (f.alive && f != cleric) {
+            if (f.onField() && f != cleric) {
                 return f;
             }
         }
@@ -507,6 +578,6 @@ final class BotHealArena {
     }
 
     private long between(long lo, long hi) {
-        return lo + (long) (rng.nextDouble() * (hi - lo));
+        return lo + (long) (ownerRng.nextDouble() * (hi - lo));
     }
 }
