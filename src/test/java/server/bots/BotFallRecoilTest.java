@@ -6,7 +6,6 @@ import server.maps.MapleMap;
 import java.awt.Point;
 import java.nio.file.Path;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -25,27 +24,32 @@ class BotFallRecoilTest {
     }
 
     /** Ellinia tree 101020000: a 1350 px straight drop from (-172,-3819) lands on the ledge at (-172,-2467), and the
-     *  sweep's bot was thrown right onto the rope at x -98. The drop is authored only where the bot rests facing
-     *  either way, so that ledge is no target from x -172. */
+     *  sweep's bot, facing left, was thrown right onto the rope at x -98. A drop to that ledge is authored only if
+     *  the other facing rests there, and then the executor turns to it before dropping. */
     @Test
-    void aLongStraightDropWhoseRecoilGrabsARopeIsNotAuthoredToTheLedge() {
+    void aLongStraightDropTurnsTheBotSoTheRecoilRestsInTheTarget() {
         MapleMap map = load(101020000);
         Point launch = new Point(-172, -3819);
         BotPhysicsEngine.JumpLanding landing = BotPhysicsEngine.simulateDownJumpLanding(map, launch);
         assertNotNull(landing);
         assertTrue(BotCombatManager.fallDamageFromDistance(landing.fallPx()) > 0, "fall " + landing.fallPx());
-        BotPhysicsEngine.PostLandingJump right = BotPhysicsEngine.settleLanding(map, landing, -1, 0,
+        BotPhysicsEngine.PostLandingJump facingLeft = BotPhysicsEngine.settleLanding(map, landing, -1, 0,
                 BotMovementProfile.base(), 3);
-        assertTrue(right.lostGround(), "facing left, the recoil throws the bot right onto the rope at x -98");
+        assertTrue(facingLeft.lostGround(), "facing left, the recoil throws the bot right onto the rope at x -98");
 
         BotNavigationGraph graph = BotNavigationGraphProvider.rebuildGraph(map);
         int from = graph.findRegionId(map, launch);
-        int ledge = graph.findRegionId(map, new Point(-172, -2467));
+        boolean checked = false;
         for (BotNavigationGraph.Edge e : graph.getOutgoing(from)) {
-            assertFalse(e.type == BotNavigationGraph.EdgeType.DROP && e.launchStepX == 0 && e.toRegionId == ledge
-                            && e.containsLaunchX(-172),
-                    "straight drop r" + from + "->r" + ledge + " window " + e.launchMinX + ".." + e.launchMaxX);
+            if (e.type != BotNavigationGraph.EdgeType.DROP || e.launchStepX != 0 || !e.containsLaunchX(-172)) {
+                continue;
+            }
+            int facing = BotNavigationGraphProvider.straightDropFacing(map, launch, e.toRegionId,
+                    graph.regionIdByFootholdId, BotMovementProfile.base(), -1);
+            assertTrue(facing == 1, "drop r" + from + "->r" + e.toRegionId + ": the bot must turn right, got " + facing);
+            checked = true;
         }
+        assertTrue(checked, "a straight drop from x -172");
     }
 
     /** A short drop deals no fall damage and settles where it lands, as before. */
