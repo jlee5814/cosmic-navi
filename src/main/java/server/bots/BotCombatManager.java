@@ -840,8 +840,9 @@ class BotCombatManager {
         Rectangle healBounds = fx.hasBoundingBox()
                 ? fx.calculateBoundingBox(bot.getPosition(), bot.isFacingLeft())
                 : null;
-        boolean selfNeedsHeal = needsHeal(bot);
-        boolean partyNeedsHeal = selfNeedsHeal || hasPartyMemberInBoundsNeedingHeal(bot, healBounds);
+        boolean partyNeedsHeal = healBounds == null
+                ? needsHeal(bot) || hasPartyMemberInBoundsNeedingHeal(bot, null)
+                : entry.healPolicy.decide(healView(entry, bot, fx, healBounds)).kind() == BotHealPolicy.Kind.CAST;
         List<Monster> undeadTargets = getUndeadMobsInHealRange(bot, fx, healBounds);
         if (!partyNeedsHeal && undeadTargets.isEmpty()) return false;
 
@@ -888,6 +889,26 @@ class BotCombatManager {
             BotMovementManager.broadcastMovement(entry);
         }
         return true;
+    }
+
+    /** What the healer sees for {@link BotHealPolicy}: itself, the party on its map, MP and the Heal box. */
+    private static BotHealPolicy.View healView(BotEntry entry, Character bot, StatEffect fx, Rectangle healBounds) {
+        int ownerId = entry.owner != null ? entry.owner.getId() : -1;
+        List<BotHealPolicy.Member> party = new ArrayList<>();
+        for (Character m : bot.getPartyMembersOnSameMap()) {
+            if (m != null && m.getId() != bot.getId()) {
+                party.add(healMember(m, ownerId));
+            }
+        }
+        int casterMaxHp = bot.getCurrentMaxHp();
+        return new BotHealPolicy.View(System.currentTimeMillis(), healMember(bot, ownerId), party, bot.getMp(),
+                bot.getCurrentMaxMp(), fx.getMpCon(), affected -> fx.healPerTarget(casterMaxHp, affected), healBounds);
+    }
+
+    private static BotHealPolicy.Member healMember(Character c, int ownerId) {
+        Point p = c.getPosition();
+        return new BotHealPolicy.Member(c.getId(), p.x, p.y, c.getHp(), c.getCurrentMaxHp(), c.isAlive(),
+                c.getId() == ownerId);
     }
 
     private static boolean needsHeal(Character chr) {
