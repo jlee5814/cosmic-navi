@@ -1229,7 +1229,8 @@ final class BotNavigationGraphProvider {
                 phases++;
                 BotPhysicsEngine.JumpLanding phaseLanding = BotPhysicsEngine.simulateFallLanding(map,
                         new Point(endpoint.x + out * direction, endpoint.y), speed * direction);
-                int regionId = settledRegionId(map, phaseLanding, direction, regionIdByFootholdId, movementProfile);
+                int regionId = restRegionId(settledLanding(map, phaseLanding, direction, movementProfile),
+                        regionIdByFootholdId);
                 if (regionId >= 0) {
                     settledCount.merge(regionId, 1, Integer::sum);
                     // The nominal phase (one walk step out at walk speed) gives the endpoint when it agrees.
@@ -1286,29 +1287,30 @@ final class BotNavigationGraphProvider {
         }
         int first = preferredFacing >= 0 ? 1 : -1;
         for (int facing : new int[]{first, -first}) {
-            if (settledRegionId(map, landing, facing, regionIdByFootholdId, movementProfile) == targetRegionId) {
+            if (restRegionId(settledLanding(map, landing, facing, movementProfile), regionIdByFootholdId)
+                    == targetRegionId) {
                 return facing;
             }
         }
         return 0;
     }
 
-    /** The region a landing comes to rest in, no key held, facing {@code facingDir} (which way a fall damage
-     *  recoil throws it), or -1 when it misses, slides off or ends on a rope. */
-    private static int settledRegionId(MapleMap map,
-                                       BotPhysicsEngine.JumpLanding landing,
-                                       int facingDir,
-                                       Map<Integer, Integer> regionIdByFootholdId,
-                                       BotMovementProfile movementProfile) {
+    /** Where a landing comes to rest, no key held, facing {@code facingDir} (which way a fall damage recoil throws
+     *  it), or null when it misses, slides off or ends on a rope. */
+    private static BotPhysicsEngine.PostLandingJump settledLanding(MapleMap map,
+                                                                  BotPhysicsEngine.JumpLanding landing,
+                                                                  int facingDir,
+                                                                  BotMovementProfile movementProfile) {
         if (landing == null) {
-            return -1;
+            return null;
         }
         BotPhysicsEngine.PostLandingJump settled = BotPhysicsEngine.settleLanding(
                 map, landing, facingDir, 0, movementProfile, JUMP_POST_LANDING_STABILITY_TICKS);
-        if (settled == null || settled.lostGround() || settled.finalFoothold() == null) {
-            return -1;
-        }
-        return regionIdByFootholdId.getOrDefault(settled.finalFoothold().getId(), -1);
+        return settled == null || settled.lostGround() || settled.finalFoothold() == null ? null : settled;
+    }
+
+    private static int restRegionId(BotPhysicsEngine.PostLandingJump settled, Map<Integer, Integer> regionIdByFootholdId) {
+        return settled == null ? -1 : regionIdByFootholdId.getOrDefault(settled.finalFoothold().getId(), -1);
     }
 
     /**
@@ -1886,7 +1888,7 @@ final class BotNavigationGraphProvider {
         }
 
         return new JumpLaunchWindow(minX, maxX, representativeStart,
-                representative.landing().point(), representative.landing().timeMs());
+                representative.restPoint(), representative.landing().timeMs());
     }
 
     private static int findJumpBoundary(BotNavigationGraph.Region from,
@@ -2005,9 +2007,9 @@ final class BotNavigationGraphProvider {
                 && regionIdByFootholdId.getOrDefault(landing.finalFoothold().getId(), -1) == targetRegionId;
     }
 
-    /** A straight drop's landing and the region it comes to rest in, the drop's target (graph v78: a landing that
-     *  hurts rests where the recoil throws the bot, not on the foothold it touched first). */
-    private record DropLanding(BotPhysicsEngine.JumpLanding landing, int regionId) {
+    /** A straight drop's landing and where it comes to rest, the drop's target and end point (graph v78: a landing
+     *  that hurts rests where the recoil throws the bot, not on the foothold it touched first). */
+    private record DropLanding(BotPhysicsEngine.JumpLanding landing, int regionId, Point restPoint) {
     }
 
     private static DropLanding validateDownJumpLaunchX(BotNavigationGraph.Region from,
@@ -2053,19 +2055,22 @@ final class BotNavigationGraphProvider {
 
         // A long drop hurts on landing and the recoil throws the bot back from where it faces. A straight drop
         // faces wherever the bot last walked, so the executor turns first, as a player would, to the facing whose
-        // recoil rests in the target (straightDropFacing). The drop goes where one facing rests; a window probe
+        // recoil rests in the target (straightDropFacing). The drop targets and ends where one facing rests (an
+        // end point on the foothold it touched first sent the router to that region instead); a window probe
         // for a given target accepts either facing. A drop that doesn't hurt targets where it lands, as before
         // (settling those removed working drops).
         int landingRegionId = regionIdByFootholdId.getOrDefault(landing.foothold().getId(), -1);
+        Point restPoint = landing.point();
         if (BotCombatManager.fallDamageFromDistance(landing.fallPx()) > 0) {
-            int facingRight = settledRegionId(map, landing, 1, regionIdByFootholdId, movementProfile);
-            int facingLeft = settledRegionId(map, landing, -1, regionIdByFootholdId, movementProfile);
-            if (requiredTargetRegionId != Integer.MIN_VALUE) {
-                landingRegionId = facingRight == requiredTargetRegionId || facingLeft == requiredTargetRegionId
-                        ? requiredTargetRegionId : -1;
-            } else {
-                landingRegionId = facingRight >= 0 && facingRight != from.id ? facingRight : facingLeft;
-            }
+            BotPhysicsEngine.PostLandingJump right = settledLanding(map, landing, 1, movementProfile);
+            BotPhysicsEngine.PostLandingJump left = settledLanding(map, landing, -1, movementProfile);
+            int rightRegionId = restRegionId(right, regionIdByFootholdId);
+            boolean useRight = requiredTargetRegionId != Integer.MIN_VALUE
+                    ? rightRegionId == requiredTargetRegionId
+                    : rightRegionId >= 0 && rightRegionId != from.id;
+            BotPhysicsEngine.PostLandingJump rest = useRight ? right : left;
+            landingRegionId = restRegionId(rest, regionIdByFootholdId);
+            restPoint = rest == null ? null : rest.finalPoint();
         }
         if (landingRegionId < 0 || landingRegionId == from.id) {
             return null;
@@ -2073,7 +2078,7 @@ final class BotNavigationGraphProvider {
         if (requiredTargetRegionId != Integer.MIN_VALUE && landingRegionId != requiredTargetRegionId) {
             return null;
         }
-        return new DropLanding(landing, landingRegionId);
+        return new DropLanding(landing, landingRegionId, restPoint);
     }
 
     private static boolean isApproachableJumpLaunchX(BotNavigationGraph.Region from, MapleMap map, int launchX) {
