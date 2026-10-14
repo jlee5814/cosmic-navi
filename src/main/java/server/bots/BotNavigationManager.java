@@ -1847,7 +1847,8 @@ final class BotNavigationManager {
 
     private static Point routeLandingPoint(BotNavigationGraph.Edge edge, Point approach) {
         if (edge.type == BotNavigationGraph.EdgeType.DROP && edge.launchStepX == 0) {
-            return new Point(approach.x, edge.endPoint.y);
+            // Below the launch, shifted as far as a drop that hurts recoils (its end point is where it rests).
+            return new Point(approach.x + edge.endPoint.x - edge.startPoint.x, edge.endPoint.y);
         }
         return edge.endPoint;
     }

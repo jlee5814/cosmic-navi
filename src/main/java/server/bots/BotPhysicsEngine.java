@@ -161,7 +161,7 @@ final class BotPhysicsEngine {
         private final double incomingDeltaX;
         private final double incomingDeltaY;
         private final int ticks;
-        /** Peak to landing descent (px), what fall damage scales with. */
+        /** Peak to landing descent (px), what fall damage scales with; 0 in water. */
         private final int fallPx;
 
         JumpLanding(Point point, Foothold foothold) {
@@ -3205,9 +3205,10 @@ final class BotPhysicsEngine {
             }
             if (collision.type() == AirCollisionType.LAND
                     && landingResolves(remainingLandingGraceMs == 0L, collision)) {
+                // Water has no fall: the live bot swims down (no peak tracked, no fall damage).
                 return new JumpLanding(collision.point(), collision.foothold(),
                         nextPoint.x - previousPoint.x, nextPoint.y - previousPoint.y, tick + 1,
-                        (int) Math.round(collision.point().y - peakY));
+                        map.isSwim() ? 0 : (int) Math.round(collision.point().y - peakY));
             }
 
             if (intY > floorY) {
