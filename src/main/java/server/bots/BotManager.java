@@ -895,6 +895,7 @@ public class BotManager {
         entry.personality = BotPersonality.loadOrCreate(botCharId);
         if (!entry.personality.rosterRole().isBlank()) entry.apAuto = true;
         BotNavigationGraphProvider.warmGraphAsync(bot.getMap(), entry.movementProfile);
+        BotGrindAdvisor.warmOwnedGearAsync(entry);
         maybeStartGraphEvictionSweep();
         BotFleetOps.ensureStarted(); // Navi fleet ops sampler: navi fleet and the stuck whispers
         // Global dedup + atomic publish: a bot character has exactly one runtime owner. Remove any prior

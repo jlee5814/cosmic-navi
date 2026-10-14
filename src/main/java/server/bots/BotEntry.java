@@ -578,6 +578,9 @@ public class BotEntry {
     int jobPromptSent = 0;
     boolean plannedJobAdvancePending = false; // guarded by this entry; prevents duplicate delayed advances
     int lastKnownLevel = -1;
+    /** The spawn warm of this bot's own gear is running (BotGrindAdvisor.warmOwnedGearAsync); the first level
+     *  look waits for it. */
+    volatile boolean ownGearWarming = false;
 
     // AP/SP builds
     BotBuildManager.ApBuild apBuild = null;

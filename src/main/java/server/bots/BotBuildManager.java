@@ -846,6 +846,9 @@ class BotBuildManager {
         BotTrainingPlan.stopIfComplete(entry, bot);
         int lvl = bot.getLevel();
         if (entry.lastKnownLevel == lvl) return;
+        // The first look assigns SP and AP over the bot's own gear; wait until the spawn warm has loaded its item
+        // data (BotGrindAdvisor.warmOwnedGearAsync), so the tick doesn't parse it cold.
+        if (entry.lastKnownLevel == -1 && entry.ownGearWarming) return;
 
         int prev = entry.lastKnownLevel;
         entry.lastKnownLevel = lvl;

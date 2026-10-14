@@ -243,16 +243,7 @@ final class BotGrindAdvisor {
                     });
             for (int id : equipIds) {
                 pool.execute(() -> {
-                    try {
-                        // The gear scan walks the (uncached) WZ item directory once per equip through
-                        // these three: getEquipById (stats + untradeable via its stat loop),
-                        // getEquipmentSlot (primarySlot), getEquipLevelReq (wearable check).
-                        ii.getEquipById(id);
-                        ii.getEquipmentSlot(id);
-                        ii.getEquipLevelReq(id);
-                    } catch (RuntimeException ignored) {
-                        // one corrupt id must not abort the warm — it just stays lazy
-                    }
+                    warmEquipData(ii, id);
                 });
             }
             for (int id : scrollIds) {
@@ -277,6 +268,53 @@ final class BotGrindAdvisor {
         } finally {
             warmLatch.countDown(); // release decides whether the warm fully succeeded or partially failed
         }
+    }
+
+    /** The item data a gear scan reads for one equip, loaded into the ii caches (all ConcurrentHashMap): the
+     *  scan walks the uncached WZ item directory once per equip through getEquipById (stats and untradeable),
+     *  getEquipmentSlot (primarySlot) and getEquipLevelReq (wearable check). A corrupt id stays lazy. */
+    static void warmEquipData(ItemInformationProvider ii, int id) {
+        try {
+            ii.getEquipById(id);
+            ii.getEquipmentSlot(id);
+            ii.getEquipLevelReq(id);
+        } catch (RuntimeException ignored) {
+            // one corrupt id must not abort a warm
+        }
+    }
+
+    private static final java.util.concurrent.ExecutorService OWNED_GEAR_WARM =
+            java.util.concurrent.Executors.newFixedThreadPool(2, r -> {
+                Thread t = new Thread(r, "bot-owned-gear-warmup");
+                t.setDaemon(true);
+                t.setPriority(Thread.MIN_PRIORITY); // never steal CPU from live ticks
+                return t;
+            });
+
+    /** Loads the item data of everything the bot wears and carries, off-thread, at spawn. The boot warm covers
+     *  gear that drops or is sold, not a bot's own inventory, and the first level look (AP build, auto equip
+     *  candidates) read it cold on the tick: a 308 ms stall 4 s after spawn. {@code ownGearWarming} holds that
+     *  first look until this is done. */
+    static void warmOwnedGearAsync(BotEntry entry) {
+        Character bot = entry == null ? null : entry.bot;
+        if (bot == null) {
+            return;
+        }
+        entry.ownGearWarming = true;
+        OWNED_GEAR_WARM.execute(() -> {
+            try {
+                ItemInformationProvider ii = ItemInformationProvider.getInstance();
+                for (InventoryType type : new InventoryType[] {InventoryType.EQUIPPED, InventoryType.EQUIP}) {
+                    for (Item item : bot.getInventory(type).list()) {
+                        warmEquipData(ii, item.getItemId());
+                    }
+                }
+            } catch (RuntimeException e) {
+                log.debug("owned gear warm failed for {}: {}", bot.getName(), e.toString());
+            } finally {
+                entry.ownGearWarming = false;
+            }
+        });
     }
 
     /** Owner asked where to grind: decide (off-thread), then explain the what/why in chat. */

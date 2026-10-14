@@ -1,9 +1,9 @@
 ---
 name: kb_bot_shop_cold_tick_stall
-description: ROOT CAUSES of the 0.4 to 1 s tick-autopilot stalls after boot. Weapon upgrade search loading every shop from MySQL, partition routing loading whole maps, and NPC approach points running one A* per candidate, all on the tick. How they were found (JFR) and fixed. Read before adding a catalog scan, a map load or a search loop to a bot tick.
+description: ROOT CAUSES of the 0.3 to 1 s tick stalls after boot and spawn. Weapon upgrade search loading every shop from MySQL, partition routing loading whole maps, NPC approach points running one A* per candidate, and the first level look parsing the bot's own gear, all on the tick. How they were found (JFR) and fixed. Read before adding a catalog scan, a map load or a search loop to a bot tick.
 type: project
 ---
-# Tick stalls after boot: three causes on the autopilot tick
+# Tick stalls after boot and spawn: four causes on the bot tick
 
 Symptom: `Bot tick stall: <bot> took 400 to 990 ms phases=tick-autopilot=...` within minutes of a boot, a few
 times per boot, worst after a graph version bump. Each cause below was found the same way.
@@ -48,12 +48,18 @@ times per boot, worst after a graph version bump. Each cause below was found the
   per start region. `BotApproachReachabilityTest` checks it agrees with the walk-only search for every
   region pair from every fifth start region in Ellinia.
 
+## 4. First level look read the bot's own gear (308 ms, 4 s after spawn)
+
+- `BotBuildManager.checkLevelUp` on the first observation assigns SP and AP: `resolveApBuild` >
+  `BotEquipManager.collectAutoEquipCandidates` > `ItemInformationProvider.getEquipLevelReq`, a cold WZ parse
+  of what the bot wears and carries. The boot warm covers gear that drops or is sold, not a bot's inventory.
+- Fix: `BotGrindAdvisor.warmOwnedGearAsync`, called at spawn (`registerBotInternal`), loads the item data of the
+  bot's equipped and bagged gear on a background pool; `entry.ownGearWarming` holds the first level look until
+  it's done. The boot warm and this one share `warmEquipData`.
+
 ## Result
 
-Cold restart, 16 bots on 15 maps, 5 minutes: no tick-autopilot stall. One 308 ms `tick-common-systems` stall
-4 s after spawn, before the warm finished: `BotBuildManager.checkLevelUp` > `resolveApBuild` >
-`BotEquipManager.collectAutoEquipCandidates` > `ItemInformationProvider.getEquipLevelReq`, a cold WZ parse of
-the bot's own gear, which the warm does not cover. Left open.
+Cold restart, 16 bots on 15 maps, from spawn through 4 minutes: no tick stall of any kind.
 
 ## Rule
 
