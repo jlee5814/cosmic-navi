@@ -1972,16 +1972,6 @@ final class BotNavigationManager {
                 "retreat-probe");
     }
 
-    static List<BotNavigationGraph.Edge> findPathForApproachProbe(BotNavigationGraph graph,
-                                                                  MapleMap map,
-                                                                  Point startPos,
-                                                                  int startRegionId,
-                                                                  int targetRegionId,
-                                                                  Point targetPos) {
-        return findPathWithGoalHeuristic(graph, map, startPos, startRegionId, targetRegionId, targetPos,
-                "approach-probe");
-    }
-
     /**
      * Production pathfinding heuristic toggle. When {@code true} (default) the search runs the
      * admissible h=0 (Dijkstra) variant: optimal-cost paths, no portal-skipping. Flip to
