@@ -1644,8 +1644,10 @@ final class BotShopManager {
         // this tick. Wait for the warm instead: the check stays due and runs on a later tick.
         if (now >= entry.weaponUpgradeCheckAtMs && BotGrindAdvisor.isWarm()) {
             entry.weaponUpgradeCheckAtMs = now + WEAPON_UPGRADE_RECHECK_MS;
+            long t0 = BotPerformanceMonitor.start();
             Integer found = preferredWeaponBudget(bot) <= 0 ? null
                     : nearestShopMapSelling(entry, bot, shop -> findWeaponUpgradeItem(bot, shop) != null);
+            BotPerformanceMonitor.recordSince("shop-weapon-search", t0);
             entry.weaponUpgradeShopMapId = found == null ? -1 : found;
         }
         int cached = entry.weaponUpgradeShopMapId;
