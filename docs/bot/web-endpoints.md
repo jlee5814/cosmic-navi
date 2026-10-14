@@ -255,6 +255,15 @@ Live admin/tuning surface behind `/admin`. Same SSOT as the GM commands: `BotCon
 
 Destructive verbs require the exact `confirm` token (the page prompts for it) — no real auth, LAN-only.
 
+### `/api/inventory?id=<botCharId>`
+An online bot's four bag tabs, read live from the game: `{id, name, meso, map, tabs:[{type, limit, items:[{s, id, n,
+q, v?, r?}]}]}` with `type` in `EQUIP | USE | SETUP | ETC`, `s` the slot, `n` the item name, `q` the quantity, and `v`
+what the sell pipeline does with it (`sell` on the next shop trip, `shelf` only when the tab is cramped, `keep`)
+with `r` the reason label the `inv debug` dump prints (`BotInventoryManager.bagVerdicts`). Set-up items carry no
+`v`. `404 {"error"}` when the bot isn't online; `503` when the bag changed mid read (poll again). The world map
+page opens it from the **items** button on a bot row (roster or right panel) and polls every 5 s; icons come
+from maplestory.io in the viewer's browser. The **graph** button beside it opens `/mapgraph` for the bot's map.
+
 ## Write API
 
 ### `/api/chat` (GET, POST)

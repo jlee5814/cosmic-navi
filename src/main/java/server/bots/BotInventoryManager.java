@@ -2843,6 +2843,39 @@ class BotInventoryManager {
         return out;
     }
 
+    /** What the sell pipeline does with one bag item: {@code sell} on the next shop trip, {@code shelf} only when
+     *  the tab is cramped, or {@code keep}; {@code reason} is the label the inventory dump prints. */
+    record BagVerdict(String verdict, String reason) {}
+
+    /** Every bag item's verdict, from the same classifiers the sell pipeline and {@link #inventoryDebug} use. Feeds
+     *  the dashboard item window (/api/inventory). Set-up items have no sell rule and are absent. */
+    static Map<Item, BagVerdict> bagVerdicts(BotEntry entry, Character bot) {
+        Map<Item, BagVerdict> out = new IdentityHashMap<>();
+        classifyBagEquips(entry, bot).forEach((item, c) -> out.put(item, switch (c.status()) {
+            case RESV_SELF -> new BagVerdict("keep", "own upgrade");
+            case RESV_OTHER -> new BagVerdict("keep", "promised to a teammate");
+            case HOARD -> new BagVerdict("keep", "valuable, shelf #" + c.rank());
+            case HLIM -> new BagVerdict("sell", "valuable past the shelf, #" + c.rank());
+            case TRASH -> new BagVerdict("sell", "trash");
+        }));
+        Map<Item, UseClass> use = classifyBagUse(bot);
+        for (Item item : bot.getInventory(InventoryType.USE).list()) {
+            UseClass uc = use.get(item);
+            out.put(item, uc == null ? new BagVerdict("keep", "quest-or-untradeable") : switch (uc.tier()) {
+                case JUNK -> new BagVerdict("sell", uc.reason());
+                case RUNWAY -> new BagVerdict("keep", uc.reason());
+                case SHELF -> new BagVerdict("shelf", "shelf #" + uc.shelfRank() + ", " + uc.reason());
+            });
+        }
+        Set<Item> sellingEtc = Collections.newSetFromMap(new IdentityHashMap<>());
+        sellingEtc.addAll(collectSellTrashEtcItems(bot));
+        for (Item item : bot.getInventory(InventoryType.ETC).list()) {
+            boolean sell = sellingEtc.contains(item);
+            out.put(item, new BagVerdict(sell ? "sell" : "keep", etcVerdictReason(bot, item, sell)));
+        }
+        return out;
+    }
+
     // "inv debug" chat command: writes logs/bot-equip/invlog-<name>-<timestamp>.txt with the
     // verdict the REAL sell pipeline would apply to every bag item. Verdicts come from the
     // actual collect* outputs; reasons are coarse labels probed from the same predicates
