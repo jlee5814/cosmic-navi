@@ -1134,6 +1134,28 @@ class BotInventoryManagerTest {
     }
 
     @Test
+    void aFerryTicketIsTravelFareNotTrash() throws Exception {
+        // SipsBuddy2 (2026-10-13): an ETC bag of maker materials (kept) left the Orbis ticket the only ETC trash, so a
+        // cramped bag sent it to the Ludibrium shop to sell the ticket, then back to the station to buy another.
+        Character bot = mock(Character.class);
+        when(bot.getLevel()).thenReturn(70);
+        Inventory etc = new Inventory(bot, InventoryType.ETC, (byte) 24);
+        etc.addItem(Items.itemWithQuantity(4031045, 1)); // Ticket to Orbis, bought for 6,000 meso
+        etc.addItem(Items.itemWithQuantity(4000000, 50)); // a common mob drop
+        when(bot.getInventory(InventoryType.ETC)).thenReturn(etc);
+
+        BotInventoryManager.SellPriceLookup price = (id, qty) -> 10;
+        IntUnaryOperator leftover = id -> -1;
+        IntUnaryOperator dropChance = id -> 600000; // not rare
+        try (AutoCloseable sell = withSellSeams(price, leftover, dropChance);
+             AutoCloseable quest = withQuestSeams(id -> false, id -> List.of(), status(Set.of(), Set.of()))) {
+            List<Item> trash = BotInventoryManager.collectSellTrashEtcItems(bot);
+            assertTrue(trash.stream().noneMatch(it -> it.getItemId() == 4031045), "the ferry ticket must not be sold");
+            assertTrue(trash.stream().anyMatch(it -> it.getItemId() == 4000000), "mob drops still sell");
+        }
+    }
+
+    @Test
     void staleUntradeableQuestItemRespectsUntradeableConfig() throws Exception {
         // A stale quest item flagged untradeable (info/tradeBlock=1, ~26% of quest ETC items).
         // Whether it sells depends on the server's UNTRADEABLE_ITEMS_TRADEABLE config, the same

@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Cross-continent ferry travel, the exact player path: buy the ticket from the seller NPC,
@@ -316,6 +318,14 @@ final class BotFerryManager {
             byMap.put(route.cabinMapId(), route);
         }
         return Map.copyOf(byMap);
+    }
+
+    private static final Set<Integer> TICKET_ITEM_IDS = ROUTES.stream()
+            .map(FerryRoute::ticketItemId).filter(id -> id != 0).collect(Collectors.toUnmodifiableSet());
+
+    /** True for a ticket some ferry line takes as fare: the bot paid thousands for it and needs it to ride. */
+    static boolean isTicket(int itemId) {
+        return TICKET_ITEM_IDS.contains(itemId);
     }
 
     /** All ferry lines boardable from this map (a hub like Orbis has several); empty when none.
