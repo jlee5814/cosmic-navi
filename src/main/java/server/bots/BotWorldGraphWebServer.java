@@ -3,6 +3,9 @@ package server.bots;
 import client.BotClient;
 import client.Character;
 import client.Job;
+import client.inventory.Inventory;
+import client.inventory.InventoryType;
+import client.inventory.Item;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import net.server.Server;
@@ -15,6 +18,7 @@ import provider.DataProvider;
 import provider.DataProviderFactory;
 import provider.DataTool;
 import provider.wz.WZFiles;
+import server.ItemInformationProvider;
 import server.bots.llm.BotLlmConfig;
 import server.life.LifeFactory;
 import server.life.MonsterInformationProvider;
@@ -255,9 +259,9 @@ public final class BotWorldGraphWebServer {
         send(ex, 200, "application/json", BotDashboardChat.json(id).getBytes(StandardCharsets.UTF_8));
     }
 
-    private static final client.inventory.InventoryType[] BAG_TABS = {
-            client.inventory.InventoryType.EQUIP, client.inventory.InventoryType.USE,
-            client.inventory.InventoryType.SETUP, client.inventory.InventoryType.ETC};
+    private static final InventoryType[] BAG_TABS = {
+            InventoryType.EQUIP, InventoryType.USE,
+            InventoryType.SETUP, InventoryType.ETC};
 
     /** GET /api/inventory?id=botCharId: an online bot's four bag tabs, live, with what the sell pipeline does with
      *  each item (BotInventoryManager.bagVerdicts). Drives the dashboard item window. */
@@ -286,13 +290,13 @@ public final class BotWorldGraphWebServer {
     }
 
     private static String inventoryJson(BotEntry e, Character bot) {
-        server.ItemInformationProvider ii = server.ItemInformationProvider.getInstance();
-        Map<client.inventory.Item, BotInventoryManager.BagVerdict> verdicts = BotInventoryManager.bagVerdicts(e, bot);
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
+        Map<Item, BotInventoryManager.BagVerdict> verdicts = BotInventoryManager.bagVerdicts(e, bot);
         List<String> tabs = new ArrayList<>();
-        for (client.inventory.InventoryType type : BAG_TABS) {
-            client.inventory.Inventory inv = bot.getInventory(type);
+        for (InventoryType type : BAG_TABS) {
+            Inventory inv = bot.getInventory(type);
             List<String> items = new ArrayList<>();
-            for (client.inventory.Item item : inv.list()) {
+            for (Item item : inv.list()) {
                 String name = ii.getName(item.getItemId());
                 BotInventoryManager.BagVerdict v = verdicts.get(item);
                 items.add("{\"s\":" + item.getPosition() + ",\"id\":" + item.getItemId()
