@@ -110,6 +110,27 @@ class BotRosterPlanTest {
         assertFalse(BotTrainingPlan.complete(main, main.bot)); // 120+ farmer keeps farming
     }
 
+    /** Live 2026-10-14: an RTS move to another map left SipsBuddy86 (beginner at its cap of 10) standing in
+     *  Henesys. The move travels on the autopilot destination, and the cap stopped it on the next tick. */
+    @Test
+    void theTrainingCapStopsFarmingButNotAnOperatorMove() {
+        BotEntry entry = entry(Job.BEGINNER, Job.BEGINNER, 10, 10);
+        entry.autopilotMapId = 100000200;
+        BotManager manager = mock(BotManager.class);
+        try (MockedStatic<BotManager> bm = mockStatic(BotManager.class)) {
+            bm.when(BotManager::getInstance).thenReturn(manager);
+            entry.operatorCmd = BotEntry.OperatorCmd.MOVE;
+            assertFalse(BotTrainingPlan.holdsAtCap(entry, entry.bot));
+            BotTrainingPlan.stopIfComplete(entry, entry.bot);
+            verify(manager, org.mockito.Mockito.never()).issueStop(entry);
+
+            entry.operatorCmd = null;
+            assertTrue(BotTrainingPlan.holdsAtCap(entry, entry.bot));
+            BotTrainingPlan.stopIfComplete(entry, entry.bot);
+            verify(manager).issueStop(entry);
+        }
+    }
+
     @Test
     void delegatedThiefPlanSelectsItsWeaponLineEvenWithOwnerOnline() {
         BotEntry entry = entry(Job.THIEF, Job.BANDIT, 10, 35);
