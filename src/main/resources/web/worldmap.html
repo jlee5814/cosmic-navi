@@ -31,6 +31,19 @@
   #chatLog{max-height:220px;overflow:auto;line-height:1.45;font-size:12px;margin:4px 0}
   #chatLog .you{color:#9fb0c8}
   #chatLog .bot{color:#ffd9a8}
+  #itemsBox{margin-top:10px;border-top:1px solid #283143;padding-top:8px}
+  #itemsTabs{display:flex;gap:4px;margin:6px 0}
+  #itemsTabs button{font-size:11px;padding:2px 6px}
+  #itemsTabs button.on{background:#2c3a55;border-color:#6cc6ff}
+  #itemsGrid{display:grid;grid-template-columns:repeat(4,34px);gap:2px;max-height:420px;overflow:auto;width:max-content}
+  #itemsGrid .c{width:34px;height:34px;background:#171c26;border:1px solid #283143;box-sizing:border-box;position:relative;
+    display:flex;align-items:center;justify-content:center;font-size:8px;color:#9fb0c8}
+  #itemsGrid .c.f{background:#232b3a}
+  #itemsGrid img{max-width:30px;max-height:30px;image-rendering:pixelated}
+  #itemsGrid .q{position:absolute;right:1px;bottom:0;font:bold 9px sans-serif;color:#fff;text-shadow:0 0 2px #000,0 0 2px #000}
+  #itemsGrid .v{position:absolute;left:2px;top:2px;width:6px;height:6px;border-radius:50%}
+  #itemsGrid .v.sell{background:#ff5d5d} #itemsGrid .v.shelf{background:#ffb84d}
+  #itemsWhy{font-size:11px;color:#9fb0c8;margin-top:6px;line-height:1.4}
   a{color:#6cc6ff}
   input{width:100%;box-sizing:border-box;background:#0d1017;color:#cdd6e4;border:1px solid #283143;border-radius:4px;padding:5px 7px;margin:4px 0}
   #status{margin-top:8px;color:#9fb0c8}
@@ -144,7 +157,8 @@
   <div id="fontRow">font size<input id="fontSlider" type="range" min="10" max="22" value="13"></div>
   <h1>Bot World Map</h1>
   <p class="sub">drag map to move &middot; click map to resize &middot; scroll to zoom<br>
-     click node: detail &middot; double-click node: map graph (middle-click: new tab) &middot; right-click node: custom anchor (relative/absolute)</p>
+     click node: detail &middot; double-click node: map graph (middle-click: new tab) &middot; right-click node: custom anchor (relative/absolute)<br>
+     bot row: <b>graph</b> opens its map graph &middot; <b>items</b> shows its bags</p>
   <button id="lockBtn">&#128274; Locked</button>
   <button id="export">Export positions</button>
   <button id="fit">Reset view</button>
@@ -162,6 +176,15 @@
     <div class="meta">you speak as its owner: commands and chat, replies show here only</div>
     <div id="chatLog"></div>
     <form id="chatForm"><input id="chatIn" maxlength="200" autocomplete="off" placeholder="say something"></form>
+  </div>
+  <div id="itemsBox" hidden>
+    <div><b id="itemsWho"></b> <button class="ggBtn" onclick="closeItems()">close</button></div>
+    <div class="meta" id="itemsMeta"></div>
+    <div id="itemsTabs"></div>
+    <div id="itemsGrid"></div>
+    <div id="itemsWhy"></div>
+    <div class="meta" style="margin-top:4px"><span style="color:#ff5d5d">&#9679;</span> sells next shop trip
+      &middot; <span style="color:#ffb84d">&#9679;</span> sells only when the tab is cramped &middot; no dot: kept</div>
   </div>
 </div>
 <div id="tip"></div>
@@ -538,6 +561,52 @@ document.getElementById('chatForm').addEventListener('submit', ev => {
   }).catch(()=>{});
 });
 
+// ---- dashboard item window for one bot (/api/inventory): its four bag tabs, live -----------------------
+// Icons come from maplestory.io (GMS v83) in the viewer's browser; without it a cell shows the item id.
+const ITEM_TABS = [['EQUIP','Equip'],['USE','Use'],['SETUP','Set-up'],['ETC','Etc']];
+let itemsId = 0, itemsTimer = null, itemsTab = 'ETC', itemsData = null;
+function openItems(id, name){
+  itemsId = id; itemsData = null;
+  document.getElementById('itemsWho').textContent = 'Items: ' + name;
+  document.getElementById('itemsBox').hidden = false;
+  pollItems(); clearInterval(itemsTimer); itemsTimer = setInterval(pollItems, 5000);
+}
+function closeItems(){ itemsId = 0; clearInterval(itemsTimer); document.getElementById('itemsBox').hidden = true; }
+function pollItems(){ const id = itemsId; if(!id) return;
+  fetch('/api/inventory?id='+id).then(r=>r.json()).then(d => {
+    if(itemsId !== id) return;
+    if(d.error){ document.getElementById('itemsMeta').textContent = d.error; return; }
+    itemsData = d; showItems();
+  }).catch(()=>{}); }
+function itemsSetTab(t){ itemsTab = t; showItems(); }
+function showItems(){
+  const d = itemsData; if(!d) return;
+  document.getElementById('itemsMeta').textContent = mapName(d.map) + ' \u00b7 ' + d.meso.toLocaleString() + ' meso \u00b7 updated '
+    + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('itemsTabs').innerHTML = ITEM_TABS.map(([t,label]) => {
+    const tab = d.tabs.find(x => x.type === t); if(!tab) return '';
+    return '<button class="'+(t===itemsTab?'on':'')+'" onclick="itemsSetTab(\''+t+'\')">'+label+' '+tab.items.length+'/'+tab.limit+'</button>';
+  }).join('');
+  const tab = d.tabs.find(x => x.type === itemsTab); if(!tab) return;
+  const bySlot = {}; tab.items.forEach(it => bySlot[it.s] = it);
+  let cells = '';
+  for(let s = 1; s <= tab.limit; s++){
+    const it = bySlot[s];
+    if(!it){ cells += '<div class="c"></div>'; continue; }
+    const tip = (it.n || ('item '+it.id)) + ' (' + it.id + ') x' + it.q + (it.v ? ' \u00b7 ' + it.v + ': ' + it.r : '');
+    cells += '<div class="c f" title="'+esc(tip).replace(/"/g,'&quot;')+'">'
+      + '<img loading="lazy" src="https://maplestory.io/api/GMS/83/item/'+it.id+'/icon" alt="'+it.id+'"'
+      + ' onerror="this.replaceWith(document.createTextNode(\''+it.id+'\'))">'
+      + (it.v === 'sell' || it.v === 'shelf' ? '<span class="v '+it.v+'"></span>' : '')
+      + (itemsTab !== 'EQUIP' && it.q > 1 ? '<span class="q">'+it.q+'</span>' : '') + '</div>';
+  }
+  document.getElementById('itemsGrid').innerHTML = cells;
+  const why = {};
+  tab.items.forEach(it => { const k = it.v ? it.v + ': ' + it.r.replace(/,? ?#\d+/g, '') : 'no sell rule'; why[k] = (why[k]||0) + 1; });
+  document.getElementById('itemsWhy').innerHTML = Object.entries(why).sort((a,b) => b[1]-a[1])
+    .map(([k,n]) => esc(k) + ' <b>' + n + '</b>').join(' &middot; ');
+}
+
 // ---- shared hover tooltip (map nodes + roster rows) -----------------------------------------------
 const mobCache = {};   // mapId -> [{name,level,spawns}] | 'pending'  (mob spawn data is static WZ -> cache forever)
 function ensureMobs(mapId, cb){
@@ -658,6 +727,10 @@ function rowHtml(it, opts){
     + (it.bot?'&#129302; ':'&#128100; ') + esc(it.c.n) + ' <span class="meta">Lv'+it.c.l+' '+esc(it.c.j)+'</span>'
     + (opts.chat && it.bot && it.c.c ? '<button class="ggBtn" title="chat with this bot" onclick="event.stopPropagation();openChat('
         + it.c.id + ',this.dataset.n)" data-n="'+esc(it.c.n).replace(/"/g,'&quot;')+'">chat</button>' : '')
+    + (it.bot ? '<button class="ggBtn" title="open the map graph of the map this bot is on" onclick="event.stopPropagation();'
+        + 'location.href=\'/mapgraph?id='+it.map+'\'">graph</button>'
+        + '<button class="ggBtn" title="show this bot\'s bags" onclick="event.stopPropagation();openItems('
+        + it.c.id + ',this.dataset.n)" data-n="'+esc(it.c.n).replace(/"/g,'&quot;')+'">items</button>' : '')
     + (meta!=='' ? '<br><span class="meta">'+meta+'</span>' : '') + '</div>';
 }
 // nesting: party (outer box) > crew (inner box) > loose rows. Boxes only form at >=2 members.
