@@ -229,6 +229,10 @@ final class BotGrindAdvisor {
                     }
                 }
             }
+            // NPC shops and the equips they sell: the weapon upgrade search reads them all on a bot tick.
+            int dropEquips = equipIds.size();
+            equipIds.addAll(BotShopManager.warmShopCatalog());
+            int shopEquips = equipIds.size() - dropEquips;
             int workers = Math.max(2, Math.min(8, Runtime.getRuntime().availableProcessors() - 2));
             java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(
                     workers, r -> {
@@ -266,8 +270,8 @@ final class BotGrindAdvisor {
                 Thread.currentThread().interrupt();
                 pool.shutdownNow();
             }
-            log.info("Bot grind cache warmup: warmed {} equip + {} scroll catalog entries (droppable set, {} workers)",
-                    equipIds.size(), scrollIds.size(), workers);
+            log.info("Bot grind cache warmup: warmed {} equip ({} only sold in shops) + {} scroll catalog entries ({} workers)",
+                    equipIds.size(), shopEquips, scrollIds.size(), workers);
         } catch (RuntimeException e) {
             log.warn("Bot grind cache warmup failed; decisions will lazy-load as before", e);
         } finally {

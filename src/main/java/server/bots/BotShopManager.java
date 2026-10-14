@@ -1552,6 +1552,25 @@ final class BotShopManager {
         return shopNpcIds;
     }
 
+    /** Boot warm hook (BotGrindAdvisor.warmGrindData): loads every NPC shop off-thread and returns the equips they
+     *  sell, for the warm to parse with the drop catalog. Cold, the first weapon upgrade search loaded each shop from
+     *  the database and parsed its weapons on a bot tick (a 0.5 to 0.65 s stall per boot). */
+    static java.util.Set<Integer> warmShopCatalog() {
+        java.util.Set<Integer> equips = new java.util.LinkedHashSet<>();
+        for (int npc : shopNpcIds()) {
+            Shop shop = ShopFactory.getInstance().getShopForNPC(npc);
+            if (shop == null) {
+                continue;
+            }
+            for (ShopItem si : shop.getItems()) {
+                if (ItemConstants.isEquipment(si.getItemId())) {
+                    equips.add(si.getItemId());
+                }
+            }
+        }
+        return equips;
+    }
+
     /** The map with the shortest route (portals, ships and taxis, danger gated) whose shop NPC passes
      *  {@code accept}. Uses the shop catalog and the NPC placement index instead of loading maps, so it
      *  can look across continents: the nearby scan stopped at six portals and never reached the Orbis or
@@ -1621,7 +1640,9 @@ final class BotShopManager {
             return null;
         }
         long now = System.currentTimeMillis();
-        if (now >= entry.weaponUpgradeCheckAtMs) {
+        // The search reads every shop and its weapons; until the boot warm has loaded them it would pay that on
+        // this tick. Wait for the warm instead: the check stays due and runs on a later tick.
+        if (now >= entry.weaponUpgradeCheckAtMs && BotGrindAdvisor.isWarm()) {
             entry.weaponUpgradeCheckAtMs = now + WEAPON_UPGRADE_RECHECK_MS;
             Integer found = preferredWeaponBudget(bot) <= 0 ? null
                     : nearestShopMapSelling(entry, bot, shop -> findWeaponUpgradeItem(bot, shop) != null);
