@@ -1858,7 +1858,8 @@ final class BotPhysicsEngine {
      * where it faces, with UP held as knockback recovery holds it, so a rope the arc reaches is grabbed and
      * there is no ground to rest on ({@code lostGround}). A recoil that falls far enough hurts again once the
      * hit invincibility has run out. {@code facingDir} 0 is unknown and skips the recoil; callers that don't
-     * know the facing settle both ways. Then {@link #simulatePostLandingGroundTicks} with {@code holdDir}.
+     * know the facing settle both ways. Then {@link #simulatePostLandingGroundTicks} with {@code holdDir}, the key
+     * the executor holds once grounded again (a jump's launch key, which brakes the recoil's slide).
      */
     static PostLandingJump settleLanding(MapleMap map, JumpLanding landing, int facingDir, int holdDir,
                                          BotMovementProfile profile, int ticks) {
@@ -1884,7 +1885,6 @@ final class BotPhysicsEngine {
                 return new PostLandingJump(landing, from, null, true);
             }
             current = recoil;
-            holdDir = 0;
         }
         PostLandingJump settled = simulatePostLandingGroundTicks(map, current, holdDir, profile, ticks);
         return settled == null ? null
