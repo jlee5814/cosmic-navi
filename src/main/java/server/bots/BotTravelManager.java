@@ -1121,14 +1121,14 @@ final class BotTravelManager {
         int startRegionId = graph != null
                 ? BotNavigationManager.resolveCurrentRegionId(graph, entry, map, botPos) : -1;
         // Close de-stack ring first: a random reachable foothold within destackPx (unchanged behavior).
-        List<Point> near = approachCandidates(entry, bot, map, graph, startRegionId, botPos, targetPos, destackPx);
+        List<Point> near = approachCandidates(entry, bot, map, graph, startRegionId, targetPos, destackPx);
         if (!near.isEmpty()) {
             return near.get(ThreadLocalRandom.current().nextInt(near.size()));
         }
         // Nothing reachable close — the NPC is off the graph. Widen to maxPx and take the NEAREST
         // reachable foothold (with a destack band around it) so the bot still lands within reach.
         if (maxPx > destackPx) {
-            List<Point> wide = approachCandidates(entry, bot, map, graph, startRegionId, botPos, targetPos, maxPx);
+            List<Point> wide = approachCandidates(entry, bot, map, graph, startRegionId, targetPos, maxPx);
             if (!wide.isEmpty()) {
                 long best = Long.MAX_VALUE;
                 for (Point p : wide) {
@@ -1151,7 +1151,7 @@ final class BotTravelManager {
      *  nav-reachable ones when a graph + start region are available (else all within radius — the
      *  graph-less fallback the old code used). */
     private static List<Point> approachCandidates(BotEntry entry, Character bot, MapleMap map,
-            BotNavigationGraph graph, int startRegionId, Point botPos, Point targetPos, int radiusPx) {
+            BotNavigationGraph graph, int startRegionId, Point targetPos, int radiusPx) {
         List<Point> candidates = new ArrayList<>();
         for (Foothold fh : map.getFootholds().getAllFootholds()) {
             int fx1 = fh.getX1(), fy1 = fh.getY1(), fx2 = fh.getX2(), fy2 = fh.getY2();
@@ -1171,15 +1171,12 @@ final class BotTravelManager {
         if (graph == null || startRegionId < 0) {
             return candidates; // no graph to verify against -> all within radius
         }
+        // Walk-only reachability from the graph's cached search (BotNavigationGraph.canReach). One A* per
+        // candidate (up to 21 per foothold in range) cost 440 ms in one tick for an Ellinia quest NPC.
         List<Point> reachable = new ArrayList<>();
         for (Point candidate : candidates) {
             int targetRegionId = BotNavigationManager.resolveTargetRegionId(graph, entry, map, candidate);
-            if (targetRegionId < 0) {
-                continue;
-            }
-            if (startRegionId == targetRegionId
-                    || !BotNavigationManager.findPathForApproachProbe(graph, map, botPos,
-                            startRegionId, targetRegionId, candidate).isEmpty()) {
+            if (targetRegionId >= 0 && graph.canReach(startRegionId, targetRegionId, 0)) {
                 reachable.add(candidate);
             }
         }
