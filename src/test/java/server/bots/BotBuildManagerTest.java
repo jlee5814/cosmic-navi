@@ -91,6 +91,24 @@ class BotBuildManagerTest {
     }
 
     @Test
+    void theFirstLevelLookWaitsForTheSpawnWarmOfTheBotsOwnGear() {
+        Character bot = mock(Character.class);
+        BotEntry entry = new BotEntry(bot, mock(Character.class), mock(ScheduledFuture.class));
+        when(bot.getLevel()).thenReturn(120);
+        when(bot.getJob()).thenReturn(Job.HERO);
+        when(bot.getRemainingSps()).thenReturn(new int[5]);
+        when(bot.getRemainingAp()).thenReturn(0);
+
+        entry.ownGearWarming = true;
+        BotBuildManager.checkLevelUp(entry, bot);
+        assertEquals(-1, entry.lastKnownLevel, "still warming: no first look yet");
+
+        entry.ownGearWarming = false;
+        BotBuildManager.checkLevelUp(entry, bot);
+        assertEquals(120, entry.lastKnownLevel);
+    }
+
+    @Test
     void initialSyncHeroKeepsPendingSpUntilVariantIsChosen() {
         Character bot = mock(Character.class);
         BotEntry entry = new BotEntry(bot, mock(Character.class), mock(ScheduledFuture.class));
