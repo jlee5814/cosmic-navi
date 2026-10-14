@@ -679,7 +679,7 @@ final class BotAutopilotManager {
      * grind/combat flow.
      */
     static boolean tick(BotEntry entry, Character bot, boolean runAiTick) {
-        if (BotTrainingPlan.complete(entry, bot)) {
+        if (BotTrainingPlan.holdsAtCap(entry, bot)) {
             BotTrainingPlan.stopIfComplete(entry, bot);
             return true;
         }

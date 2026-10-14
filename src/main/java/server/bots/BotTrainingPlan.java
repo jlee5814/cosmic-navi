@@ -24,8 +24,14 @@ final class BotTrainingPlan {
                 && BotBuildManager.autoAdvanceTarget(entry, bot) == null;
     }
 
+    /** At its cap with no operator command live: the cap stops the bot's own farming, never an order someone
+     *  gave it (an RTS or dashboard move travels on the autopilot destination too). */
+    static boolean holdsAtCap(BotEntry entry, Character bot) {
+        return entry.operatorCmd == null && complete(entry, bot);
+    }
+
     static void stopIfComplete(BotEntry entry, Character bot) {
-        if (complete(entry, bot) && (entry.grinding || BotAutopilotManager.isActive(entry))) {
+        if (holdsAtCap(entry, bot) && (entry.grinding || BotAutopilotManager.isActive(entry))) {
             BotManager.getInstance().issueStop(entry);
         }
     }
