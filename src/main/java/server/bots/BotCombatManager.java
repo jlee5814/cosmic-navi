@@ -437,8 +437,7 @@ class BotCombatManager {
         int dmg = fallDamageFromDistance(fallDistancePx);
         if (dmg <= 0) return;
         int dirSign = entry.facingDir >= 0 ? 1 : -1;
-        int airVelX = Math.round(-dirSign * scaledOpenStoryStep(cfg.KNOCKBACK_HSPEED));
-        applyDamage(entry, bot, dmg, -3, 0, 0, airVelX);
+        applyDamage(entry, bot, dmg, -3, 0, 0, knockbackAirVelX(-dirSign));
     }
 
     /**
@@ -524,7 +523,7 @@ class BotCombatManager {
         if (entry.inAir) {
             BotPhysicsEngine.applyAirKnockback(entry, bot, knockbackAirVelX);
         } else {
-            BotPhysicsEngine.beginKnockback(entry, bot, botPos, -scaledOpenStoryStep(cfg.KNOCKBACK_VFORCE), knockbackAirVelX);
+            BotPhysicsEngine.beginKnockback(entry, bot, botPos, knockbackVelY(), knockbackAirVelX);
         }
         BotMovementManager.broadcastMovement(entry);
     }
@@ -550,8 +549,17 @@ class BotCombatManager {
     private static MobHitKnockback resolveMobHitKnockback(Point botPos, Point attackOrigin) {
         boolean attackFromRight = attackOrigin.x > botPos.x;
         int direction = attackFromRight ? 0 : 1;
-        int airVelX = Math.round((attackFromRight ? -1f : 1f) * scaledOpenStoryStep(cfg.KNOCKBACK_HSPEED));
-        return new MobHitKnockback(direction, airVelX);
+        return new MobHitKnockback(direction, knockbackAirVelX(attackFromRight ? -1 : 1));
+    }
+
+    /** Horizontal launch of a hit's knockback, toward {@code awayDir} (-1 left, 1 right), in air px per tick. */
+    static int knockbackAirVelX(int awayDir) {
+        return Math.round(awayDir * scaledOpenStoryStep(cfg.KNOCKBACK_HSPEED));
+    }
+
+    /** Vertical launch of a grounded hit's knockback (negative is up), in px per tick. */
+    static float knockbackVelY() {
+        return -scaledOpenStoryStep(cfg.KNOCKBACK_VFORCE);
     }
 
     private static float scaledOpenStoryStep(float openStoryStepValue) {

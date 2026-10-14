@@ -45,7 +45,7 @@ final class BotNavigationGraphProvider {
     //     inside an 8.93 x fs px/s band (no walkSpeed air cap; counter-strafe pins at the
     //     band edge) and no-input flight drags 1 x fs (100 x fs at terminal fall). Committed
     //     arcs still fly the launch key held, so constant-stepX arc sims stay exact.
-    private static final int GRAPH_VERSION = 77; // 51: kinetic slippery model + snowshoes; 52: brake-to-stop landings; 53: glide-unless-edge stop policy (slipperyStopDir); 56: uncap straight-drop launch windows (full droppable span, no +/-20 fragmentation); 57: remove the (empirically wrong) 300px down-jump drop cap - down-jumps fall until landing; 58: rope-grab reach counts descent below the ledge (mid-rope jump-grabs from adjacent platforms); 59: fall-sim caps to map height not 1500ms - long single-fall descents (tall shafts: Ellinia tree, Perion) now generate DROP/JUMP/ROPE edges; 60: teleport (mage) + flash-jump (thief) skill edges; 61: teleport snap = physics SSOT intent (BotPhysicsEngine.teleportLanding — horizontal same-level priority, blocked-if-none); 62: rope-exit/transfer CLIMB edges carry a Y launch window [launchMinY,launchMaxY] (collapses ~anchorYs×3 near-duplicate same-region jump-offs into one windowed edge, mirroring ground-jump X windows); 63: serialized source-bucketed routes from every region to every portal region; 64: flash-jump edges carry an X launch window (same expand/boundary treatment as ground JUMP) — collapses ~per-anchor FJ point-edges into one windowed edge, mirroring JUMP/DROP/rope windows; 65: teleport edges carry an X launch window too (same treatment; exec computes the blink dest live from the bot's position via the physics SSOT) + down-teleport snaps to FURTHEST platform within range + horizontal y-snap band 70→75; 66: ground-walk follows the standing foothold's prev/next chain across a joined fork (client SN model) instead of snapping down onto the lower overlapping arm — fixes the region-11 (100040000) fork walk-trap that stranded/oscillated bots on the dead-end spur; 67: skip phantom cross-region JUMP/FLASH_JUMP edges whose landing is on ground the SOURCE region already covers (overlapping/coincident chains, e.g. map 600020100 r73 ramp-foot over r97 flat) — such an edge can never change region (client tracks the standing-foothold chain) and trapped bots oscillating against an unexecutable jump-pos gate; 68: the ground probe (findBelowIndexed) returns the NEAREST foothold below, not the first in Foothold.compareTo order, which ties a long steep slope with every flat platform in its y range (map 682000100: falls passed through the stair rail and jumps passed through the 325 floor, so the lower floor had no path up); 69: ground walking passes a wall whose foot stands on another chain's floor (BotPhysicsEngine.wallFootJoins; map 600020100: the layer 3 wall at x -1315 on the layer 5 floor stopped every bot from portal st00, the physics half of 67; 70: the ground wall check reads the standing foothold's whole floor chain (BotPhysicsEngine.wallJoinsChain), so walk off drops are no longer authored into a wall that rises from the chain's far end (maps 800030000 x 84, 800000000 x 4461: issue #30); 71: no walk off drop where the first step off the ledge is blocked, which catches a platform ending at the map's side edge (35 phantom drops on 18 maps found by BotEdgeSweepCli); 72: no walk off drop where the first step past the ledge stays on the ground, as when a small wall joins the rest of the chain (map 600000000 x 1715 and x 4077); 73: no walk off drop where the step into the region end is blocked by a wall rising from it (map 600000000 x 1748), and a landing beats a wall reached later in the same air step (map 600000000 x 5136); 74: ground detection probes just above the position too and takes the closest ground, so a slope whose height truncates a pixel above the bot is not swapped for a branch above it (map 101000301 fh 26 under fh 25); 75: offline arcs keep the launch key held after a wall, as the executor does, so a jump that rises past a low wall drifts over it instead of landing back at its foot (maps 541000000, 600020200); 76: walk regions only from footholds drawn left to right, the ground the probe stands on; right to left ones (undersides) made phantom regions (220000100, 800000000), and they stay jump feature anchors; 77: walk off drops fall from past the end at every walk carry phase (1 to 7 px out, 6 or 7 px/tick) and target the region where at least three in four of them settle, or none (stairs on 100000000, 103000000: live bots landed 10 to 19 px further; Henesys x 321 stair is a coin flip))
+    private static final int GRAPH_VERSION = 78; // 51: kinetic slippery model + snowshoes; 52: brake-to-stop landings; 53: glide-unless-edge stop policy (slipperyStopDir); 56: uncap straight-drop launch windows (full droppable span, no +/-20 fragmentation); 57: remove the (empirically wrong) 300px down-jump drop cap - down-jumps fall until landing; 58: rope-grab reach counts descent below the ledge (mid-rope jump-grabs from adjacent platforms); 59: fall-sim caps to map height not 1500ms - long single-fall descents (tall shafts: Ellinia tree, Perion) now generate DROP/JUMP/ROPE edges; 60: teleport (mage) + flash-jump (thief) skill edges; 61: teleport snap = physics SSOT intent (BotPhysicsEngine.teleportLanding — horizontal same-level priority, blocked-if-none); 62: rope-exit/transfer CLIMB edges carry a Y launch window [launchMinY,launchMaxY] (collapses ~anchorYs×3 near-duplicate same-region jump-offs into one windowed edge, mirroring ground-jump X windows); 63: serialized source-bucketed routes from every region to every portal region; 64: flash-jump edges carry an X launch window (same expand/boundary treatment as ground JUMP) — collapses ~per-anchor FJ point-edges into one windowed edge, mirroring JUMP/DROP/rope windows; 65: teleport edges carry an X launch window too (same treatment; exec computes the blink dest live from the bot's position via the physics SSOT) + down-teleport snaps to FURTHEST platform within range + horizontal y-snap band 70→75; 66: ground-walk follows the standing foothold's prev/next chain across a joined fork (client SN model) instead of snapping down onto the lower overlapping arm — fixes the region-11 (100040000) fork walk-trap that stranded/oscillated bots on the dead-end spur; 67: skip phantom cross-region JUMP/FLASH_JUMP edges whose landing is on ground the SOURCE region already covers (overlapping/coincident chains, e.g. map 600020100 r73 ramp-foot over r97 flat) — such an edge can never change region (client tracks the standing-foothold chain) and trapped bots oscillating against an unexecutable jump-pos gate; 68: the ground probe (findBelowIndexed) returns the NEAREST foothold below, not the first in Foothold.compareTo order, which ties a long steep slope with every flat platform in its y range (map 682000100: falls passed through the stair rail and jumps passed through the 325 floor, so the lower floor had no path up); 69: ground walking passes a wall whose foot stands on another chain's floor (BotPhysicsEngine.wallFootJoins; map 600020100: the layer 3 wall at x -1315 on the layer 5 floor stopped every bot from portal st00, the physics half of 67; 70: the ground wall check reads the standing foothold's whole floor chain (BotPhysicsEngine.wallJoinsChain), so walk off drops are no longer authored into a wall that rises from the chain's far end (maps 800030000 x 84, 800000000 x 4461: issue #30); 71: no walk off drop where the first step off the ledge is blocked, which catches a platform ending at the map's side edge (35 phantom drops on 18 maps found by BotEdgeSweepCli); 72: no walk off drop where the first step past the ledge stays on the ground, as when a small wall joins the rest of the chain (map 600000000 x 1715 and x 4077); 73: no walk off drop where the step into the region end is blocked by a wall rising from it (map 600000000 x 1748), and a landing beats a wall reached later in the same air step (map 600000000 x 5136); 74: ground detection probes just above the position too and takes the closest ground, so a slope whose height truncates a pixel above the bot is not swapped for a branch above it (map 101000301 fh 26 under fh 25); 75: offline arcs keep the launch key held after a wall, as the executor does, so a jump that rises past a low wall drifts over it instead of landing back at its foot (maps 541000000, 600020200); 76: walk regions only from footholds drawn left to right, the ground the probe stands on; right to left ones (undersides) made phantom regions (220000100, 800000000), and they stay jump feature anchors; 77: walk off drops fall from past the end at every walk carry phase (1 to 7 px out, 6 or 7 px/tick) and target the region where at least three in four of them settle, or none (stairs on 100000000, 103000000: live bots landed 10 to 19 px further; Henesys x 321 stair is a coin flip); 78: a jump or straight drop landing that deals fall damage settles where the recoil throws the bot (BotPhysicsEngine.settleLanding), away from its facing, grabbing a rope the arc reaches, and the edge ends there; a straight drop that hurts gets an edge per facing's rest region and the executor turns to it before dropping; walk offs keep v77's settle; no fall in water (120 of 133 swept landings elsewhere were long falls: 101020000, 221023400 tower jumps))
     /** The nav-graph cache version. The partition cache derives from these graphs, so it keys its own
      *  on-disk cache by this number — a graph-version bump invalidates persisted partitions too. */
     static int graphVersion() {
@@ -1121,22 +1121,20 @@ final class BotNavigationGraphProvider {
                 continue;
             }
 
-            JumpLaunchWindow launchWindow = expandDownJumpLaunchWindow(
-                    from, map, regionIdByFootholdId, anchor.x, movementProfile);
-            if (launchWindow == null) {
-                continue;
+            // One edge per region the drop can rest in: a drop that hurts rests where the recoil throws the bot,
+            // which depends on its facing, and the executor turns to the one the edge needs.
+            for (DropLanding anchorDrop : dropLandings(from, map, regionIdByFootholdId, anchor.x, movementProfile)) {
+                JumpLaunchWindow launchWindow = expandDownJumpLaunchWindow(
+                        from, map, regionIdByFootholdId, anchor.x, anchorDrop.regionId(), movementProfile);
+                BotNavigationGraph.Region below = regionsById.get(anchorDrop.regionId());
+                if (launchWindow == null || below == null) {
+                    continue;
+                }
+                addEdge(from.id, below.id, BotNavigationGraph.EdgeType.DROP,
+                        launchWindow.startPoint(), launchWindow.endPoint(),
+                        launchWindow.minX(), launchWindow.maxX(),
+                        0, 0, launchWindow.landingTimeMs(), outgoing, edgeKeys);
             }
-
-            int toRegionId = findRegionIdBelow(map, regionIdByFootholdId, launchWindow.endPoint());
-            BotNavigationGraph.Region below = regionsById.get(toRegionId);
-            if (below == null || below.id == from.id) {
-                continue;
-            }
-
-            addEdge(from.id, below.id, BotNavigationGraph.EdgeType.DROP,
-                    launchWindow.startPoint(), launchWindow.endPoint(),
-                    launchWindow.minX(), launchWindow.maxX(),
-                    0, 0, launchWindow.landingTimeMs(), outgoing, edgeKeys);
         }
     }
 
@@ -1217,7 +1215,9 @@ final class BotNavigationGraphProvider {
         // mostly clears it). So every phase is simulated and the drop targets the region where they settle,
         // authored only when at least three in four agree; the rest replan from where they land. A coin flip
         // is no edge (the Henesys stairs). The executor steers to the landing point once airborne, so the
-        // settle holds no key.
+        // settle holds no key, and the facing at touch down is not the launch direction (it can be the last
+        // correction back toward the landing point: 105070001 x 2410). With the fall damage recoil direction
+        // unknown, the settle skips it (facing 0), as v77 did; that matched 118 of 120 swept walk offs that hurt.
         Map<Integer, Integer> settledCount = new HashMap<>();
         Map<Integer, BotPhysicsEngine.JumpLanding> landingByRegion = new HashMap<>();
         int phases = 0;
@@ -1226,7 +1226,8 @@ final class BotNavigationGraphProvider {
                 phases++;
                 BotPhysicsEngine.JumpLanding phaseLanding = BotPhysicsEngine.simulateFallLanding(map,
                         new Point(endpoint.x + out * direction, endpoint.y), speed * direction);
-                int regionId = settledRegionId(map, phaseLanding, regionIdByFootholdId, movementProfile);
+                int regionId = restRegionId(settledLanding(map, phaseLanding, 0, movementProfile),
+                        regionIdByFootholdId);
                 if (regionId >= 0) {
                     settledCount.merge(regionId, 1, Integer::sum);
                     // The nominal phase (one walk step out at walk speed) gives the endpoint when it agrees.
@@ -1269,20 +1270,44 @@ final class BotNavigationGraphProvider {
                 edgeKeys);
     }
 
-    /** The region a walk off landing comes to rest in, no key held, or -1 when it misses or slides off. */
-    private static int settledRegionId(MapleMap map,
-                                       BotPhysicsEngine.JumpLanding landing,
-                                       Map<Integer, Integer> regionIdByFootholdId,
-                                       BotMovementProfile movementProfile) {
+    /**
+     * Which way to face before a straight drop from {@code launch} so its fall damage recoil rests in
+     * {@code targetRegionId}: {@code preferredFacing} if that works, else the other way; 0 when the drop doesn't
+     * hurt (facing doesn't matter) or no facing works. Shared by the builder and the drop executor.
+     */
+    static int straightDropFacing(MapleMap map, Point launch, int targetRegionId,
+                                  Map<Integer, Integer> regionIdByFootholdId, BotMovementProfile movementProfile,
+                                  int preferredFacing) {
+        BotPhysicsEngine.JumpLanding landing = BotPhysicsEngine.simulateDownJumpLanding(map, launch);
+        if (landing == null || BotCombatManager.fallDamageFromDistance(landing.fallPx()) <= 0) {
+            return 0;
+        }
+        int first = preferredFacing >= 0 ? 1 : -1;
+        for (int facing : new int[]{first, -first}) {
+            if (restRegionId(settledLanding(map, landing, facing, movementProfile), regionIdByFootholdId)
+                    == targetRegionId) {
+                return facing;
+            }
+        }
+        return 0;
+    }
+
+    /** Where a landing comes to rest, no key held, facing {@code facingDir} (which way a fall damage recoil throws
+     *  it; 0 skips the recoil), or null when it misses, slides off or ends on a rope. */
+    private static BotPhysicsEngine.PostLandingJump settledLanding(MapleMap map,
+                                                                  BotPhysicsEngine.JumpLanding landing,
+                                                                  int facingDir,
+                                                                  BotMovementProfile movementProfile) {
         if (landing == null) {
-            return -1;
+            return null;
         }
-        BotPhysicsEngine.PostLandingJump settled = BotPhysicsEngine.simulatePostLandingGroundTicks(
-                map, landing, 0, movementProfile, JUMP_POST_LANDING_STABILITY_TICKS);
-        if (settled.lostGround() || settled.finalFoothold() == null) {
-            return -1;
-        }
-        return regionIdByFootholdId.getOrDefault(settled.finalFoothold().getId(), -1);
+        BotPhysicsEngine.PostLandingJump settled = BotPhysicsEngine.settleLanding(
+                map, landing, facingDir, 0, movementProfile, JUMP_POST_LANDING_STABILITY_TICKS);
+        return settled == null || settled.lostGround() || settled.finalFoothold() == null ? null : settled;
+    }
+
+    private static int restRegionId(BotPhysicsEngine.PostLandingJump settled, Map<Integer, Integer> regionIdByFootholdId) {
+        return settled == null ? -1 : regionIdByFootholdId.getOrDefault(settled.finalFoothold().getId(), -1);
     }
 
     /**
@@ -1838,39 +1863,33 @@ final class BotNavigationGraphProvider {
             return null;
         }
 
-        return new JumpLaunchWindow(minX, maxX, representativeStart, representativeSimulation.landing().point(),
-                representativeSimulation.landing().timeMs());
+        // A landing that hurts ends where the recoil leaves the bot, in the target; its touch point can lie in
+        // another region, and the router heads for an edge's end point (graph v78).
+        BotPhysicsEngine.JumpLanding touch = representativeSimulation.landing();
+        Point endPoint = BotCombatManager.fallDamageFromDistance(touch.fallPx()) > 0
+                ? representativeSimulation.finalPoint() : touch.point();
+        return new JumpLaunchWindow(minX, maxX, representativeStart, endPoint, touch.timeMs());
     }
 
     private static JumpLaunchWindow expandDownJumpLaunchWindow(BotNavigationGraph.Region from,
                                                                MapleMap map,
                                                                Map<Integer, Integer> regionIdByFootholdId,
                                                                int anchorX,
+                                                               int targetRegionId,
                                                                BotMovementProfile movementProfile) {
-        BotPhysicsEngine.JumpLanding anchorLanding = validateDownJumpLaunchX(
-                from, map, regionIdByFootholdId, anchorX, movementProfile);
-        if (anchorLanding == null) {
-            return null;
-        }
-
-        int targetRegionId = regionIdByFootholdId.getOrDefault(anchorLanding.foothold().getId(), -1);
-        if (targetRegionId < 0) {
-            return null;
-        }
-
         int minX = findDownJumpBoundary(from, map, regionIdByFootholdId, anchorX, targetRegionId, true, movementProfile);
         int maxX = findDownJumpBoundary(from, map, regionIdByFootholdId, anchorX, targetRegionId, false, movementProfile);
 
         int representativeX = (minX + maxX) / 2;
         Point representativeStart = from.pointAt(representativeX);
-        BotPhysicsEngine.JumpLanding representativeLanding = validateDownJumpLaunchX(
+        DropLanding representative = validateDownJumpLaunchX(
                 from, map, regionIdByFootholdId, representativeX, movementProfile, targetRegionId);
-        if (representativeLanding == null) {
+        if (representative == null) {
             return null;
         }
 
         return new JumpLaunchWindow(minX, maxX, representativeStart,
-                representativeLanding.point(), representativeLanding.timeMs());
+                representative.restPoint(), representative.landing().timeMs());
     }
 
     private static int findJumpBoundary(BotNavigationGraph.Region from,
@@ -1989,12 +2008,9 @@ final class BotNavigationGraphProvider {
                 && regionIdByFootholdId.getOrDefault(landing.finalFoothold().getId(), -1) == targetRegionId;
     }
 
-    private static BotPhysicsEngine.JumpLanding validateDownJumpLaunchX(BotNavigationGraph.Region from,
-                                                                         MapleMap map,
-                                                                         Map<Integer, Integer> regionIdByFootholdId,
-                                                                         int launchX,
-                                                                         BotMovementProfile movementProfile) {
-        return validateDownJumpLaunchX(from, map, regionIdByFootholdId, launchX, movementProfile, Integer.MIN_VALUE);
+    /** A straight drop's landing and where it comes to rest, the drop's target and end point (graph v78: a landing
+     *  that hurts rests where the recoil throws the bot, not on the foothold it touched first). */
+    private record DropLanding(BotPhysicsEngine.JumpLanding landing, int regionId, Point restPoint) {
     }
 
     private static boolean isValidDownJumpLaunchX(BotNavigationGraph.Region from,
@@ -2006,38 +2022,64 @@ final class BotNavigationGraphProvider {
         return validateDownJumpLaunchX(from, map, regionIdByFootholdId, launchX, movementProfile, targetRegionId) != null;
     }
 
-    private static BotPhysicsEngine.JumpLanding validateDownJumpLaunchX(BotNavigationGraph.Region from,
-                                                                         MapleMap map,
-                                                                         Map<Integer, Integer> regionIdByFootholdId,
-                                                                         int launchX,
-                                                                         BotMovementProfile movementProfile,
-                                                                         int requiredTargetRegionId) {
+    private static DropLanding validateDownJumpLaunchX(BotNavigationGraph.Region from,
+                                                       MapleMap map,
+                                                       Map<Integer, Integer> regionIdByFootholdId,
+                                                       int launchX,
+                                                       BotMovementProfile movementProfile,
+                                                       int targetRegionId) {
+        for (DropLanding drop : dropLandings(from, map, regionIdByFootholdId, launchX, movementProfile)) {
+            if (drop.regionId() == targetRegionId) {
+                return drop;
+            }
+        }
+        return null;
+    }
+
+    /** Where a straight drop from {@code launchX} can come to rest, each in another region: where it lands, or,
+     *  when the landing hurts, where each facing's recoil leaves the bot. Empty when it can't drop there. */
+    private static List<DropLanding> dropLandings(BotNavigationGraph.Region from,
+                                                  MapleMap map,
+                                                  Map<Integer, Integer> regionIdByFootholdId,
+                                                  int launchX,
+                                                  BotMovementProfile movementProfile) {
         if (from == null || from.isRopeRegion || map == null) {
-            return null;
+            return List.of();
         }
         Point launchPoint = from.pointAt(launchX);
         if (isBlockedWallBoundaryLaunch(map, launchPoint)) {
-            return null;
+            return List.of();
         }
         if (!BotPhysicsEngine.canStartDownJump(map, launchPoint)
                 || from.isForbidFallDownAt(launchX)
                 || dropLaunchStep(from, map, launchPoint, movementProfile) != 0) {
-            return null;
+            return List.of();
         }
 
         BotPhysicsEngine.JumpLanding landing = BotPhysicsEngine.simulateDownJumpLanding(map, launchPoint);
         if (landing == null || landing.point().y <= launchPoint.y + 4) {
-            return null;
+            return List.of();
         }
 
-        int landingRegionId = regionIdByFootholdId.getOrDefault(landing.foothold().getId(), -1);
-        if (landingRegionId < 0 || landingRegionId == from.id) {
-            return null;
+        // A long drop hurts on landing and the recoil throws the bot back from where it faces. A straight drop
+        // faces wherever the bot last walked, so the executor turns first, as a player would, to the facing whose
+        // recoil rests in the target (straightDropFacing). Such a drop targets and ends where that facing rests (an
+        // end point on the foothold it touched first sent the router to that region instead). A drop that doesn't
+        // hurt targets where it lands, as before (settling those removed working drops).
+        if (BotCombatManager.fallDamageFromDistance(landing.fallPx()) <= 0) {
+            int regionId = regionIdByFootholdId.getOrDefault(landing.foothold().getId(), -1);
+            return regionId < 0 || regionId == from.id ? List.of()
+                    : List.of(new DropLanding(landing, regionId, landing.point()));
         }
-        if (requiredTargetRegionId != Integer.MIN_VALUE && landingRegionId != requiredTargetRegionId) {
-            return null;
+        List<DropLanding> rests = new ArrayList<>(2);
+        for (int facing : new int[]{1, -1}) {
+            BotPhysicsEngine.PostLandingJump rest = settledLanding(map, landing, facing, movementProfile);
+            int regionId = restRegionId(rest, regionIdByFootholdId);
+            if (regionId >= 0 && regionId != from.id && (rests.isEmpty() || rests.get(0).regionId() != regionId)) {
+                rests.add(new DropLanding(landing, regionId, rest.finalPoint()));
+            }
         }
-        return landing;
+        return rests;
     }
 
     private static boolean isApproachableJumpLaunchX(BotNavigationGraph.Region from, MapleMap map, int launchX) {

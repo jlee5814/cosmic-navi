@@ -869,6 +869,13 @@ final class BotNavigationManager {
 
         entry.lastEdgeBlockReason = null;
         setEdgeExecutionTarget(entry, edge);
+        // A drop long enough to hurt recoils the bot back from where it faces: turn first, as a player would,
+        // so the recoil rests in the edge's target (graph v78).
+        int facing = BotNavigationGraphProvider.straightDropFacing(bot.getMap(), botPos, edge.toRegionId,
+                graph.regionIdByFootholdId, entry.movementProfile, entry.facingDir);
+        if (facing != 0) {
+            entry.facingDir = facing;
+        }
         BotPhysicsEngine.queueDownJump(entry, bot);
         BotMovementManager.broadcastMovement(entry);
         return new NavigationDirective(rawTargetPos, true);
@@ -1840,7 +1847,8 @@ final class BotNavigationManager {
 
     private static Point routeLandingPoint(BotNavigationGraph.Edge edge, Point approach) {
         if (edge.type == BotNavigationGraph.EdgeType.DROP && edge.launchStepX == 0) {
-            return new Point(approach.x, edge.endPoint.y);
+            // Below the launch, shifted as far as a drop that hurts recoils (its end point is where it rests).
+            return new Point(approach.x + edge.endPoint.x - edge.startPoint.x, edge.endPoint.y);
         }
         return edge.endPoint;
     }
