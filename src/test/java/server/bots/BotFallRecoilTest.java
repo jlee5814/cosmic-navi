@@ -23,13 +23,14 @@ class BotFallRecoilTest {
         return BotNavigationMapLoader.loadMapGeometry(mapId);
     }
 
-    /** Ellinia tree 101020000: a 1350 px straight drop from (-172,-3819) lands on the ledge at (-172,-2467), and the
-     *  sweep's bot, facing left, was thrown right onto the rope at x -98. A drop to that ledge is authored only if
-     *  the other facing rests there, and then the executor turns to it before dropping. */
+    /** Ellinia tree 101020000: a 1582 px straight drop from (-135,-3828) lands at (-135,-2247), beside the rope at
+     *  x -98. Facing left, the recoil throws the bot right onto the rope at -98; facing right, it rests on
+     *  the ground to the left. The drop is authored, and the executor turns right before dropping. From x -172 the
+     *  ledge at y -2467 sits between the ropes at -252 and -98, and the recoil grabs one either way: no drop. */
     @Test
     void aLongStraightDropTurnsTheBotSoTheRecoilRestsInTheTarget() {
         MapleMap map = load(101020000);
-        Point launch = new Point(-172, -3819);
+        Point launch = new Point(-135, -3828);
         BotPhysicsEngine.JumpLanding landing = BotPhysicsEngine.simulateDownJumpLanding(map, launch);
         assertNotNull(landing);
         assertTrue(BotCombatManager.fallDamageFromDistance(landing.fallPx()) > 0, "fall " + landing.fallPx());
@@ -41,7 +42,11 @@ class BotFallRecoilTest {
         int from = graph.findRegionId(map, launch);
         boolean checked = false;
         for (BotNavigationGraph.Edge e : graph.getOutgoing(from)) {
-            if (e.type != BotNavigationGraph.EdgeType.DROP || e.launchStepX != 0 || !e.containsLaunchX(-172)) {
+            if (e.type != BotNavigationGraph.EdgeType.DROP || e.launchStepX != 0) {
+                continue;
+            }
+            assertTrue(!e.containsLaunchX(-172), "no drop from x -172: " + e.startPoint + " r" + e.toRegionId);
+            if (!e.containsLaunchX(launch.x)) {
                 continue;
             }
             int facing = BotNavigationGraphProvider.straightDropFacing(map, launch, e.toRegionId,
@@ -49,7 +54,7 @@ class BotFallRecoilTest {
             assertTrue(facing == 1, "drop r" + from + "->r" + e.toRegionId + ": the bot must turn right, got " + facing);
             checked = true;
         }
-        assertTrue(checked, "a straight drop from x -172");
+        assertTrue(checked, "a straight drop from x -135");
     }
 
     /** The same tree, run live: a straight drop from (-135,-3828) lands on a slope by the rope at x -98. The
