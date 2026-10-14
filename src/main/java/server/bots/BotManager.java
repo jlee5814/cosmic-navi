@@ -3629,7 +3629,7 @@ public class BotManager {
         // A capped bot is idle, and the idle fast path below consumes its tick before the autopilot tick
         // runs, so the park check lives here where every bot reaches it. (SipsBuddy41 sat at 43 for
         // 20 minutes after the first build because the check was inside the autopilot tick.)
-        BotTrainingPlan.parkIfIdleAtCap(entry, bot, BotTrainingPlan.complete(entry, bot), nowMs);
+        BotTrainingPlan.parkIfIdleAtCap(entry, bot, BotTrainingPlan.holdsAtCap(entry, bot), nowMs);
 
         // A scheduled logout must reach the tickLogout branch below even when the bot is otherwise
         // idle. The idle fast-path consumes the tick and returns, so without this guard a logging-out
@@ -4929,6 +4929,7 @@ public class BotManager {
         if (entry == null || cmd == null) {
             return;
         }
+        entry.operatorMovePos = null; // a map move, not the (x,y) of an earlier moveto on another map
         entry.operatorMoveMapId = moveMapId;
         entry.operatorFollowTargetId = followTargetId;
         entry.operatorCmdUntilMs = System.currentTimeMillis() + OPERATOR_CMD_WINDOW_MS;
