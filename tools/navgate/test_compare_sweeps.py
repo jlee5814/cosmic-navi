@@ -68,6 +68,17 @@ class CompareSweepsTest(unittest.TestCase):
         _, probes = self.run_compare(base, head)
         self.assertEqual(["100\t0\t0\t200\t0"], probes)
 
+    def test_a_new_landing_elsewhere_is_a_candidate_and_an_old_one_is_not(self):
+        drop = lambda verdict, ex=320: row(100, "DROP", 300, -100, ex, 50, verdict, step=6)  # noqa: E731
+        cand, _ = self.run_compare(self.tsv("b", drop("ok")), self.tsv("h", drop("wrong-region")))
+        self.assertEqual(1, len(cand), "works on base, lands elsewhere here")
+        cand, _ = self.run_compare(self.tsv("b2", drop("wrong-region")), self.tsv("h2", drop("wrong-region")))
+        self.assertEqual([], cand, "base already lands elsewhere")
+        cand, _ = self.run_compare(self.tsv("b3", drop("flaky:1/3", ex=300)), self.tsv("h3", drop("wrong-region")))
+        self.assertEqual([], cand, "the ends shifted, and base already fails near here")
+        cand, _ = self.run_compare(self.tsv("b4", drop("ok", ex=300)), self.tsv("h4", drop("wrong-region")))
+        self.assertEqual(1, len(cand), "the ends shifted, and base works near here")
+
     def test_a_lost_way_fails_the_gate_only_when_head_fails_and_base_works(self):
         trip = lambda verdict: row(100, "TRIP", 0, 0, 150, -60, verdict)  # noqa: E731
         empty = os.path.join(self.dir, "missing.tsv")
