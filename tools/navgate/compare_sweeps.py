@@ -12,14 +12,17 @@ compare_sweeps.py --confirm base_confirm.tsv head_confirm.tsv [base_probe.tsv he
 
 A move is keyed by map, type, launch step and its start and end points, not by region ids, which shift
 when a change splits or merges regions. Stuck means the bot stayed on its platform or froze: the trap that
-stalls a live bot for hours. Moves that land on another platform than planned cost replanning time, so
-they are reported but not gated.
+stalls a live bot for hours. Landing elsewhere means the bot came down on another platform than the move
+planned: it replans, so it costs time, but a move that does it every time is one the planner trusts and the
+physics doesn't do. Both become candidates when new on head: a stuck move not stuck on base, and a move
+landing elsewhere that works on base or, when its ends moved, has nothing near it on base that fails too.
 """
 import csv
 import os
 import sys
 
 STUCK = {"stayed", "frozen"}
+ELSEWHERE = "wrong-region"
 HEAD_MIN, BASE_MAX = 8, 2
 # A head move counts as the same way as a base move when both ends are this close (px): builder changes
 # shift launch and landing points a little without changing where a move goes.
@@ -62,15 +65,40 @@ def lost_moves(base, head):
             if r["verdict"] == "ok" and not any(near(r, h) for h in head_by_map.get(r["map"], []))]
 
 
+def fails_on_base(r):
+    v = r["verdict"]
+    return v in STUCK or v == ELSEWHERE or v.startswith("flaky")
+
+
+def new_landings(base, head):
+    """Head moves landing elsewhere that base has working, or, for a move whose ends shifted, that base has
+    nothing failing near: a defect base already had is not this branch's."""
+    base_by_map = {}
+    for r in base.values():
+        base_by_map.setdefault(r["map"], []).append(r)
+    found = []
+    for k, r in sorted(head.items()):
+        if r["verdict"] != ELSEWHERE:
+            continue
+        if k in base:
+            if base[k]["verdict"] == "ok":
+                found.append(k)
+        elif not any(fails_on_base(b) and near(r, b) for b in base_by_map.get(r["map"], [])):
+            found.append(k)
+    return found
+
+
 def compare(base_path, head_path, candidates_path, probes_path):
     base, head = load(base_path), load(head_path)
     base_stuck = {k for k, r in base.items() if r["verdict"] in STUCK}
     head_stuck = {k for k, r in head.items() if r["verdict"] in STUCK}
-    new = sorted(head_stuck - base_stuck)
+    new_stuck = sorted(head_stuck - base_stuck)
+    landings = new_landings(base, head)
+    new = sorted(set(new_stuck) | set(landings))
     print(f"stuck moves: {len(base_stuck)} on base, {len(head_stuck)} on this branch "
-          f"({len(base_stuck - head_stuck)} fixed, {len(new)} to confirm)")
-    print(f"landing elsewhere (not gated): {count(base, lambda v: v == 'wrong-region')} on base, "
-          f"{count(head, lambda v: v == 'wrong-region')} on this branch")
+          f"({len(base_stuck - head_stuck)} fixed, {len(new_stuck)} to confirm)")
+    print(f"landing elsewhere: {count(base, lambda v: v == ELSEWHERE)} on base, "
+          f"{count(head, lambda v: v == ELSEWHERE)} on this branch ({len(landings)} new, to confirm)")
     print(f"flaky, passing on a retry (not gated): {count(base, lambda v: v.startswith('flaky'))} on base, "
           f"{count(head, lambda v: v.startswith('flaky'))} on this branch")
     lost = lost_moves(base, head)
@@ -101,10 +129,10 @@ def regressions(base, head):
 def confirm(base_path, head_path, base_probe_path=None, head_probe_path=None):
     head = load(head_path)
     stuck = regressions(load(base_path), head)
-    print(f"confirmed regressions: {len(stuck)} of {len(head)} candidates")
+    print(f"confirmed regressions (stuck or landing elsewhere): {len(stuck)} of {len(head)} candidates")
     for r, hk, hn, bk, bn in stuck:
         print(f"  map {r['map']} {r['type']} from ({r['startX']},{r['startY']}) to ({r['endX']},{r['endY']}): "
-              f"stuck {hk}/{hn} here, {bk}/{bn} on base; bot ended at ({r['finalX']},{r['finalY']})")
+              f"fails {hk}/{hn} here, {bk}/{bn} on base; bot ended at ({r['finalX']},{r['finalY']})")
     lost = []
     if base_probe_path and head_probe_path:
         head_probe = load(head_probe_path)
