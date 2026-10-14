@@ -2464,8 +2464,8 @@ class BotInventoryManager {
             if (isOmokItem(id)) {
                 return true; // omok clutter: always sold, overrides the rare-drop/leftover keeps below
             }
-            if (SKILL_CONSUMED_ETC.contains(id) || isMakerMaterial(id) || isRareDrop(id)
-                    || keepCrystalLeftover(bot, item)) {
+            if (SKILL_CONSUMED_ETC.contains(id) || BotFerryManager.isTicket(id) || isMakerMaterial(id)
+                    || isRareDrop(id) || keepCrystalLeftover(bot, item)) {
                 return false;
             }
             return true;
@@ -2962,6 +2962,9 @@ class BotInventoryManager {
         }
         if (SKILL_CONSUMED_ETC.contains(id)) {
             return "skill-consumed";
+        }
+        if (BotFerryManager.isTicket(id)) {
+            return "ferry-ticket";
         }
         if (isMakerMaterial(id)) {
             return "maker-material";
