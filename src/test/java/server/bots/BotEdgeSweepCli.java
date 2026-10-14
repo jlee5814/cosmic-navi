@@ -148,7 +148,9 @@ public final class BotEdgeSweepCli {
         Point start = new Point(entry.bot.getPosition());
         int maxMoved = 0;
         boolean reached = false;
-        int ticks = budgetMs / BotMovementManager.cfg.TICK_MS;
+        // A forced edge gets its own flight time on top: a fall through a tall shaft outlasts the plain budget
+        // (101020000 x 864 falls 5586 px), and the bot is still in the air when time runs out.
+        int ticks = (forced == null ? budgetMs : Math.max(budgetMs, forced.cost + BUDGET_MS)) / BotMovementManager.cfg.TICK_MS;
         String error = null;
         try {
             for (int t = 0; t < ticks && !reached; t++) {
