@@ -322,6 +322,15 @@ final class BotPhysicsEngine {
         return Math.max(1, (int) Math.round(step));
     }
 
+    /** The slowest and fastest px a tick of top speed walking covers: a tick runs 6 or 7 client ground
+     *  steps, by carry phase (live walk offs leave a ledge at 6 or 7 px/tick). */
+    static int[] walkOffStepRange(BotMovementProfile profile) {
+        double perStep = maxHSpeedPerClientStep(profile);
+        double steps = cfg.TICK_MS / CLIENT_GROUND_STEP_MS;
+        return new int[]{Math.max(1, (int) Math.round(perStep * Math.floor(steps))),
+                Math.max(1, (int) Math.round(perStep * Math.ceil(steps)))};
+    }
+
     /**
      * Distance (px) needed for a bot starting from a standstill to reach (near) max walk speed
      * before walking off a ledge. O(1) derivation from config constants — used by graphgen to
