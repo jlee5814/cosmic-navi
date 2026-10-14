@@ -8,7 +8,7 @@ import server.StatEffect;
 import server.bots.combat.BotDefenseDataProvider;
 import server.combat.CombatFormulaProvider;
 import server.life.LifeFactory;
-import server.life.Monster;
+import server.life.MonsterStats;
 
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -146,11 +146,11 @@ final class BotHealArena {
         this.seed = seed;
         this.rng = new Random(seed);
         this.mobId = mobId;
-        Monster m = LifeFactory.getMonster(mobId);
+        MonsterStats m = LifeFactory.getCachedMonsterStats(mobId);
         this.mobLevel = m.getLevel();
         this.mobPad = m.getPADamage();
         this.mobAcc = m.getAccuracy();
-        this.mobHp = m.getMaxHp();
+        this.mobHp = m.getHp();
         this.mobExp = m.getExp();
         Skill healSkill = SkillFactory.getSkill(HEAL);
         this.heal = healSkill.getEffect(30);
