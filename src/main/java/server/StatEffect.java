@@ -1410,6 +1410,11 @@ public class StatEffect {
         }
     }
 
+    /** HP a party heal restores to each of {@code affectedPlayers} members, caster included. */
+    public int healPerTarget(int casterMaxHp, int affectedPlayers) {
+        return (int) (casterMaxHp * (float) hp / (100.0f * affectedPlayers));
+    }
+
     private int calcHPChange(Character applyfrom, boolean primary, int affectedPlayers) {
         int hpchange = 0;
         if (hp != 0) {
@@ -1423,8 +1428,7 @@ public class StatEffect {
                     hpchange /= 2;
                 }
             } else { // assumption: this is heal
-                float hpHeal = (applyfrom.getCurrentMaxHp() * (float) hp / (100.0f * affectedPlayers));
-                hpchange += hpHeal;
+                hpchange += healPerTarget(applyfrom.getCurrentMaxHp(), affectedPlayers);
                 if (applyfrom.hasDisease(Disease.ZOMBIFY)) {
                     hpchange = -hpchange;
                     hpCon = 0;

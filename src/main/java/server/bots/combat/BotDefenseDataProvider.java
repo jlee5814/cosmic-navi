@@ -12,8 +12,8 @@ import java.util.TreeMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class BotDefenseDataProvider {
-    private static final double MIN_DAMAGE_FACTOR = 0.008d;
-    private static final double MAX_DAMAGE_FACTOR = 0.0085d;
+    static final double MIN_DAMAGE_FACTOR = 0.008d;
+    static final double MAX_DAMAGE_FACTOR = 0.0085d;
     private static final BotDefenseDataProvider instance = new BotDefenseDataProvider();
 
     private enum JobFamily {
@@ -165,6 +165,16 @@ public final class BotDefenseDataProvider {
         }
         double randomFactor = ThreadLocalRandom.current().nextDouble(MIN_DAMAGE_FACTOR, Math.nextUp(MAX_DAMAGE_FACTOR));
         return physicalTouchDamage(bot, physicalAttackDamage, mob.getLevel(), randomFactor);
+    }
+
+    /** Touch damage of a landed hit at {@code roll} in [0, 1) across the client's damage range: the seeded twin of
+     *  {@link #rollPhysicalTouchDamage}, for simulations that need repeatable fights. */
+    public int physicalTouchDamageAt(Character bot, int mobPADamage, int mobLevel, double roll) {
+        int pad = Math.max(0, mobPADamage);
+        if (pad <= 0) {
+            return 1;
+        }
+        return physicalTouchDamage(bot, pad, mobLevel, MIN_DAMAGE_FACTOR + roll * (MAX_DAMAGE_FACTOR - MIN_DAMAGE_FACTOR));
     }
 
     /** Expected touch damage ON A LANDED HIT (mean damage factor, no hit roll) — the score-side
