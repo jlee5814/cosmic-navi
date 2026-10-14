@@ -507,6 +507,8 @@ public class BotEntry {
     // Damage taken
     long deadUntil = 0;
     int mobHitCooldownMs = 0;
+    /** How this bot decides to heal its party ({@link BotCombatManager#tickSupportHealing}). */
+    BotHealPolicy healPolicy = new BotHealPolicy.Reactive();
     // Absolute time until which this bot may not take another portal (set on portal use).
     // Portal-only gate: does not block movement, attacks, or any other action.
     long portalUseCooldownUntilMs = 0L;
