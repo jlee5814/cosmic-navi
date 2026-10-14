@@ -7,8 +7,11 @@ import client.SkillFactory;
 import server.StatEffect;
 import server.bots.combat.BotDefenseDataProvider;
 import server.combat.CombatFormulaProvider;
-import server.life.LifeFactory;
-import server.life.MonsterStats;
+import provider.Data;
+import provider.DataProviderFactory;
+import provider.DataTool;
+import provider.wz.WZFiles;
+import tools.StringUtil;
 
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -24,8 +27,8 @@ import static org.mockito.Mockito.when;
  * other thing held equal. Owner (a human warrior), a warrior bot, an archer bot and the cleric grind a
  * respawning mob.
  *
- * <p>From the game's own code and data (the SSOT): the mob's level, touch damage, accuracy, HP and exp (Mob.wz
- * via {@link LifeFactory}); Heal's MP cost, box, split per member ({@link StatEffect#healPerTarget}) and
+ * <p>From the game's own code and data (the SSOT): the mob's level, touch damage, accuracy, HP and exp (Mob.wz,
+ * the keys {@code LifeFactory} reads); Heal's MP cost, box, split per member ({@link StatEffect#healPerTarget}) and
  * animation lock, and Energy Bolt's MP cost (Skill.wz); touch damage and the mob's hit chance
  * ({@link BotDefenseDataProvider#physicalTouchDamageAt}, {@link CombatFormulaProvider#calculateBotAvoidChance});
  * the hit invincibility window and heal walk window ({@link BotCombatManager.Config}); bot potion thresholds
@@ -146,12 +149,14 @@ final class BotHealArena {
         this.seed = seed;
         this.rng = new Random(seed);
         this.mobId = mobId;
-        MonsterStats m = LifeFactory.getCachedMonsterStats(mobId);
-        this.mobLevel = m.getLevel();
-        this.mobPad = m.getPADamage();
-        this.mobAcc = m.getAccuracy();
-        this.mobHp = m.getHp();
-        this.mobExp = m.getExp();
+        // The keys LifeFactory.getMonsterStats reads, without its mob skill load (which needs the DB).
+        Data info = DataProviderFactory.getDataProvider(WZFiles.MOB)
+                .getData(StringUtil.getLeftPaddedStr(mobId + ".img", '0', 11)).getChildByPath("info");
+        this.mobLevel = DataTool.getIntConvert("level", info);
+        this.mobPad = DataTool.getIntConvert("PADamage", info);
+        this.mobAcc = DataTool.getIntConvert("acc", info, 0);
+        this.mobHp = DataTool.getIntConvert("maxHP", info);
+        this.mobExp = DataTool.getIntConvert("exp", info, 0);
         Skill healSkill = SkillFactory.getSkill(HEAL);
         this.heal = healSkill.getEffect(30);
         this.healLockMs = Math.max(600, healSkill.getAnimationTime());

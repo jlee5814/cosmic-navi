@@ -254,24 +254,19 @@ public class LifeFactory {
 
     public static Monster getMonster(int mid) {
         try {
-            return new Monster(mid, getCachedMonsterStats(mid));
+            MonsterStats stats = monsterStats.get(mid);
+            if (stats == null) {
+                Pair<MonsterStats, List<MobAttackInfoHolder>> mobStats = getMonsterStats(mid);
+                stats = mobStats.getLeft();
+                setMonsterAttackInfo(mid, mobStats.getRight());
+
+                monsterStats.put(mid, stats);
+            }
+            return new Monster(mid, stats);
         } catch (NullPointerException npe) {
             log.error("[SEVERE] MOB {} failed to load.", mid, npe);
             return null;
         }
-    }
-
-    /** A mob's WZ stats, loaded once, without spawning a {@link Monster} (which loads its drops). */
-    public static MonsterStats getCachedMonsterStats(int mid) {
-        MonsterStats stats = monsterStats.get(mid);
-        if (stats == null) {
-            Pair<MonsterStats, List<MobAttackInfoHolder>> mobStats = getMonsterStats(mid);
-            stats = mobStats.getLeft();
-            setMonsterAttackInfo(mid, mobStats.getRight());
-
-            monsterStats.put(mid, stats);
-        }
-        return stats;
     }
 
     public static int getMonsterLevel(int mid) {
