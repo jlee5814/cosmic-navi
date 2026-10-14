@@ -1033,11 +1033,15 @@ final class BotPhysicsEngine {
         // "opposite held key zeroes hspeed" brake fired on noise: it killed the landing momentum and,
         // because setMovementVelocity only re-derives facing when velX != 0, left facingDir stuck at
         // the air-steer direction — the bot visibly faced backwards on landing even when continuing.
-        // Keep the halved landing momentum (set above) so the bot rides it and faces its travel
-        // direction; the next ground tick's applyGroundMotion brakes on the REAL planned direction
-        // (and slipperyStopDir still prevents sliding off an icy ledge).
+        // Keep the halved landing momentum (set above) so the bot rides it; the next ground tick's
+        // applyGroundMotion brakes on the REAL planned direction (and slipperyStopDir still prevents
+        // sliding off an icy ledge). Facing stays where the held key left it, as on the ground: a slide
+        // never turns the character, and fall damage below recoils away from that facing (a straight
+        // drop onto a slope used to turn the bot into the slide and recoil it the wrong way).
         entry.groundBrakeDir = 0;
+        int facingDir = entry.facingDir;
         setMovementVelocity(entry, velocityFromDeltaX(tickDeltaFromGroundHSpeed(bot.getMap(), entry.hspeed, entry.movementProfile)), 0);
+        entry.facingDir = facingDir;
         syncCharacterState(entry);
 
         // Fall-damage check triggers exactly once, at the landing transition, using the

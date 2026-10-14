@@ -1121,15 +1121,18 @@ final class BotNavigationGraphProvider {
                 continue;
             }
 
+            DropLanding anchorDrop = validateDownJumpLaunchX(from, map, regionIdByFootholdId, anchor.x, movementProfile);
+            if (anchorDrop == null) {
+                continue;
+            }
             JumpLaunchWindow launchWindow = expandDownJumpLaunchWindow(
-                    from, map, regionIdByFootholdId, anchor.x, movementProfile);
+                    from, map, regionIdByFootholdId, anchor.x, anchorDrop.regionId(), movementProfile);
             if (launchWindow == null) {
                 continue;
             }
 
-            int toRegionId = findRegionIdBelow(map, regionIdByFootholdId, launchWindow.endPoint());
-            BotNavigationGraph.Region below = regionsById.get(toRegionId);
-            if (below == null || below.id == from.id) {
+            BotNavigationGraph.Region below = regionsById.get(anchorDrop.regionId());
+            if (below == null) {
                 continue;
             }
 
@@ -1869,31 +1872,21 @@ final class BotNavigationGraphProvider {
                                                                MapleMap map,
                                                                Map<Integer, Integer> regionIdByFootholdId,
                                                                int anchorX,
+                                                               int targetRegionId,
                                                                BotMovementProfile movementProfile) {
-        BotPhysicsEngine.JumpLanding anchorLanding = validateDownJumpLaunchX(
-                from, map, regionIdByFootholdId, anchorX, movementProfile);
-        if (anchorLanding == null) {
-            return null;
-        }
-
-        int targetRegionId = regionIdByFootholdId.getOrDefault(anchorLanding.foothold().getId(), -1);
-        if (targetRegionId < 0) {
-            return null;
-        }
-
         int minX = findDownJumpBoundary(from, map, regionIdByFootholdId, anchorX, targetRegionId, true, movementProfile);
         int maxX = findDownJumpBoundary(from, map, regionIdByFootholdId, anchorX, targetRegionId, false, movementProfile);
 
         int representativeX = (minX + maxX) / 2;
         Point representativeStart = from.pointAt(representativeX);
-        BotPhysicsEngine.JumpLanding representativeLanding = validateDownJumpLaunchX(
+        DropLanding representative = validateDownJumpLaunchX(
                 from, map, regionIdByFootholdId, representativeX, movementProfile, targetRegionId);
-        if (representativeLanding == null) {
+        if (representative == null) {
             return null;
         }
 
         return new JumpLaunchWindow(minX, maxX, representativeStart,
-                representativeLanding.point(), representativeLanding.timeMs());
+                representative.landing().point(), representative.landing().timeMs());
     }
 
     private static int findJumpBoundary(BotNavigationGraph.Region from,
@@ -2012,11 +2005,16 @@ final class BotNavigationGraphProvider {
                 && regionIdByFootholdId.getOrDefault(landing.finalFoothold().getId(), -1) == targetRegionId;
     }
 
-    private static BotPhysicsEngine.JumpLanding validateDownJumpLaunchX(BotNavigationGraph.Region from,
-                                                                         MapleMap map,
-                                                                         Map<Integer, Integer> regionIdByFootholdId,
-                                                                         int launchX,
-                                                                         BotMovementProfile movementProfile) {
+    /** A straight drop's landing and the region it comes to rest in, the drop's target (graph v78: a landing that
+     *  hurts rests where the recoil throws the bot, not on the foothold it touched first). */
+    private record DropLanding(BotPhysicsEngine.JumpLanding landing, int regionId) {
+    }
+
+    private static DropLanding validateDownJumpLaunchX(BotNavigationGraph.Region from,
+                                                       MapleMap map,
+                                                       Map<Integer, Integer> regionIdByFootholdId,
+                                                       int launchX,
+                                                       BotMovementProfile movementProfile) {
         return validateDownJumpLaunchX(from, map, regionIdByFootholdId, launchX, movementProfile, Integer.MIN_VALUE);
     }
 
@@ -2029,12 +2027,12 @@ final class BotNavigationGraphProvider {
         return validateDownJumpLaunchX(from, map, regionIdByFootholdId, launchX, movementProfile, targetRegionId) != null;
     }
 
-    private static BotPhysicsEngine.JumpLanding validateDownJumpLaunchX(BotNavigationGraph.Region from,
-                                                                         MapleMap map,
-                                                                         Map<Integer, Integer> regionIdByFootholdId,
-                                                                         int launchX,
-                                                                         BotMovementProfile movementProfile,
-                                                                         int requiredTargetRegionId) {
+    private static DropLanding validateDownJumpLaunchX(BotNavigationGraph.Region from,
+                                                       MapleMap map,
+                                                       Map<Integer, Integer> regionIdByFootholdId,
+                                                       int launchX,
+                                                       BotMovementProfile movementProfile,
+                                                       int requiredTargetRegionId) {
         if (from == null || from.isRopeRegion || map == null) {
             return null;
         }
@@ -2075,7 +2073,7 @@ final class BotNavigationGraphProvider {
         if (requiredTargetRegionId != Integer.MIN_VALUE && landingRegionId != requiredTargetRegionId) {
             return null;
         }
-        return landing;
+        return new DropLanding(landing, landingRegionId);
     }
 
     private static boolean isApproachableJumpLaunchX(BotNavigationGraph.Region from, MapleMap map, int launchX) {

@@ -52,6 +52,42 @@ class BotFallRecoilTest {
         assertTrue(checked, "a straight drop from x -172");
     }
 
+    /** The same tree, run live: a straight drop from (-135,-3828) lands on a slope by the rope at x -98. The
+     *  executor turns right before dropping, and the slope must not turn the bot back on landing (it did:
+     *  {@code landOnGround} took facing from the slide), or the recoil throws it onto the rope. */
+    @Test
+    void aDamagingStraightDropRunLiveRestsInItsTarget() {
+        server.TimerManager.getInstance().start();
+        MapleMap map = load(101020000);
+        Point launch = new Point(-135, -3828);
+        BotNavigationGraph graph = BotNavigationGraphProvider.getGraph(map);
+        int from = graph.findRegionId(map, launch);
+        BotNavigationGraph.Edge drop = null;
+        for (BotNavigationGraph.Edge e : graph.getOutgoing(from)) {
+            if (e.type == BotNavigationGraph.EdgeType.DROP && e.launchStepX == 0 && e.containsLaunchX(launch.x)) {
+                drop = e;
+            }
+        }
+        assertNotNull(drop, "a straight drop from x -135");
+        BotMovementSimulationLab lab = BotMovementSimulationLab.fromMap(map);
+        BotEntry entry = lab.spawnBot("recoil", 1, map, new Point(launch));
+        lab.teleport("recoil", new Point(launch));
+        lab.primeMapState("recoil");
+        entry.facingDir = -1; // walked in from the right, facing the rope side
+        lab.setNavState("recoil", drop, drop.toRegionId, false);
+        lab.setMoveTarget("recoil", new Point(drop.endPoint), true);
+        boolean hurt = false;
+        for (int t = 0; t < 120; t++) {
+            lab.step(1);
+            hurt |= entry.mobHitCooldownMs > 0; // applyFallDamage started the hit cooldown
+        }
+        Point end = entry.bot.getPosition();
+        lab.remove("recoil");
+        assertTrue(hurt, "the fall hurts");
+        assertTrue(!entry.climbing && BotNavigationManager.resolveCurrentRegionId(graph, entry, map, end) == drop.toRegionId,
+                "rests in r" + drop.toRegionId + ", got " + end + (entry.climbing ? " on a rope" : ""));
+    }
+
     /** A short drop deals no fall damage and settles where it lands, as before. */
     @Test
     void aShortLandingIsUnchanged() {
