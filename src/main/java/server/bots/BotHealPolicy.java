@@ -86,13 +86,15 @@ interface BotHealPolicy {
     /**
      * "Keep my party alive": a standing responsibility, not a trigger.
      * <ul>
-     *   <li>Goal: nobody dies, then nobody sits under 30% HP; keep enough MP to keep doing it.</li>
+     *   <li>Goal: nobody dies, then nobody sits under 30% HP, then nobody drinks a potion a heal could replace;
+     *       keep enough MP to keep doing it.</li>
      *   <li>Scope: every party member on the map, not only those inside the box.</li>
      *   <li>Constraints: legal cast cadence (the caller's animation lock), MP reserve, a leash to the owner.</li>
      *   <li>Duration: as long as the policy is held.</li>
      *   <li>Reconsider when: a member's HP projected over the next second falls into danger (heal before the
      *       hit lands, not after); an endangered member is out of reach (walk to them); MP drops under the
-     *       reserve (stop spending MP on attacks); a routine heal would mostly overheal (wait).</li>
+     *       reserve (stop spending MP on attacks); someone in the box nears their potion line (top up, unless the
+     *       heal would land fully on nobody).</li>
      * </ul>
      * Damage rates come from the HP the healer watches change, as a player sees a party HP bar.
      */
@@ -100,9 +102,9 @@ interface BotHealPolicy {
         /** Cast lock plus a decision of reaction: how far ahead a heal has to look. */
         static final long HORIZON_MS = 1_000L;
         static final double URGENT_RATIO = 0.45;
-        static final double ROUTINE_RATIO = 0.75;
-        /** A routine heal waits until this share of it would land on missing HP. */
-        static final double ROUTINE_EFFICIENCY = 0.5;
+        /** Routine heals keep members above the line where bots drink a potion: a heal costs a little MP and
+         *  restores thousands of HP across the box, a potion restores a few hundred. */
+        static final double ROUTINE_MARGIN = 0.05;
         static final int RESERVE_HEALS = 3;
         /** How far from the owner the healer will walk to reach someone. */
         static final int LEASH_PX = 350;
@@ -147,9 +149,10 @@ interface BotHealPolicy {
                 }
             }
 
-            // Routine top up only when most of the heal lands on missing HP; the heal splits across the box.
+            // Routine top up: keep everyone in the box off potions, but skip a cast that lands fully on nobody.
+            // The heal splits across the box, so the per member amount depends on who stands in it.
+            double routineRatio = BotManager.cfg.AUTOPOT_HP_THRESH + ROUTINE_MARGIN;
             int affected = 1;
-            int missing = 0;
             boolean routine = false;
             for (Member m : members(v)) {
                 if (!m.alive() || (m != v.self() && !v.inBox(m, v.self().x()))) {
@@ -158,15 +161,16 @@ interface BotHealPolicy {
                 if (m != v.self()) {
                     affected++;
                 }
-                routine |= projectedRatio(m) < ROUTINE_RATIO;
+                routine |= projectedRatio(m) < routineRatio;
             }
             int perMember = v.healPer().applyAsInt(affected);
+            int mostMissing = 0;
             for (Member m : members(v)) {
                 if (m.alive() && (m == v.self() || v.inBox(m, v.self().x()))) {
-                    missing += Math.min(perMember, Math.max(0, m.maxHp() - projectedHp(m)));
+                    mostMissing = Math.max(mostMissing, m.maxHp() - projectedHp(m));
                 }
             }
-            if (routine && !saveMp && missing >= ROUTINE_EFFICIENCY * perMember * affected) {
+            if (routine && !saveMp && mostMissing >= perMember) {
                 return Decision.cast(false, "top up");
             }
             return new Decision(Kind.HOLD, 0, saveMp, saveMp ? "saving mp" : "");

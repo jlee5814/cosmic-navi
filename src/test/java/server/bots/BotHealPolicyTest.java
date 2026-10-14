@@ -55,13 +55,17 @@ class BotHealPolicyTest {
     }
 
     @Test
-    void itWaitsOnASmallTopUpAndSavesMpUnderItsReserve() {
+    void itTopsUpBeforeThePotionLineSkipsChipsAndSavesMpUnderItsReserve() {
         BotHealPolicy b = new BotHealPolicy.KeepPartyAlive();
         BotHealPolicy.Member cleric = m(4, 500, 817, 817, false);
-        // 2451 split over 4 is 612 each; a member 800 short among three full ones would waste most of the cast.
-        BotHealPolicy.Decision topUp = b.decide(view(0, 2506, cleric, m(1, 600, 2000, 2800, true),
+        // 2451 split over 4 is 612 each. A member 400 short is above the potion line: no cast for a chip. At 71%
+        // (800 short) the owner nears the line where bots drink, so the heal tops him up instead of a potion.
+        BotHealPolicy.Decision chip = b.decide(view(0, 2506, cleric, m(1, 600, 2400, 2800, true),
                 m(2, 550, 2500, 2500, false), m(3, 450, 1100, 1100, false)));
-        assertEquals(BotHealPolicy.Kind.HOLD, topUp.kind(), topUp.reason());
+        assertEquals(BotHealPolicy.Kind.HOLD, chip.kind(), chip.reason());
+        BotHealPolicy.Decision topUp = new BotHealPolicy.KeepPartyAlive().decide(view(0, 2506, cleric,
+                m(1, 600, 2000, 2800, true), m(2, 550, 2500, 2500, false), m(3, 450, 1100, 1100, false)));
+        assertEquals(BotHealPolicy.Kind.CAST, topUp.kind(), topUp.reason());
         BotHealPolicy.Decision low = new BotHealPolicy.KeepPartyAlive().decide(view(0, 120, cleric,
                 m(1, 600, 2800, 2800, true)));
         assertTrue(low.saveMp(), "under three heals of MP it stops spending MP on attacks");
