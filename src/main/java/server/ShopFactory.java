@@ -34,6 +34,8 @@ public class ShopFactory {
         return instance;
     }
 
+    // Read from bot ticks on several timer threads and the boot warm (BotShopManager.warmShopCatalog), so the
+    // public methods are synchronized; the maps keep null for an id with no shop.
     private final Map<Integer, Shop> shops = new HashMap<>();
     private final Map<Integer, Shop> npcShops = new HashMap<>();
 
@@ -50,21 +52,21 @@ public class ShopFactory {
         return ret;
     }
 
-    public Shop getShop(int shopId) {
+    public synchronized Shop getShop(int shopId) {
         if (shops.containsKey(shopId)) {
             return shops.get(shopId);
         }
         return loadShop(shopId, true);
     }
 
-    public Shop getShopForNPC(int npcId) {
+    public synchronized Shop getShopForNPC(int npcId) {
         if (npcShops.containsKey(npcId)) {
             return npcShops.get(npcId);
         }
         return loadShop(npcId, false);
     }
 
-    public void reloadShops() {
+    public synchronized void reloadShops() {
         shops.clear();
         npcShops.clear();
     }
