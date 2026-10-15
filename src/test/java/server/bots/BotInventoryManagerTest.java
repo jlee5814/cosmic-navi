@@ -1361,19 +1361,19 @@ class BotInventoryManagerTest {
     void shouldSellCrystalLeftoversWhenBotLacksMakerSkill() {
         Character bot = mock(Character.class);
         Inventory etc = new Inventory(bot, InventoryType.ETC, (byte) 12);
-        etc.addItem(Items.itemWithQuantity(4000101, 1252)); // big crystal-leftover stack
+        etc.addItem(Items.itemWithQuantity(4000116, 1252)); // big crystal-leftover stack (no recipe uses it)
         etc.addItem(Items.itemWithQuantity(4000102, 200));  // big crystal-leftover stack
         etc.addItem(Items.itemWithQuantity(4250000, 3));    // maker reagent -> always keep
         when(bot.getInventory(InventoryType.ETC)).thenReturn(etc);
 
         BotInventoryManager.SellPriceLookup price = (id, qty) -> 10;
-        IntUnaryOperator leftover = id -> isIn(id, 4000101, 4000102) ? 4260000 : -1;
+        IntUnaryOperator leftover = id -> isIn(id, 4000116, 4000102) ? 4260000 : -1;
         IntUnaryOperator dropChance = id -> 600000;
 
         try (AutoCloseable seams = withSellSeams(price, leftover, dropChance, 0 /* no Maker */)) {
             List<Item> trash = BotInventoryManager.collectSellTrashEtcItems(bot);
             assertEquals(2, trash.size(), "crystal leftovers are clutter without the Maker skill");
-            assertTrue(trash.stream().anyMatch(item -> item.getItemId() == 4000101));
+            assertTrue(trash.stream().anyMatch(item -> item.getItemId() == 4000116));
             assertTrue(trash.stream().anyMatch(item -> item.getItemId() == 4000102));
             assertFalse(trash.stream().anyMatch(item -> item.getItemId() == 4250000));
         } catch (Exception e) {
