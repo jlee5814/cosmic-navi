@@ -446,7 +446,7 @@ final class BotStorageMuleManager {
             return false;
         }
         Duty duty = DUTIES.get(looter.getId());
-        if (duty != null && duty.partnerId() == drop.getOwnerId()) {
+        if (duty != null && !duty.pickup() && duty.partnerId() == drop.getOwnerId()) {
             return true;
         }
         Duty giver = DUTIES.get(drop.getOwnerId());
