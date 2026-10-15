@@ -38,6 +38,8 @@ import static org.mockito.Mockito.when;
 class BotShopManagerTest {
     static {
         BotInventoryManager.itemName = id -> null; // hermetic: no WZ name lookup
+        BotInventoryManager.fleetDemand = (bot, equip) -> BotStorageMuleManager.UNKNOWN_DEMAND;
+        BotInventoryManager.equipObtainCost = (bot, id) -> 0.0;
     }
 
     @Test

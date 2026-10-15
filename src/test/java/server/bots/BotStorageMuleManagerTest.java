@@ -23,7 +23,7 @@ class BotStorageMuleManagerTest {
     private static final Map<Integer, String> NAMES = Map.of(
             1472030, "Maple Claw", 1092030, "Maple Shield", 1002508, "Maple Hat", 1102166, "Maple Cape",
             1032040, "Maple Earring", 4001126, "Maple Leaf", 2070011, "Maple Throwing-Stars",
-            1002207, "Red Sonata", 4031159, "Maple History Book III");
+            1002207, "Red Sonata", 1002999, "Maple Quest Hat");
     private static final Map<Integer, Integer> REQ_JOB = Map.of(1472030, 8, 1092030, 1, 1002508, 0);
 
     private java.util.function.IntFunction<String> prevName;
@@ -36,7 +36,7 @@ class BotStorageMuleManagerTest {
         prevQuest = BotInventoryManager.questItem;
         prevReqJob = BotStorageMuleManager.reqJob;
         BotInventoryManager.itemName = NAMES::get;
-        BotInventoryManager.questItem = id -> id == 4031159;
+        BotInventoryManager.questItem = id -> id == 1002999;
         BotStorageMuleManager.reqJob = id -> REQ_JOB.getOrDefault(id, 0);
     }
 
@@ -49,18 +49,19 @@ class BotStorageMuleManagerTest {
     }
 
     @Test
-    void everyMapleItemIsKeptAndGoesToTheBinForItsKind() {
+    void mapleGearIsKeptAndGoesToTheBinForItsKind() {
         assertTrue(BotInventoryManager.isMapleItem(1472030));
         assertFalse(BotInventoryManager.isMapleItem(1002207)); // Red Sonata
-        assertFalse(BotInventoryManager.isMapleItem(4031159)); // a quest item: the quest rules own it
+        assertFalse(BotInventoryManager.isMapleItem(1002999)); // a quest item: the quest rules own it
+        assertFalse(BotInventoryManager.isMapleItem(4001126)); // Maple Leaf: gear only
+        assertFalse(BotInventoryManager.isMapleItem(2070011)); // Maple Throwing-Stars: gear only
 
         assertEquals("Thief weapons", BotStorageMuleManager.roleFor(1472030));
         assertEquals("Warrior armor", BotStorageMuleManager.roleFor(1092030)); // a warrior shield
         assertEquals(BotStorageMuleManager.RARE_EQUIPMENT, BotStorageMuleManager.roleFor(1002508)); // any job hat
         assertEquals("Capes", BotStorageMuleManager.roleFor(1102166));
         assertEquals("Accessories", BotStorageMuleManager.roleFor(1032040));
-        assertEquals(BotStorageMuleManager.EVENT_STORAGE, BotStorageMuleManager.roleFor(4001126)); // Maple Leaf
-        assertEquals(BotStorageMuleManager.EVENT_STORAGE, BotStorageMuleManager.roleFor(2070011)); // stars
+        assertNull(BotStorageMuleManager.roleFor(4001126)); // Maple Leaf sells like any ETC drop
         assertEquals("Power crystals", BotStorageMuleManager.roleFor(4004000)); // materials unchanged
         Set<String> rosterRoles = rosterStorageRoles();
         for (String role : BotStorageMuleManager.MAPLE_ROLES) {
