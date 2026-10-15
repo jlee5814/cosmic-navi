@@ -495,7 +495,7 @@ public class BotEntry {
     volatile int muleVisitMapId = -1;
     final java.util.concurrent.ConcurrentLinkedDeque<Integer> muleVisitBins = new java.util.concurrent.ConcurrentLinkedDeque<>(); // read by the mules' ticks
     final BotTravelManager.ErrandProgress muleVisitProgress = new BotTravelManager.ErrandProgress();
-    long muleVisitArrivedAtMs = 0L;
+    long muleVisitWaitSinceMs = 0L;    // in the market, waiting for the current bin's mule since
     long muleVisitLastDropAtMs = 0L;
     long muleVisitNextDropAtMs = 0L;
     long muleNextVisitAtMs = 0L;
