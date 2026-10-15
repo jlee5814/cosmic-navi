@@ -185,7 +185,9 @@ class BotInventoryManager {
             cleanupBotLootGhostDrop(bot, drop);
             if (pickedItem != null && pickedItemId > 0 && hasItem(bot, pickedItem)) {
                 InventoryType pickedType = ItemConstants.getInventoryType(pickedItemId);
-                if (pickedType == InventoryType.EQUIP) {
+                if (BotStorageMuleManager.onDuty(entry)) {
+                    // A mule on duty only stores: it neither wears a handoff nor offers it around.
+                } else if (pickedType == InventoryType.EQUIP) {
                     if (BotEquipManager.autoEquip(bot, entry.owner, entry.pendingLootOfferItem)) {
                         // A looted roll just got worn — re-ask stay-or-leave soon (autopilot).
                         BotAutopilotManager.noteGearUpgraded(entry);
@@ -1752,6 +1754,9 @@ class BotInventoryManager {
         List<Equip> keptValuables = new ArrayList<>();
         for (Item item : trash) {
             if (item instanceof Equip equip) {
+                if (isMapleItem(equip.getItemId())) {
+                    continue; // never sold: it goes to its bin
+                }
                 if (shouldKeepForSellTrash(ii, equip)) {
                     keptValuables.add(equip);
                 } else {
@@ -2028,6 +2033,10 @@ class BotInventoryManager {
 
         for (Item item : all) {
             int id = item.getItemId();
+            if (isMapleItem(id)) {
+                out.put(item, new UseClass(UseTier.RUNWAY, 0, 0, "maple-item")); // never sold: it goes to its bin
+                continue;
+            }
             if (isUseJunk(bot, id)) {
                 out.put(item, new UseClass(UseTier.JUNK, 0, 0, junkReason(bot, id)));
                 continue;
@@ -2506,7 +2515,7 @@ class BotInventoryManager {
                 return true; // omok clutter: always sold, overrides the rare-drop/leftover keeps below
             }
             if (SKILL_CONSUMED_ETC.contains(id) || BotFerryManager.isTicket(id) || isMakerMaterial(id)
-                    || isRareDrop(id) || keepCrystalLeftover(bot, item)) {
+                    || isMapleItem(id) || isRareDrop(id) || keepCrystalLeftover(bot, item)) {
                 return false;
             }
             return true;
@@ -2744,7 +2753,7 @@ class BotInventoryManager {
                     case TRASH -> 0;
                     case HLIM -> 1;
                     case HOARD -> 2;
-                    case RESV_OTHER -> 3;
+                    case RESV_OTHER, BIN -> 3;
                     case RESV_SELF -> 4;
                 };
                 return band * BAND + score;
@@ -2832,13 +2841,14 @@ class BotInventoryManager {
     //   HOARD#r    kept for value, rank r on the bounded shelf (or above the never-sell gate)
     //   HLIM#r     kept for value but beyond the shelf and below the gate -> sells next trip
     //   TRASH      sells next trip
-    enum BagEquipStatus { RESV_SELF, RESV_OTHER, HOARD, HLIM, TRASH }
+    enum BagEquipStatus { RESV_SELF, RESV_OTHER, BIN, HOARD, HLIM, TRASH }
 
     record BagEquipClass(BagEquipStatus status, int rank) {
         String label() {
             return switch (status) {
                 case RESV_SELF -> "RESV-SELF";
                 case RESV_OTHER -> "RESV-OTHER";
+                case BIN -> "BIN";
                 case HOARD -> "HOARD#" + rank;
                 case HLIM -> "HLIM#" + rank;
                 case TRASH -> "TRASH";
@@ -2867,6 +2877,8 @@ class BotInventoryManager {
                 out.put(item, new BagEquipClass(BagEquipStatus.RESV_SELF, 0));
             } else if (reservedOther.test(item)) {
                 out.put(item, new BagEquipClass(BagEquipStatus.RESV_OTHER, 0));
+            } else if (isMapleItem(equip.getItemId())) {
+                out.put(item, new BagEquipClass(BagEquipStatus.BIN, 0));
             } else if (shouldKeepForSellTrash(ii, equip)) {
                 kept.add(equip);
             } else {
@@ -2895,6 +2907,7 @@ class BotInventoryManager {
         classifyBagEquips(entry, bot).forEach((item, c) -> out.put(item, switch (c.status()) {
             case RESV_SELF -> new BagVerdict("keep", "own upgrade");
             case RESV_OTHER -> new BagVerdict("keep", "promised to a teammate");
+            case BIN -> new BagVerdict("keep", "maple item, for its bin");
             case HOARD -> new BagVerdict("keep", "valuable, shelf #" + c.rank());
             case HLIM -> new BagVerdict("sell", "valuable past the shelf, #" + c.rank());
             case TRASH -> new BagVerdict("sell", "trash");
@@ -3039,6 +3052,9 @@ class BotInventoryManager {
         }
         if (SKILL_CONSUMED_ETC.contains(id)) {
             return "skill-consumed";
+        }
+        if (isMapleItem(id)) {
+            return "maple-item";
         }
         if (BotFerryManager.isTicket(id)) {
             return "ferry-ticket";
@@ -3396,6 +3412,16 @@ class BotInventoryManager {
 
     // Test seams (see sellPrice et al.): both lookups go through ItemInformationProvider.
     static IntPredicate questItem = id -> ItemInformationProvider.getInstance().isQuestItem(id);
+    static java.util.function.IntFunction<String> itemName = id -> ItemInformationProvider.getInstance().getName(id);
+
+    /** A Maple item (Maple weapons, shields, hats, capes, leaves, coins, chairs: any item whose name says
+     *  Maple). Owner rule: they are never sold; they go to the storage bins
+     *  ({@link BotStorageMuleManager}). Quest items are left to the quest rules. Names are cached by the
+     *  item provider. */
+    static boolean isMapleItem(int itemId) {
+        String name = itemName.apply(itemId);
+        return name != null && name.contains("Maple") && !questItem.test(itemId);
+    }
     static Predicate<Item> untradeable = Item::isUntradeable;
 
     private static void reply(BotEntry entry, Character bot, int count, String noun) {

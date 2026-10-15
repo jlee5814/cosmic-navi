@@ -1,13 +1,16 @@
 package server.bots;
 
 import client.Character;
+import client.inventory.Equip;
 import client.inventory.Item;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import server.maps.MapItem;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -17,9 +20,84 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class BotStorageMuleManagerTest {
+    private static final Map<Integer, String> NAMES = Map.of(
+            1472030, "Maple Claw", 1092030, "Maple Shield", 1002508, "Maple Hat", 1102166, "Maple Cape",
+            1032040, "Maple Earring", 4001126, "Maple Leaf", 2070011, "Maple Throwing-Stars",
+            1002207, "Red Sonata", 4031159, "Maple History Book III");
+    private static final Map<Integer, Integer> REQ_JOB = Map.of(1472030, 8, 1092030, 1, 1002508, 0);
+
+    private java.util.function.IntFunction<String> prevName;
+    private java.util.function.IntPredicate prevQuest;
+    private java.util.function.IntUnaryOperator prevReqJob;
+
+    @BeforeEach
+    void hermeticItemData() {
+        prevName = BotInventoryManager.itemName;
+        prevQuest = BotInventoryManager.questItem;
+        prevReqJob = BotStorageMuleManager.reqJob;
+        BotInventoryManager.itemName = NAMES::get;
+        BotInventoryManager.questItem = id -> id == 4031159;
+        BotStorageMuleManager.reqJob = id -> REQ_JOB.getOrDefault(id, 0);
+    }
+
     @AfterEach
-    void clearDuties() {
+    void restore() {
         BotStorageMuleManager.DUTIES.clear();
+        BotInventoryManager.itemName = prevName;
+        BotInventoryManager.questItem = prevQuest;
+        BotStorageMuleManager.reqJob = prevReqJob;
+    }
+
+    @Test
+    void everyMapleItemIsKeptAndGoesToTheBinForItsKind() {
+        assertTrue(BotInventoryManager.isMapleItem(1472030));
+        assertFalse(BotInventoryManager.isMapleItem(1002207)); // Red Sonata
+        assertFalse(BotInventoryManager.isMapleItem(4031159)); // a quest item: the quest rules own it
+
+        assertEquals("Thief weapons", BotStorageMuleManager.roleFor(1472030));
+        assertEquals("Warrior armor", BotStorageMuleManager.roleFor(1092030)); // a warrior shield
+        assertEquals(BotStorageMuleManager.RARE_EQUIPMENT, BotStorageMuleManager.roleFor(1002508)); // any job hat
+        assertEquals("Capes", BotStorageMuleManager.roleFor(1102166));
+        assertEquals("Accessories", BotStorageMuleManager.roleFor(1032040));
+        assertEquals(BotStorageMuleManager.EVENT_STORAGE, BotStorageMuleManager.roleFor(4001126)); // Maple Leaf
+        assertEquals(BotStorageMuleManager.EVENT_STORAGE, BotStorageMuleManager.roleFor(2070011)); // stars
+        assertEquals("Power crystals", BotStorageMuleManager.roleFor(4004000)); // materials unchanged
+        Set<String> rosterRoles = rosterStorageRoles();
+        for (String role : BotStorageMuleManager.MAPLE_ROLES) {
+            assertTrue(rosterRoles.contains(role), role); // every bin is a real roster role
+        }
+        for (BotStorageMuleManager.Bin bin : BotStorageMuleManager.BINS) {
+            assertTrue(rosterRoles.contains(bin.role()), bin.role());
+        }
+
+        // The sell rules never sell one: a clean Maple Claw is BIN where a clean Red Sonata is trash.
+        Equip claw = mock(Equip.class); // a real Equip loads its WZ base on construction
+        when(claw.getItemId()).thenReturn(1472030);
+        Equip sonata = mock(Equip.class);
+        when(sonata.getItemId()).thenReturn(1002207);
+        var classes = BotInventoryManager.classifyBagEquips(null, List.of(claw, sonata), Set.of(), item -> false);
+        assertEquals(BotInventoryManager.BagEquipStatus.BIN, classes.get(claw).status());
+        assertEquals(BotInventoryManager.BagEquipStatus.TRASH, classes.get(sonata).status());
+
+        var dir = new BotStorageMuleManager.Directory(Map.of(10, 1), Map.of(1, Map.of("thief weapons", 63)),
+                Map.of(63, "thief weapons"), 0L);
+        assertEquals(Map.of(63, List.<Item>of(claw)), BotStorageMuleManager.planBins(dir, 10, List.of(claw)));
+    }
+
+    /** The storage roles in the roster record (docs/bot/rosters/sipsbuddy.csv): name,tier,role,... */
+    private static Set<String> rosterStorageRoles() {
+        Set<String> roles = new java.util.HashSet<>();
+        try {
+            for (String line : java.nio.file.Files.readAllLines(java.nio.file.Path.of("docs/bot/rosters/sipsbuddy.csv"))) {
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("^[^,]+,storage,(\"[^\"]*\"|[^,]*),").matcher(line);
+                if (m.find()) {
+                    roles.add(m.group(1).replace("\"", ""));
+                }
+            }
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return roles;
     }
 
     @Test

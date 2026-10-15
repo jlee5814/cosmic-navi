@@ -8,6 +8,7 @@ import client.inventory.manipulator.InventoryManipulator;
 import constants.inventory.ItemConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import server.ItemInformationProvider;
 import server.maps.MapItem;
 import tools.DatabaseConnection;
 
@@ -27,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntPredicate;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Storage mule visits, the way a player hands loot to a storage character. When a farmer's ETC tab is cramped
@@ -89,6 +91,75 @@ final class BotStorageMuleManager {
         return null;
     }
 
+    // ---- Maple items: never sold, each goes to the roster bin for its kind (owner rule, 2026-10-15) --------------
+
+    static final String RARE_EQUIPMENT = "Rare and high-stat equipment";
+    static final String EVENT_STORAGE = "Event items and emergency storage";
+    private static final String[] CLASSES = {"Warrior", "Mage", "Bowman", "Thief", "Pirate"}; // reqJob bits 1..16
+    static final List<String> MAPLE_ROLES = List.of(
+            "Warrior weapons", "Mage weapons", "Bowman weapons", "Thief weapons", "Pirate weapons",
+            "Warrior armor", "Mage armor", "Bowman armor", "Thief armor", "Pirate armor",
+            "Gloves", "Shoes", "Capes", "Accessories", RARE_EQUIPMENT, EVENT_STORAGE);
+
+    /** Test seam: an equip's reqJob mask from its WZ info (0 = any job). */
+    static IntUnaryOperator reqJob = id -> {
+        Map<String, Integer> stats = ItemInformationProvider.getInstance().getEquipStats(id);
+        return stats == null ? 0 : stats.getOrDefault("reqJob", 0);
+    };
+
+    /** The roster bin for a Maple item, by kind: weapons and armor by the class that wears them, then gloves,
+     *  shoes, capes and accessories; any job gear to the rare equipment bin, everything else to event storage. */
+    static String mapleBinRole(int itemId) {
+        if (ItemConstants.getInventoryType(itemId) != InventoryType.EQUIP) {
+            return EVENT_STORAGE;
+        }
+        if (ItemConstants.isWeapon(itemId)) {
+            return byClass(itemId, " weapons");
+        }
+        return switch (itemId / 10000) {
+            case 107 -> "Shoes";
+            case 108 -> "Gloves";
+            case 110 -> "Capes";
+            case 101, 102, 103, 111, 112, 113, 114 -> "Accessories"; // face, eye, earrings, ring, pendant, belt, medal
+            default -> byClass(itemId, " armor"); // hats, tops, overalls, pants, shields
+        };
+    }
+
+    private static String byClass(int itemId, String suffix) {
+        int mask = reqJob.applyAsInt(itemId);
+        for (int i = 0; i < CLASSES.length; i++) {
+            if (mask > 0 && (mask & (1 << i)) != 0) {
+                return CLASSES[i] + suffix;
+            }
+        }
+        return RARE_EQUIPMENT;
+    }
+
+    /** The bin an item goes to: a Maple item by its kind, a maker material by its family, else null. */
+    static String roleFor(int itemId) {
+        return BotInventoryManager.isMapleItem(itemId) ? mapleBinRole(itemId) : binRole(itemId);
+    }
+
+    /** What a farmer hands over: its ETC shelf, plus every Maple item it holds that it isn't wearing next or
+     *  holding for a teammate (equips the sell rules mark BIN) and that survives being dropped. */
+    static List<Item> handoffItems(BotEntry entry, Character bot) {
+        List<Item> out = new ArrayList<>(BotInventoryManager.etcShelf(bot));
+        BotInventoryManager.classifyBagEquips(entry, bot).forEach((item, c) -> {
+            if (c.status() == BotInventoryManager.BagEquipStatus.BIN && BotInventoryManager.isSafeToDrop(item)) {
+                out.add(item);
+            }
+        });
+        for (InventoryType type : List.of(InventoryType.USE, InventoryType.SETUP, InventoryType.ETC)) {
+            Inventory inv = bot.getInventory(type);
+            for (Item item : inv == null ? List.<Item>of() : inv.list()) {
+                if (BotInventoryManager.isMapleItem(item.getItemId()) && BotInventoryManager.isSafeToDrop(item)) {
+                    out.add(item);
+                }
+            }
+        }
+        return out;
+    }
+
     private static String roleKey(String role) {
         return role == null ? "" : role.trim().toLowerCase(Locale.ROOT);
     }
@@ -137,9 +208,12 @@ final class BotStorageMuleManager {
     }
 
     private static Directory loadDirectory(long nowMs) throws Exception {
-        Map<String, Bin> binByRole = new HashMap<>();
+        java.util.Set<String> binRoles = new java.util.HashSet<>();
         for (Bin bin : BINS) {
-            binByRole.put(roleKey(bin.role()), bin);
+            binRoles.add(roleKey(bin.role()));
+        }
+        for (String role : MAPLE_ROLES) {
+            binRoles.add(roleKey(role));
         }
         Map<Integer, Integer> ownerOf = new HashMap<>();
         Map<Integer, Map<String, Integer>> mulesByOwner = new HashMap<>();
@@ -154,7 +228,7 @@ final class BotStorageMuleManager {
                 int owner = rs.getInt("owner_char_id");
                 ownerOf.put(bot, owner);
                 String role = roleKey(BotPersonality.parse(rs.getString("config")).rosterRole());
-                if (binByRole.containsKey(role)) {
+                if (binRoles.contains(role)) {
                     mulesByOwner.computeIfAbsent(owner, k -> new HashMap<>()).put(role, bot);
                     roleOfMule.put(bot, role);
                 }
@@ -293,8 +367,9 @@ final class BotStorageMuleManager {
     }
 
     /**
-     * The farmer's shelf grouped by the mule that takes it, in bin order: mule char id to the stacks it gets.
-     * Items no bin takes, or whose bin has no mule for this owner, stay out (the shelf still sells them).
+     * The farmer's handoff grouped by the mule that takes it, in order: mule char id to the stacks it gets.
+     * Items no bin takes, or whose bin has no mule for this owner, stay out (the shelf still sells materials;
+     * a Maple item waits in the bag).
      */
     static Map<Integer, List<Item>> planBins(Directory dir, int farmerId, List<Item> shelf) {
         Map<Integer, List<Item>> plan = new LinkedHashMap<>();
@@ -302,7 +377,7 @@ final class BotStorageMuleManager {
             return plan;
         }
         for (Item item : shelf) {
-            String role = binRole(item.getItemId());
+            String role = roleFor(item.getItemId());
             Integer mule = role == null ? null : dir.muleFor(farmerId, role);
             if (mule != null && mule != farmerId) {
                 plan.computeIfAbsent(mule, k -> new ArrayList<>()).add(item);
@@ -313,8 +388,8 @@ final class BotStorageMuleManager {
 
     /** The bins this farmer can visit now: {@link #planBins} minus mules someone else has (a player logged it
      *  in, or another farmer's visit holds it). */
-    private static Map<Integer, List<Item>> availablePlan(Character bot, Directory dir) {
-        Map<Integer, List<Item>> plan = planBins(dir, bot.getId(), BotInventoryManager.etcShelf(bot));
+    private static Map<Integer, List<Item>> availablePlan(Character bot, Directory dir, List<Item> items) {
+        Map<Integer, List<Item>> plan = planBins(dir, bot.getId(), items);
         long now = System.currentTimeMillis();
         plan.keySet().removeIf(mule -> {
             if (DUTIES.containsKey(mule) || now < FULL_BINS.getOrDefault(mule, 0L)) {
@@ -341,18 +416,17 @@ final class BotStorageMuleManager {
             return false;
         }
         Directory dir = directory(System.currentTimeMillis());
-        return dir != null && !availablePlan(bot, dir).isEmpty();
+        return dir != null && !availablePlan(bot, dir, BotInventoryManager.etcShelf(bot)).isEmpty();
     }
 
-    /** Start a visit when the ETC tab is cramped and some shelf stacks have a mule to go to. */
+    /** Start a visit when the ETC tab is cramped, or the bag holds a Maple item, and a free mule takes some of it. */
     static void maybeStartVisit(BotEntry entry, Character bot) {
         long now = System.currentTimeMillis();
         if (visitActive(entry) || now < entry.muleNextVisitAtMs || now < entry.muleVisitCheckAtMs) {
             return;
         }
         entry.muleVisitCheckAtMs = now + VISIT_CHECK_EVERY_MS;
-        if (onDuty(entry) || entry.following || entry.shopVisitPending || entry.autopilotErrandMapId != -1
-                || !BotShopManager.isCramped(bot, InventoryType.ETC)) {
+        if (onDuty(entry) || entry.following || entry.shopVisitPending || entry.autopilotErrandMapId != -1) {
             return;
         }
         Directory dir = directory(now);
@@ -360,8 +434,10 @@ final class BotStorageMuleManager {
             entry.muleVisitCheckAtMs = now + 2_000L; // the roster directory is loading
             return;
         }
-        Map<Integer, List<Item>> plan = availablePlan(bot, dir);
-        if (plan.isEmpty()) {
+        Map<Integer, List<Item>> plan = availablePlan(bot, dir, handoffItems(entry, bot));
+        boolean maple = plan.values().stream().flatMap(List::stream)
+                .anyMatch(item -> BotInventoryManager.isMapleItem(item.getItemId()));
+        if (plan.isEmpty() || !(maple || BotShopManager.isCramped(bot, InventoryType.ETC))) {
             return;
         }
         if (bot.getMapId() != BotWorldGraph.FREE_MARKET && BotAutopilotManager.routeForBot(bot, bot.getMapId(),
@@ -388,6 +464,7 @@ final class BotStorageMuleManager {
 
     private static final List<String> START_LINES = List.of(
             "bag's full of mats, meeting my storage guy at the FM",
+            "got some maple stuff, dropping it with my storage guys at the FM",
             "gonna drop my ores off at the FM real quick",
             "etc tab is stuffed, running to the FM to unload");
 
@@ -455,27 +532,35 @@ final class BotStorageMuleManager {
             return true;
         }
         Directory dir = directory(now);
-        List<Item> stacks = planBins(dir, bot.getId(), BotInventoryManager.etcShelf(bot)).getOrDefault(muleId, List.of());
-        Inventory muleEtc = mule.bot.getInventory(InventoryType.ETC);
-        int room = muleEtc == null ? 0 : muleEtc.getNumFreeSlot();
-        if (stacks.isEmpty() || room <= 0 || dropsOut) {
-            if (room <= 0) {
-                FULL_BINS.put(muleId, now + FULL_BIN_RETRY_MS);
-                log.info("storage mules: bin {} is full", mule.bot.getName());
-            }
-            nextBin(entry, muleId, now); // done, the mule is full, or it stopped picking up
+        List<Item> stacks = planBins(dir, bot.getId(), handoffItems(entry, bot)).getOrDefault(muleId, List.of());
+        if (stacks.isEmpty() || dropsOut) {
+            nextBin(entry, muleId, now); // done, or it stopped picking up
             return true;
         }
-        int batch = Math.min(Math.min(BATCH_STACKS, room), stacks.size());
+        // A batch never holds more than the mule has room for, per tab (a Maple weapon needs an equip slot).
+        Map<InventoryType, Integer> room = new java.util.EnumMap<>(InventoryType.class);
+        Character muleChar = mule.bot;
         int dropped = 0;
         for (Item item : stacks) {
-            if (dropped >= batch) {
+            if (dropped >= BATCH_STACKS) {
                 break;
             }
-            if (BotInventoryManager.hasItem(bot, item) && item.getQuantity() > 0) {
-                InventoryManipulator.drop(bot.getClient(), InventoryType.ETC, item.getPosition(), item.getQuantity());
+            InventoryType type = item.getInventoryType();
+            int free = room.computeIfAbsent(type, t -> {
+                Inventory inv = muleChar.getInventory(t);
+                return inv == null ? 0 : (int) inv.getNumFreeSlot();
+            });
+            if (free > 0 && BotInventoryManager.hasItem(bot, item) && item.getQuantity() > 0) {
+                InventoryManipulator.drop(bot.getClient(), type, item.getPosition(), item.getQuantity());
+                room.put(type, free - 1);
                 dropped++;
             }
+        }
+        if (dropped == 0) {
+            FULL_BINS.put(muleId, now + FULL_BIN_RETRY_MS);
+            log.info("storage mules: bin {} is full", mule.bot.getName());
+            nextBin(entry, muleId, now);
+            return true;
         }
         entry.muleVisitLastDropAtMs = now;
         entry.muleVisitNextDropAtMs = now + BotManager.randMs(1_500, 4_000);
