@@ -566,18 +566,24 @@ document.getElementById('chatForm').addEventListener('submit', ev => {
 const ITEM_TABS = [['EQUIP','Equip'],['USE','Use'],['SETUP','Set-up'],['ETC','Etc']];
 let itemsId = 0, itemsTimer = null, itemsTab = 'ETC', itemsData = null;
 function openItems(id, name){
+  if(itemsId === id && !document.getElementById('itemsBox').hidden) return; // already showing this bot
   itemsId = id; itemsData = null;
   document.getElementById('itemsWho').textContent = 'Items: ' + name;
   document.getElementById('itemsBox').hidden = false;
+  clearItemsView('loading\u2026'); // never show the last bot's bags under this bot's name
   pollItems(); clearInterval(itemsTimer); itemsTimer = setInterval(pollItems, 5000);
 }
 function closeItems(){ itemsId = 0; clearInterval(itemsTimer); document.getElementById('itemsBox').hidden = true; }
 function pollItems(){ const id = itemsId; if(!id) return;
   fetch('/api/inventory?id='+id).then(r=>r.json()).then(d => {
     if(itemsId !== id) return;
-    if(d.error){ document.getElementById('itemsMeta').textContent = d.error; return; }
+    if(d.error){ itemsData = null; clearItemsView(d.error); return; }
     itemsData = d; showItems();
   }).catch(()=>{}); }
+function clearItemsView(meta){
+  document.getElementById('itemsMeta').textContent = meta;
+  for(const k of ['itemsTabs','itemsGrid','itemsWhy']) document.getElementById(k).innerHTML = '';
+}
 function itemsSetTab(t){ itemsTab = t; showItems(); }
 function showItems(){
   const d = itemsData; if(!d) return;
@@ -721,9 +727,12 @@ function rowHtml(it, opts){
   const sel = it.bot && selected.has(it.c.id);
   const click = opts.click || ('rosterClick(event,'+it.c.id+','+it.map+','+(it.bot?1:0)+','+(it.c.c?1:0)+')');
   const meta = opts.meta != null ? opts.meta : esc(mapName(it.map));   // bot's actual map, not merged
-  return '<div class="rosterItem'+(sel?' sel':'')+(opts.off?' off':'')+'"'+(it.bot?' data-cid="'+it.c.id+'"':'')
+  // Clicking a bot's row also shows its bags, so the item window always belongs to the row last clicked.
+  const showBags = it.bot ? ';openItems('+it.c.id+',this.dataset.n)' : '';
+  return '<div class="rosterItem'+(sel?' sel':'')+(opts.off?' off':'')+'"'
+    + (it.bot?' data-cid="'+it.c.id+'" data-n="'+esc(it.c.n).replace(/"/g,'&quot;')+'"':'')
     + ' onmouseenter="rosterTip(event,'+it.c.id+','+it.map+','+(it.bot?1:0)+')" onmouseleave="hideTip()"'
-    + ' onclick="'+click+'">'
+    + ' onclick="'+click+showBags+'">'
     + (it.bot?'&#129302; ':'&#128100; ') + esc(it.c.n) + ' <span class="meta">Lv'+it.c.l+' '+esc(it.c.j)+'</span>'
     + (opts.chat && it.bot && it.c.c ? '<button class="ggBtn" title="chat with this bot" onclick="event.stopPropagation();openChat('
         + it.c.id + ',this.dataset.n)" data-n="'+esc(it.c.n).replace(/"/g,'&quot;')+'">chat</button>' : '')
