@@ -439,6 +439,32 @@ class BotInventoryManagerTest {
     }
 
     @Test
+    void mapleThrowingStarsNeverSellAndAreAlwaysLooted() {
+        // A wizard with two stacks of Maple Throwing-Stars: off class ammo past the reserve is junk, except Maple.
+        Character bot = mock(Character.class);
+        Inventory use = new Inventory(bot, InventoryType.USE, (byte) 96);
+        use.addItem(Items.itemWithQuantity(2070011, 500));
+        use.addItem(Items.itemWithQuantity(2070011, 500));
+        when(bot.getInventory(InventoryType.USE)).thenReturn(use);
+        when(bot.getJob()).thenReturn(client.Job.IL_WIZARD);
+        java.util.function.IntFunction<String> prevName = BotInventoryManager.itemName;
+        BotInventoryManager.itemName = id -> id == 2070011 ? "Maple Throwing-Stars" : null;
+        try (AutoCloseable seams = withUseSeams(id -> null, id -> 0, id -> 0, (id, qty) -> 0);
+             MockedStatic<BotAttackExecutionProvider> attacks = mockStatic(BotAttackExecutionProvider.class)) {
+            attacks.when(() -> BotAttackExecutionProvider.getEquippedWeaponType(bot))
+                    .thenReturn(client.inventory.WeaponType.WAND);
+            assertTrue(BotInventoryManager.classifyBagUse(bot).values().stream()
+                    .allMatch(c -> c.tier() == BotInventoryManager.UseTier.RUNWAY));
+            assertTrue(BotInventoryManager.collectSellTrashUseItems(bot).isEmpty());
+            assertFalse(BotInventoryManager.isUnwantedOffClassAmmo(bot, 2070011), "Maple stars are always looted");
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        } finally {
+            BotInventoryManager.itemName = prevName;
+        }
+    }
+
+    @Test
     void aBotSkipsLootingAmmoItCantFireOnceItHoldsAReserveStack() {
         Character bot = mock(Character.class);
         Inventory use = new Inventory(bot, InventoryType.USE, (byte) 96);

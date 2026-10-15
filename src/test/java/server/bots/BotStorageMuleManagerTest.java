@@ -54,7 +54,7 @@ class BotStorageMuleManagerTest {
         assertFalse(BotInventoryManager.isMapleItem(1002207)); // Red Sonata
         assertFalse(BotInventoryManager.isMapleItem(1002999)); // a quest item: the quest rules own it
         assertFalse(BotInventoryManager.isMapleItem(4001126)); // Maple Leaf: gear only
-        assertFalse(BotInventoryManager.isMapleItem(2070011)); // Maple Throwing-Stars: gear only
+        assertTrue(BotInventoryManager.isMapleItem(2070011)); // Maple Throwing-Stars are kept too
 
         assertEquals("Thief weapons", BotStorageMuleManager.roleFor(1472030));
         assertEquals("Warrior armor", BotStorageMuleManager.roleFor(1092030)); // a warrior shield
@@ -62,6 +62,7 @@ class BotStorageMuleManagerTest {
         assertEquals("Capes", BotStorageMuleManager.roleFor(1102166));
         assertEquals("Accessories", BotStorageMuleManager.roleFor(1032040));
         assertNull(BotStorageMuleManager.roleFor(4001126)); // Maple Leaf sells like any ETC drop
+        assertEquals("Thief weapons", BotStorageMuleManager.roleFor(2070011)); // stars go with the claws
         assertEquals("Power crystals", BotStorageMuleManager.roleFor(4004000)); // materials unchanged
         Set<String> rosterRoles = rosterStorageRoles();
         for (String role : BotStorageMuleManager.MAPLE_ROLES) {
