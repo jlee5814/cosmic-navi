@@ -71,15 +71,17 @@ class BotStorageMuleManagerTest {
         }
 
         // The sell rules never sell one: a clean Maple Claw is BIN where a clean Red Sonata is trash.
-        Item claw = new Equip(1472030, (short) 1);
-        Item sonata = new Equip(1002207, (short) 2);
+        Equip claw = mock(Equip.class); // a real Equip loads its WZ base on construction
+        when(claw.getItemId()).thenReturn(1472030);
+        Equip sonata = mock(Equip.class);
+        when(sonata.getItemId()).thenReturn(1002207);
         var classes = BotInventoryManager.classifyBagEquips(null, List.of(claw, sonata), Set.of(), item -> false);
         assertEquals(BotInventoryManager.BagEquipStatus.BIN, classes.get(claw).status());
         assertEquals(BotInventoryManager.BagEquipStatus.TRASH, classes.get(sonata).status());
 
         var dir = new BotStorageMuleManager.Directory(Map.of(10, 1), Map.of(1, Map.of("thief weapons", 63)),
                 Map.of(63, "thief weapons"), 0L);
-        assertEquals(Map.of(63, List.of(claw)), BotStorageMuleManager.planBins(dir, 10, List.of(claw)));
+        assertEquals(Map.of(63, List.<Item>of(claw)), BotStorageMuleManager.planBins(dir, 10, List.of(claw)));
     }
 
     /** The storage roles in the roster record (docs/bot/rosters/sipsbuddy.csv): name,tier,role,... */
