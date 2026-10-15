@@ -44,6 +44,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class BotInventoryManagerTest {
+    static {
+        BotInventoryManager.itemName = id -> null; // hermetic: no WZ name lookup (Maple items are tested apart)
+    }
+
     @Test
     void shouldOnlyAnnounceTradeInviteOnFirstBatchOfSequence() throws Exception {
         BotEntry entry = new BotEntry(mock(Character.class), mock(Character.class), null);

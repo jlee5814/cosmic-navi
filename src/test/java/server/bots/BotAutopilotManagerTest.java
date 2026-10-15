@@ -25,6 +25,10 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 class BotAutopilotManagerTest {
+    static {
+        BotInventoryManager.itemName = id -> null; // hermetic: no WZ name lookup
+    }
+
 
     private static final int TOWN = 100000000;
     private static final int HUNTING_GROUND = 100040000;
