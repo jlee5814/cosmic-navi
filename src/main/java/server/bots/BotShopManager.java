@@ -71,6 +71,7 @@ final class BotShopManager {
     private static final int RECHARGE_MAX_SETS = 10; // cap recharge to the best N own-type stacks
     private static final int AUTO_SELL_FREE_SLOT_THRESHOLD = 2; // bag tab "cramped" when this few slots left
     private static final int USE_HEALTHY_FREE_SLOTS = 16; // cramped USE escalation sells down to this many free slots (farming runway)
+    private static final int ETC_HEALTHY_FREE_SLOTS = 8; // cramped ETC escalation: room for new drop kinds, quest items, a ferry ticket
 
     static class Config {
         // Debug/verify aid: after a sell-trash visit, list the USE/ETC items that were sold so
@@ -193,7 +194,8 @@ final class BotShopManager {
                 || BotInventoryManager.crampedUseSalesAvailable(bot))) {
             return true;
         }
-        return etcCramped && !BotInventoryManager.collectSellTrashEtcItems(bot).isEmpty();
+        return etcCramped && (!BotInventoryManager.collectSellTrashEtcItems(bot).isEmpty()
+                || BotInventoryManager.crampedEtcSalesAvailable(bot));
     }
 
     static boolean isCramped(Character bot, InventoryType type) {
@@ -250,7 +252,8 @@ final class BotShopManager {
             return;
         }
         boolean nothingToSell = BotInventoryManager.collectSellTrashItems(entry, bot).isEmpty()
-                && !(isCramped(bot, InventoryType.USE) && BotInventoryManager.crampedUseSalesAvailable(bot));
+                && !(isCramped(bot, InventoryType.USE) && BotInventoryManager.crampedUseSalesAvailable(bot))
+                && !(isCramped(bot, InventoryType.ETC) && BotInventoryManager.crampedEtcSalesAvailable(bot));
         if (nothingToSell) {
             BotManager.getInstance().botReply(entry, "no junk worth selling");
             return;
@@ -761,7 +764,7 @@ final class BotShopManager {
                 BotInventoryManager.collectSellTrashItems(sequence.entry(), sequence.bot()));
         // USE shelf stacks sold only under bag pressure (not routine junk) — tagged so the sell
         // audit log can tell a forced liquidation from a whitelisted-junk sale. Equips re-derive
-        // this per-item via shouldKeepForSellTrash; ETC has no pressure-sale path.
+        // this per-item via shouldKeepForSellTrash; ETC sells shelf maker materials under pressure.
         Set<Item> forcedByValue = Collections.newSetFromMap(new IdentityHashMap<>());
         // Pressure-driven escalation: when the USE tab is cramped, sell the lowest value-per-slot
         // shelf stacks (worst first) on top of the always-junk, down to a healthy free-slot margin.
@@ -776,6 +779,26 @@ final class BotShopManager {
                 Set<Item> already = Collections.newSetFromMap(new IdentityHashMap<>());
                 already.addAll(items);
                 List<Item> crampedSales = BotInventoryManager.collectCrampedUseSales(
+                        sequence.bot(), slotsToFree, already);
+                int farmItemId = sequence.entry().autopilotFarmItemId;
+                if (farmItemId != 0) {
+                    crampedSales.removeIf(it -> it.getItemId() == farmItemId);
+                }
+                items.addAll(crampedSales);
+                forcedByValue.addAll(crampedSales);
+            }
+        }
+        // The same escalation for the ETC tab: maker materials a bot can't craft with, lowest value first.
+        if (isCramped(sequence.bot(), InventoryType.ETC)) {
+            var etcInv = sequence.bot().getInventory(InventoryType.ETC);
+            int freeNow = etcInv != null ? etcInv.getNumFreeSlot() : 0;
+            long junkEtcSlots = items.stream()
+                    .filter(it -> it.getInventoryType() == InventoryType.ETC).count();
+            int slotsToFree = ETC_HEALTHY_FREE_SLOTS - (freeNow + (int) junkEtcSlots);
+            if (slotsToFree > 0) {
+                Set<Item> already = Collections.newSetFromMap(new IdentityHashMap<>());
+                already.addAll(items);
+                List<Item> crampedSales = BotInventoryManager.collectCrampedEtcSales(
                         sequence.bot(), slotsToFree, already);
                 int farmItemId = sequence.entry().autopilotFarmItemId;
                 if (farmItemId != 0) {

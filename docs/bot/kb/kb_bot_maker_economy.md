@@ -9,6 +9,8 @@ metadata:
 
 Started 2026-06-13: making autopilot maintenance-free re: the "ETC bag stuck 96/96 full, bot won't sell" report. **Full living doc + decisions in `docs/bot/autopilot-independence-audit.md` (repo) — read it first.**
 
+**2026-10-14 update:** for a bot without the Maker skill, maker materials now sit on an ETC value shelf (`BotInventoryManager.etcShelf`): kept while the tab has room, cheapest stack sold first on a cramped shop visit down to 8 free slots. A bot with Maker keeps them unconditionally as before. No bot has Maker today, and each bot's own storage is 4 slots, so mule visits to the roster's storage bins are the next step (`docs/bot/etc-storage-mules.md`).
+
 **Root cause (evidence-backed):** the ETC bag jams because maker materials (powders 4007xxx, ores 4010xxx, plates 4011xxx, jewel-ores/jewels 4020/4021xxx, stat crystals 4004/4005xxx, manuals 4130xxx, monster crystals 4260xxx) are kept UNCONDITIONALLY by `BotInventoryManager.isMakerMaterial` with no exit (never sold/used/stored). The sell pipeline itself works (proven: 06-12 audit log, Leroy/John sold the same mob-drops). Selling maker mats frees ~0 slots (ETC stacks → 1 slot regardless of qty) AND most are legit crafting fuel — so **storage + crafting, not selling, is the fix**. Bowgurl (char 29, lvl64, Maker skill 1007 lvl1) can craft 40+ equips right now from her reagents.
 
 **Maker recipe data (DB, bots may query directly like BotScrollManager.bestDropChance):** `makercreatedata(itemid, req_level, req_maker_level, req_meso, quantity)` + `makerrecipedata(itemid, req_item, count)` + `makerreagentdata(itemid, stat, value)`. 772 equip recipes. Ores→plates / crystal-ores→crystals refine via Maker (owner-confirmed).

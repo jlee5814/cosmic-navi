@@ -28,8 +28,9 @@ Test: `BotInventoryManagerTest.aFerryTicketIsTravelFareNotTrash` (fails on main)
 
 ## Open
 
-- A full ETC bag (96 of 96) can't take a ticket: `ticketShop.buy` mirrors the seller script's space check
-  and fails, and nothing frees a slot. A player would drop or store something. The maker storage deposit
-  (slice 6 in [[kb_bot_maker_economy]]) is the real fix for the jam.
+- A full ETC bag (96 of 96) can't take a ticket: `ticketShop.buy` mirrors the seller script's space check.
+  Since the ETC value shelf (2026-10-14), a cramped tab sells the cheapest maker material stacks a bot can't
+  craft with on its next shop visit, down to 8 free slots. Mule visits that keep them are designed in
+  `docs/bot/etc-storage-mules.md`.
 - The navi responder's hold_errands calls on Oct 13 treated the loop as noise; each one bought 30 to 60
   minutes before the loop resumed.
