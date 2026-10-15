@@ -70,6 +70,10 @@ class BotCraftManagerTest {
         assertEquals(300, recipe(1022003, STEEL_PLATE).fee());
         assertTrue(recipe(1022004, JUNO).gear());
         assertFalse(recipe(1022003, STEEL_PLATE).gear());
+        for (BotCraftManager.Recipe r : BotCraftManager.RECIPES) { // no script placeholders (1052003 pads with 1)
+            assertTrue(r.outputId() >= 1000000, r.toString());
+            r.mats().forEach(m -> assertTrue(m.itemId() >= 1000000 && m.qty() > 0, r.toString()));
+        }
     }
 
     @Test
