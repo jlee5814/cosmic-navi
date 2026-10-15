@@ -2400,6 +2400,47 @@ class BotInventoryManager {
         return !collectCrampedUseSales(bot, 1, null).isEmpty();
     }
 
+    // === ETC maker material shelf ===========================================================
+    // Maker materials are crafting fuel, kept off the sell pass. A bot that can't craft (no Maker skill)
+    // only carries them, so for it they sit on a shelf like the USE tab's: kept while the ETC tab has room,
+    // and when it is cramped the lowest value stacks sell first (NPC meso per slot, the same scale the USE
+    // shelf ranks on), down to a healthy margin. The tab no longer jams with materials nobody uses:
+    // SipsBuddy2 (2026-10-14) held 91 of 96 slots of them and couldn't buy a ferry ticket.
+
+    /** A maker material this bot only carries: it has no Maker skill to craft with it. */
+    private static boolean onEtcShelf(Character bot, int itemId) {
+        return isMakerMaterial(itemId) && !canMakeMonsterCrystals(bot);
+    }
+
+    /** The ETC shelf, lowest value first (sold first): NPC meso of the whole stack, then the smaller stack. */
+    static List<Item> etcShelf(Character bot) {
+        List<Item> shelf = new ArrayList<>();
+        collectFromBag(bot, shelf, InventoryType.ETC, item -> onEtcShelf(bot, item.getItemId()));
+        shelf.sort(Comparator.<Item>comparingInt(it -> sellPrice.price(it.getItemId(), it.getQuantity()))
+                .thenComparingInt(Item::getQuantity));
+        return shelf;
+    }
+
+    /** Under ETC pressure: the lowest value shelf stacks, enough to free {@code slotsToFree} slots. */
+    static List<Item> collectCrampedEtcSales(Character bot, int slotsToFree, java.util.Set<Item> exclude) {
+        if (slotsToFree <= 0) {
+            return List.of();
+        }
+        List<Item> result = new ArrayList<>();
+        for (Item item : etcShelf(bot)) {
+            if (result.size() >= slotsToFree) break;
+            if ((exclude == null || !exclude.contains(item)) && item.getQuantity() > 0) {
+                result.add(item);
+            }
+        }
+        return result;
+    }
+
+    /** True when the ETC shelf holds a stack a cramped sell trip could unload. */
+    static boolean crampedEtcSalesAvailable(Character bot) {
+        return !collectCrampedEtcSales(bot, 1, null).isEmpty();
+    }
+
     // An equip scroll is sell-trash only when its effect grants nothing of trade value:
     // main stats (STR/DEX/INT/LUK), att/matt and speed/jump are kept for EVERY job (user: a
     // warrior keeps INT scrolls - stat scrolls are prime trade goods); only acc is judged
@@ -2869,9 +2910,12 @@ class BotInventoryManager {
         }
         Set<Item> sellingEtc = Collections.newSetFromMap(new IdentityHashMap<>());
         sellingEtc.addAll(collectSellTrashEtcItems(bot));
+        List<Item> etcShelf = etcShelf(bot);
         for (Item item : bot.getInventory(InventoryType.ETC).list()) {
             boolean sell = sellingEtc.contains(item);
-            out.put(item, new BagVerdict(sell ? "sell" : "keep", etcVerdictReason(bot, item, sell)));
+            int rank = etcShelf.indexOf(item) + 1;
+            out.put(item, rank > 0 ? new BagVerdict("shelf", "shelf #" + rank + ", maker-material")
+                    : new BagVerdict(sell ? "sell" : "keep", etcVerdictReason(bot, item, sell)));
         }
         return out;
     }
