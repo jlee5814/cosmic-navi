@@ -2963,8 +2963,8 @@ class BotInventoryManager {
             case BIN -> new BagVerdict("keep", "maple gear, for its bin");
             case HOARD -> new BagVerdict("keep", "worth holding, shelf #" + c.rank());
             case HLIM -> new BagVerdict("sell", "worth holding but past the shelf, #" + c.rank());
-            case SURPLUS -> new BagVerdict("sell", c.demand() == 0 ? "nobody in the fleet wears it"
-                    : "surplus, the fleet wears " + c.demand());
+            case SURPLUS -> new BagVerdict("sell", c.demand() == 0 ? "the fleet needs no more"
+                    : "surplus, the fleet needs " + c.demand());
             case TRASH -> new BagVerdict("sell", "trash");
         }));
         Map<Item, UseClass> use = classifyBagUse(bot);
