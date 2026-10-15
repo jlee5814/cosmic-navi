@@ -239,11 +239,18 @@ final class BotAutopilotManager {
         return inZipangu ? bot.peekSavedLocation("WORLDTOUR") : -1;
     }
 
+    /** The town the Free Market's exit returns the bot to (its saved FREE_MARKET location), only while it
+     *  stands in the market, else -1, so the market's per bot exit is never a shortcut for anyone else.
+     *  Mirrors {@link #worldTourReturn}. */
+    static int freeMarketReturn(Character bot) {
+        return bot.getMapId() == BotWorldGraph.FREE_MARKET ? bot.peekSavedLocation("FREE_MARKET") : -1;
+    }
+
     /** What the bot can spend on travel right now: scrolls if carried, taxis per meso,
      *  ferries per the caller's owner-permission gate ({@link #ferryAllowed}). */
     static BotWorldGraph.RouteOptions travelOptions(Character bot, boolean withFerry) {
         return new BotWorldGraph.RouteOptions(BotShopManager.countReturnScrolls(bot) > 0, bot.getMeso(), withFerry,
-                bot.getJob().getId() == 0, bot.getLevel(), worldTourReturn(bot));
+                bot.getJob().getId() == 0, bot.getLevel(), worldTourReturn(bot), freeMarketReturn(bot));
     }
 
     /**
@@ -413,6 +420,9 @@ final class BotAutopilotManager {
         BotQuestManager.clearQuestErrand(entry); // a canceled autopilot abandons any quest detour
         BotGachaponManager.clearGachaErrand(entry); // ...and any gachapon trip
         BotStarterKitManager.clearJobErrand(entry); // ...and any job-change instructor walk
+        if (BotStorageMuleManager.visitActive(entry)) {
+            BotStorageMuleManager.finishVisit(entry, entry.bot, null); // ...and any mule visit (sends the mules home)
+        }
         BotTravelManager.resetForModeChange(entry); // drop the in-flight hop AND the give-up cooldown,
         // so a re-command (follow/grind/move) isn't silently gated by a stale travel give-up window.
         // autopilotNextErrandAtMs deliberately survives: it rate-limits errands, not the mode.
@@ -671,6 +681,15 @@ final class BotAutopilotManager {
                 @Override public boolean tick(BotEntry entry, Character bot, boolean runAiTick) {
                     return BotGachaponManager.tickErrand(entry, bot, runAiTick);
                 }
+            },
+            new DetourErrand() { // storage mule visit: drop shelf materials beside the bin's mule at the FM
+                @Override public void maybeStart(BotEntry entry, Character bot) {
+                    BotStorageMuleManager.maybeStartVisit(entry, bot);
+                }
+                @Override public boolean active(BotEntry entry) { return BotStorageMuleManager.visitActive(entry); }
+                @Override public boolean tick(BotEntry entry, Character bot, boolean runAiTick) {
+                    return BotStorageMuleManager.tickVisit(entry, bot, runAiTick);
+                }
             });
 
     /**
@@ -698,7 +717,8 @@ final class BotAutopilotManager {
         // anchor is set; clearWaitAnchor restores grinding=true.
         if (entry.autopilotWaitAnchor != null
                 && (entry.questErrandMapId != -1 || entry.gachaErrandMapId != -1
-                    || entry.autopilotErrandMapId != -1 || entry.jobErrandMapId != -1)) {
+                    || entry.autopilotErrandMapId != -1 || entry.jobErrandMapId != -1
+                    || entry.muleVisitMapId != -1)) {
             clearWaitAnchor(entry);
         }
         // A live operator command (RTS MOVE, or a companion `goto <map>`) pins the destination and
@@ -1140,6 +1160,11 @@ final class BotAutopilotManager {
             return bot.getMapId() == entry.gachaErrandMapId
                     ? "im at " + currentMap + ", at the gachapon"
                     : "im at " + currentMap + ", heading to the gachapon";
+        }
+        if (entry.muleVisitMapId != -1) {
+            return bot.getMapId() == entry.muleVisitMapId
+                    ? "im at the free market, dropping mats off with my storage guy"
+                    : "im at " + currentMap + ", heading to the free market to unload mats";
         }
         // Transient sub-states sit on top of grind mode (entry.grinding stays true), so report them
         // first — otherwise a town break or level-gap idle-leech misreads as "grinding here".
@@ -1768,7 +1793,7 @@ final class BotAutopilotManager {
     private static boolean detachedFromPartyCohesion(BotEntry entry) {
         return entry.autopilotErrandMapId != -1 || entry.restErrand
                 || entry.questErrandMapId != -1 || entry.gachaErrandMapId != -1
-                || entry.jobErrandMapId != -1;
+                || entry.jobErrandMapId != -1 || entry.muleVisitMapId != -1;
     }
 
     /**

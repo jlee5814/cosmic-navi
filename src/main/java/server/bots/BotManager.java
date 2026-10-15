@@ -3629,13 +3629,15 @@ public class BotManager {
         // A capped bot is idle, and the idle fast path below consumes its tick before the autopilot tick
         // runs, so the park check lives here where every bot reaches it. (SipsBuddy41 sat at 43 for
         // 20 minutes after the first build because the check was inside the autopilot tick.)
-        BotTrainingPlan.parkIfIdleAtCap(entry, bot, BotTrainingPlan.holdsAtCap(entry, bot), nowMs);
+        // A storage mule on duty is a capped roster bot standing in the Free Market on purpose: not idle.
+        boolean muleOnDuty = BotStorageMuleManager.onDuty(entry);
+        BotTrainingPlan.parkIfIdleAtCap(entry, bot, !muleOnDuty && BotTrainingPlan.holdsAtCap(entry, bot), nowMs);
 
         // A scheduled logout must reach the tickLogout branch below even when the bot is otherwise
         // idle. The idle fast-path consumes the tick and returns, so without this guard a logging-out
         // bot that has gone idle (e.g. arrived in town between autopilot decisions) never runs the
         // linger/disconnect and stands online forever past its deadline.
-        if (!entry.loggingOut) {
+        if (!entry.loggingOut && !muleOnDuty) {
             boolean idleConsumed;
             if (!perf) {
                 idleConsumed = tickIdleEntry(entry, bot);
@@ -3691,6 +3693,12 @@ public class BotManager {
         // the moment its session ends and never vanishes mid-dungeon.
         if (entry.loggingOut) {
             tickLogout(entry, bot, botPos, runAiTick);
+            return;
+        }
+
+        // Storage mule duty: walk to the Free Market and stand by the partner's drops (passive loot above
+        // picks them up). Before the autopilot, which holds a capped mule in place.
+        if (BotStorageMuleManager.tickMule(entry, bot, runAiTick)) {
             return;
         }
 
