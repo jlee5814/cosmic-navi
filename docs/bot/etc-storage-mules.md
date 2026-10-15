@@ -88,11 +88,32 @@ there first, the farmer drops a batch beside it, the mule picks it up.
 Dropped items vanish after 3 minutes and the map holds 200, so the mule arrives before anything drops, and
 a batch is small.
 
+## Pickup flow (crafting on demand, 2026-10-15)
+
+The reverse handoff: a bin gives back what a craft needs.
+
+1. Plan (`BotCraftManager.maybeStart`): the farmer plans a craft against its bag plus its free bins' ETC
+   holdings from the roster snapshot (`binStock`). What the bag lacks (`shortfall`) is split across the bins
+   that hold it (`assignPickups`). It needs a free ETC slot per item plus one, and a way to the market;
+   otherwise it plans from its bag alone.
+2. Claim (`claimPickups`): each mule goes on a pickup duty (`Duty.give`, item to quantity) and logs in; all or
+   none, so a mule taken meanwhile cancels the errand until the next check.
+3. Handoff: the farmer waits by the exit portal (`collectPickup`). Each mule walks within 60 px of it and drops
+   its share from the ETC tab a stack at a time (partial stacks as needed), with a jittered pause, its own loot
+   off. The farmer walks onto the drops; `isPartnerDrop` lets it skip the 15 s bot drop wait for its own mules.
+4. Leave: once the bag holds what the plan uses, the farmer ends the duties (the mules log out) and heads to the
+   crafting NPC. After 5 minutes, or when every mule has dropped out, it replans from its bag; if that fails the
+   errand ends.
+
+While a craft errand runs, no visit starts and `holdsShelf` keeps a shop trip off the shelf, so the parts it
+just picked up stay in the bag.
+
 ## Rules
 
 - Only shelf items leave (`onEtcShelf` is the SSOT): no ferry tickets, nothing a skill consumes, nothing the
   shelf keeps.
-- A mule only receives. It never sells, crafts or grinds; its bag is the record of what the fleet holds.
+- A mule only receives, and gives back on a pickup. It never sells, crafts or grinds; its bag is the record of
+  what the fleet holds.
 - While a visit is under way or due (`holdsShelf`), an automatic shop trip sells only true trash and leaves the
   shelf alone. A visit that ends, well or not, starts the cooldown, and whatever stayed behind sells on the next
   trip. An owner's explicit sell order still sells the shelf.

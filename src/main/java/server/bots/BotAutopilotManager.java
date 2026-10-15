@@ -1176,6 +1176,11 @@ final class BotAutopilotManager {
                     ? "im at the free market, dropping mats off with my storage guy"
                     : "im at " + currentMap + ", heading to the free market to unload mats";
         }
+        if (entry.craftErrandMapId != -1 && !entry.craftPickups.isEmpty()) {
+            return bot.getMapId() == entry.craftErrandMapId
+                    ? "im at the free market, grabbing crafting mats from my storage guys"
+                    : "im at " + currentMap + ", heading to the free market to grab crafting mats";
+        }
         if (entry.craftErrandMapId != -1) {
             return bot.getMapId() == entry.craftErrandMapId
                     ? "im at " + currentMap + ", crafting at the npc"

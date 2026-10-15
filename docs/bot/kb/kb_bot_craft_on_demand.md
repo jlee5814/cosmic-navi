@@ -1,6 +1,6 @@
 ---
 name: kb_bot_craft_on_demand
-description: "Crafting on demand (BotCraftManager): the NPC recipe export, the refine chain planner, the upgrade and cost gates, and the craft errand at the NPC"
+description: "Crafting on demand (BotCraftManager): the NPC recipe export, the refine chain planner, the upgrade and cost gates, the bin pickup at the Free Market, and the craft errand at the NPC"
 ---
 
 Built 2026-10-15 in `BotCraftManager` (phase A: the bot's own upgrade from its own bag).
@@ -30,4 +30,12 @@ Built 2026-10-15 in `BotCraftManager` (phase A: the bot's own upgrade from its o
 - `craft` does what the script does via `AbstractPlayerInteraction`: haveItem and canHold checks,
   `gainItem(mat, -qty)`, `gainMeso(-fee)`, `gainItem(out, n)` (gear one at a time, random stats). After the
   goal it runs `autoEquip`.
-- Not yet: withdrawing parts from the bins (phase B), crafting for other fleet members (phase C).
+
+**Bin pickup (phase B, 2026-10-15)**
+- Plans count the farmer's free bins (`BotStorageMuleManager.binStock`, the roster snapshot's mule ETC tabs).
+  `Plan.used` is what the steps take from holdings; intermediates an earlier step makes are tracked apart
+  (`Acc.made`) so they never count as a pickup. `shortfall(used, bag)` is the pickup, split by `assignPickups`.
+- The errand starts at the Free Market: mules on a pickup duty (`Duty.give`, null on a visit) drop their share
+  by the farmer, which loots it; then `nextStop` to the NPC. Flow in `docs/bot/etc-storage-mules.md`.
+- The snapshot is up to 30 minutes old, so a bin can come up short; the farmer then replans from its bag.
+- Not yet: crafting for other fleet members (phase C).
