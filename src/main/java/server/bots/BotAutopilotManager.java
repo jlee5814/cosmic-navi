@@ -423,6 +423,7 @@ final class BotAutopilotManager {
         if (BotStorageMuleManager.visitActive(entry)) {
             BotStorageMuleManager.finishVisit(entry, entry.bot, null); // ...and any mule visit (sends the mules home)
         }
+        BotCraftManager.clear(entry); // ...and any craft errand
         BotTravelManager.resetForModeChange(entry); // drop the in-flight hop AND the give-up cooldown,
         // so a re-command (follow/grind/move) isn't silently gated by a stale travel give-up window.
         // autopilotNextErrandAtMs deliberately survives: it rate-limits errands, not the mode.
@@ -690,6 +691,15 @@ final class BotAutopilotManager {
                 @Override public boolean tick(BotEntry entry, Character bot, boolean runAiTick) {
                     return BotStorageMuleManager.tickVisit(entry, bot, runAiTick);
                 }
+            },
+            new DetourErrand() { // crafting on demand: walk to the recipe's NPC, craft the upgrade, wear it
+                @Override public void maybeStart(BotEntry entry, Character bot) {
+                    BotCraftManager.maybeStart(entry, bot);
+                }
+                @Override public boolean active(BotEntry entry) { return BotCraftManager.active(entry); }
+                @Override public boolean tick(BotEntry entry, Character bot, boolean runAiTick) {
+                    return BotCraftManager.tick(entry, bot, runAiTick);
+                }
             });
 
     /**
@@ -718,7 +728,7 @@ final class BotAutopilotManager {
         if (entry.autopilotWaitAnchor != null
                 && (entry.questErrandMapId != -1 || entry.gachaErrandMapId != -1
                     || entry.autopilotErrandMapId != -1 || entry.jobErrandMapId != -1
-                    || entry.muleVisitMapId != -1)) {
+                    || entry.muleVisitMapId != -1 || entry.craftErrandMapId != -1)) {
             clearWaitAnchor(entry);
         }
         // A live operator command (RTS MOVE, or a companion `goto <map>`) pins the destination and
@@ -1165,6 +1175,11 @@ final class BotAutopilotManager {
             return bot.getMapId() == entry.muleVisitMapId
                     ? "im at the free market, dropping mats off with my storage guy"
                     : "im at " + currentMap + ", heading to the free market to unload mats";
+        }
+        if (entry.craftErrandMapId != -1) {
+            return bot.getMapId() == entry.craftErrandMapId
+                    ? "im at " + currentMap + ", crafting at the npc"
+                    : "im at " + currentMap + ", heading to an npc to craft some gear";
         }
         // Transient sub-states sit on top of grind mode (entry.grinding stays true), so report them
         // first — otherwise a town break or level-gap idle-leech misreads as "grinding here".
@@ -1793,7 +1808,7 @@ final class BotAutopilotManager {
     private static boolean detachedFromPartyCohesion(BotEntry entry) {
         return entry.autopilotErrandMapId != -1 || entry.restErrand
                 || entry.questErrandMapId != -1 || entry.gachaErrandMapId != -1
-                || entry.jobErrandMapId != -1 || entry.muleVisitMapId != -1;
+                || entry.jobErrandMapId != -1 || entry.muleVisitMapId != -1 || entry.craftErrandMapId != -1;
     }
 
     /**
