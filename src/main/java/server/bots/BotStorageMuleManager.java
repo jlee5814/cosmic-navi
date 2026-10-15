@@ -168,8 +168,24 @@ final class BotStorageMuleManager {
     // ---- directory: which roster character holds which bin, per registered owner ------------------------------
     // Loaded off the tick thread (a DB scan), refreshed every 30 minutes. Until it is ready, visits don't start.
 
-    /** A fleet member as the roster snapshot saw it: the owner or one of the owner's bots. */
-    record Member(int charId, int jobId, int level) {}
+    /**
+     * A fleet member as the roster snapshot saw it: the owner or one of the owner's bots. {@code wornReq} maps a
+     * gear slot ({@link #gearSlot}) to the highest required level among what it wears there; {@code bagCopies}
+     * counts the equips in its bag by item id (a storage mule's bag is its bin).
+     */
+    record Member(int charId, int jobId, int level, Map<Integer, Integer> wornReq, Map<Integer, Integer> bagCopies) {
+        Member(int charId, int jobId, int level) {
+            this(charId, jobId, level, Map.of(), Map.of());
+        }
+    }
+
+    /** The slot a piece of gear competes for: every weapon is one slot; an overall is worn as top and pants. */
+    static int gearSlot(int itemId) {
+        return ItemConstants.isWeapon(itemId) ? 130 : itemId / 10000;
+    }
+
+    /** Test seam: an equip's required level. */
+    static IntUnaryOperator reqLevel = id -> ItemInformationProvider.getInstance().getEquipLevelReq(id);
 
     record Directory(Map<Integer, Integer> ownerOf, Map<Integer, Map<String, Integer>> mulesByOwner,
                      Map<Integer, String> roleOfMule, Map<Integer, List<Member>> membersByOwner, long loadedAtMs) {
@@ -242,10 +258,12 @@ final class BotStorageMuleManager {
     };
 
     /**
-     * How many of the holder's fleet (its owner and the owner's other bots) will wear this equip now or within
-     * {@link #DEMAND_LEAD_LEVELS} levels, without having outgrown it. Beginners don't count: every storage mule
-     * is one, and a beginner wears almost nothing. {@link #UNKNOWN_DEMAND} until the roster snapshot loads or
-     * when the holder has no registered owner, so nothing sells on a guess.
+     * How many more copies of this equip the holder's fleet (its owner and the owner's other bots) will wear: the
+     * members who will wear it now or within {@link #DEMAND_LEAD_LEVELS} levels, without having outgrown it,
+     * and who don't already wear gear of at least its level in that slot; less the copies already in fleet
+     * bags and bins. Beginners don't count as wearers: every storage mule is one, and a beginner wears almost
+     * nothing. {@link #UNKNOWN_DEMAND} until the roster snapshot loads or when the holder has no registered
+     * owner, so nothing sells on a guess.
      */
     static int fleetDemand(Character holder, Equip equip) {
         Directory d = directory(System.currentTimeMillis());
@@ -259,13 +277,22 @@ final class BotStorageMuleManager {
     }
 
     static int countDemand(List<Member> members, int holderId, Equip equip) {
-        int n = 0;
+        int id = equip.getItemId();
+        int slot = gearSlot(id);
+        int req = reqLevel.applyAsInt(id);
+        int wanting = 0;
+        int held = 0;
         for (Member m : members) {
-            if (m.charId() != holderId && m.jobId() != 0 && wearCheck.wears(m, equip)) {
-                n++;
+            if (m.charId() == holderId) {
+                continue; // what the holder itself wears next is its own upgrade, not fleet stock
+            }
+            held += m.bagCopies().getOrDefault(id, 0);
+            boolean covered = m.wornReq().getOrDefault(slot, -1) >= req;
+            if (m.jobId() != 0 && !covered && wearCheck.wears(m, equip)) {
+                wanting++;
             }
         }
-        return n;
+        return Math.max(0, wanting - held);
     }
 
     private static Directory loadDirectory(long nowMs) throws Exception {
@@ -310,10 +337,42 @@ final class BotStorageMuleManager {
                     }
                 }
             }
+            loadFleetGear(con, membersByOwner);
         }
         log.info("storage mules: {} bins across {} owners, {} fleet members", roleOfMule.size(),
                 mulesByOwner.size(), membersByOwner.values().stream().mapToInt(List::size).sum());
         return new Directory(ownerOf, mulesByOwner, roleOfMule, membersByOwner, nowMs);
+    }
+
+    /** Fills in each member's worn gear levels and bag equips from the saved inventories (type 1 = a character's
+     *  own items; inventorytype -1 worn, 1 the equip bag). */
+    private static void loadFleetGear(Connection con, Map<Integer, List<Member>> membersByOwner) throws Exception {
+        Map<Integer, Map<Integer, Integer>> worn = new HashMap<>();
+        Map<Integer, Map<Integer, Integer>> bags = new HashMap<>();
+        try (PreparedStatement ps = con.prepareStatement(
+                "SELECT characterid, itemid, inventorytype FROM inventoryitems WHERE type=1 AND inventorytype IN (-1,1) "
+                        + "AND characterid IN (SELECT bot_char_id FROM bot_owners UNION SELECT owner_char_id FROM bot_owners)");
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                int charId = rs.getInt("characterid");
+                int itemId = rs.getInt("itemid");
+                if (rs.getInt("inventorytype") == 1) {
+                    bags.computeIfAbsent(charId, k -> new HashMap<>()).merge(itemId, 1, Integer::sum);
+                    continue;
+                }
+                Map<Integer, Integer> slots = worn.computeIfAbsent(charId, k -> new HashMap<>());
+                int req = reqLevel.applyAsInt(itemId);
+                int slot = gearSlot(itemId);
+                List<Integer> covers = slot == 105 ? List.of(104, 105, 106) : List.of(slot); // an overall is top and pants
+                for (int s : covers) {
+                    slots.merge(s, req, Math::max);
+                }
+            }
+        }
+        for (List<Member> members : membersByOwner.values()) {
+            members.replaceAll(m -> new Member(m.charId(), m.jobId(), m.level(),
+                    worn.getOrDefault(m.charId(), Map.of()), bags.getOrDefault(m.charId(), Map.of())));
+        }
     }
 
     // ---- mule duty (mule side) -------------------------------------------------------------------------------
