@@ -107,9 +107,12 @@ final class BotStorageMuleManager {
         return stats == null ? 0 : stats.getOrDefault("reqJob", 0);
     };
 
-    /** The roster bin for Maple gear, by kind: weapons and armor by the class that wears them, then gloves,
-     *  shoes, capes and accessories; gear any job can wear to the rare equipment bin. */
+    /** The roster bin for a Maple item, by kind: weapons (and Maple Throwing-Stars) and armor by the class that
+     *  uses them, then gloves, shoes, capes and accessories; gear any job can wear to the rare equipment bin. */
     static String mapleBinRole(int itemId) {
+        if (ItemConstants.isThrowingStar(itemId)) {
+            return "Thief weapons";
+        }
         if (ItemConstants.isWeapon(itemId)) {
             return byClass(itemId, " weapons");
         }
@@ -138,7 +141,8 @@ final class BotStorageMuleManager {
     }
 
     /** What a farmer hands over: its ETC shelf, plus the Maple gear it isn't wearing next or holding for a
-     *  teammate (equips the sell rules mark BIN) and that survives being dropped. */
+     *  teammate (equips the sell rules mark BIN), plus Maple Throwing-Stars it doesn't throw itself, all that
+     *  survive being dropped. */
     static List<Item> handoffItems(BotEntry entry, Character bot) {
         List<Item> out = new ArrayList<>(BotInventoryManager.etcShelf(bot));
         BotInventoryManager.classifyBagEquips(entry, bot).forEach((item, c) -> {
@@ -146,6 +150,14 @@ final class BotStorageMuleManager {
                 out.add(item);
             }
         });
+        Inventory use = bot.getInventory(InventoryType.USE);
+        for (Item item : use == null ? List.<Item>of() : use.list()) {
+            int id = item.getItemId();
+            if (BotInventoryManager.isMapleItem(id) && !BotInventoryManager.isOwnAmmo(bot, id)
+                    && BotInventoryManager.isSafeToDrop(item)) {
+                out.add(item);
+            }
+        }
         return out;
     }
 

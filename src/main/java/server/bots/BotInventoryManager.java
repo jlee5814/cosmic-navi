@@ -2110,6 +2110,9 @@ class BotInventoryManager {
         classifyBuffRunway(buffs, bot, out, shelf);
         classifyReturnScrollRunway(returnScrolls, out, shelf);
         rankUseShelf(bot, shelf, out);
+        // Owner rule: Maple Throwing-Stars never sell, whatever tier the ammo rules gave them.
+        out.replaceAll((item, uc) -> isMapleItem(item.getItemId()) && uc.tier() != UseTier.RUNWAY
+                ? new UseClass(UseTier.RUNWAY, uc.keepValue(), 0, "maple-stars") : uc);
         return out;
     }
 
@@ -2219,6 +2222,9 @@ class BotInventoryManager {
     /** True when looting {@code itemId} would only add junk: ammo this bot can't fire, when it already holds
      *  a reserve stack of that kind. Beginners have no class yet, so they keep everything. */
     static boolean isUnwantedOffClassAmmo(Character bot, int itemId) {
+        if (isMapleItem(itemId)) {
+            return false; // Maple stars are always worth picking up: they go to a bin
+        }
         WeaponType type = ammoWeaponType(itemId);
         if (type == null || bot.getJob() == null || bot.getJob().getId() == 0 || type == tradeAmmoWeaponType(bot)) {
             return false;
@@ -3460,11 +3466,11 @@ class BotInventoryManager {
     static IntPredicate questItem = id -> ItemInformationProvider.getInstance().isQuestItem(id);
     static java.util.function.IntFunction<String> itemName = id -> ItemInformationProvider.getInstance().getName(id);
 
-    /** Maple gear (Maple weapons, shields, hats, capes, earrings: any equip whose name says Maple). Owner
-     *  rule: it is never sold; it goes to the storage bins ({@link BotStorageMuleManager}). Quest items are
-     *  left to the quest rules. Names are cached by the item provider. */
+    /** Maple gear and Maple Throwing-Stars (any equip or throwing star whose name says Maple). Owner rule: they
+     *  are never sold; they go to the storage bins ({@link BotStorageMuleManager}). Quest items are left to the
+     *  quest rules. Names are cached by the item provider. */
     static boolean isMapleItem(int itemId) {
-        if (ItemConstants.getInventoryType(itemId) != InventoryType.EQUIP) {
+        if (ItemConstants.getInventoryType(itemId) != InventoryType.EQUIP && !ItemConstants.isThrowingStar(itemId)) {
             return false;
         }
         String name = itemName.apply(itemId);
@@ -3662,6 +3668,12 @@ class BotInventoryManager {
             return WeaponType.GUN;
         }
         return null;
+    }
+
+    /** Ammo this bot fires with its equipped weapon. */
+    static boolean isOwnAmmo(Character bot, int itemId) {
+        WeaponType type = ammoWeaponType(itemId);
+        return type != null && type == tradeAmmoWeaponType(bot);
     }
 
     private static WeaponType tradeAmmoWeaponType(Character bot) {
