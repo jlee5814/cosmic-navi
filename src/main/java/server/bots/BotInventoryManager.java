@@ -3309,8 +3309,28 @@ class BotInventoryManager {
         // Either attack axis counts: an above-base MAD roll on an any-job weapon (e.g. the
         // reqJob-0 Black Umbrella, a 1H sword with base MAD 85) is mage trade stock even when
         // its WATK rolled clean — don't key the protected axis on the weapon's reqJob mask.
-        return equip.getWatk() - baseEquip.getWatk() >= 4
-                || equip.getMatk() - baseEquip.getMatk() >= 4;
+        return equip.getWatk() - baseEquip.getWatk() >= topRollAboveBase(baseEquip.getWatk())
+                || equip.getMatk() - baseEquip.getMatk() >= topRollAboveBase(baseEquip.getMatk());
+    }
+
+    static final int WEAPON_ATTACK_ROLL_RANGE = 5; // randomizeStats rolls WATK and MATK at most 5 from base
+    static final double TOP_ROLL_SHARE = 0.2;      // a top roll is among the best fifth of what a clean drop rolls
+    static final int UNROLLED_ATTACK_KEEP = 4;     // an axis whose base is 0 doesn't roll; any attack there came from a scroll or a godly roll
+
+    /**
+     * The least WATK or MATK above base that counts as a top roll for a weapon with this base. A clean drop
+     * rolls base plus or minus {@link ItemConstants#randStatRange}, so a flat bar fails both ends: base 20 can
+     * only reach +2 (a perfect Maple Claw read as trash under the old +4), while base 50 reaches +4 one drop in
+     * eleven. The bar is the best {@link #TOP_ROLL_SHARE} of the 2r+1 possible rolls, at least the perfect
+     * one: +4 at range 5 (the old bar), +3 at 4 and 3, +2 at 2, +1 at 1.
+     */
+    static int topRollAboveBase(int base) {
+        int r = ItemConstants.randStatRange(base, WEAPON_ATTACK_ROLL_RANGE);
+        if (r <= 0) {
+            return UNROLLED_ATTACK_KEEP;
+        }
+        int top = Math.max(1, (int) Math.round((2 * r + 1) * TOP_ROLL_SHARE));
+        return r - top + 1;
     }
 
     /** Score used to order own-class equips worst-to-best: 4*watk + matk + main + sec. */

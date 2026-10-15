@@ -38,6 +38,13 @@ Built 2026-10-14 in `BotStorageMuleManager`; design and flow in `docs/bot/etc-st
   visit held them), checking every 5 s, for up to 4 minutes after its last bin. `muleVisitServed` stops repeats.
 - Tests must stub `BotInventoryManager.itemName` (and `questItem` for Maple names); the default reads WZ names.
 
+**Weapon keep gate (2026-10-15)**
+- `hasProtectedSellTrashWeaponStat` used a flat +4 WATK or MATK. A clean drop rolls base plus or minus
+  `ItemConstants.randStatRange` (10% of base rounded up, at most 5, the SSOT `randomizeStats` uses), so a base
+  20 weapon tops out at +2 and was never kept. `topRollAboveBase` keeps the best fifth of the 2r+1 rolls, at
+  least the perfect one: +4 at range 5 (unchanged), +3 at 4 and 3, +2 at 2, +1 at 1; an axis with base 0 keeps
+  the old +4.
+
 **Equip hold value (replaces the never-sell line, 2026-10-15)**
 - `BotInventoryManager.rankHold`: kept-for-value equips (past `shouldKeepForSellTrash`) group by item; copies rank
   by roll (`tradeValueScore`); the best `demand` copies are worth their obtain cost (`equipObtainCost`, the
