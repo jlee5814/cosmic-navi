@@ -39,3 +39,10 @@ Built 2026-10-15 in `BotCraftManager` (phase A: the bot's own upgrade from its o
   by the farmer, which loots it; then `nextStop` to the NPC. Flow in `docs/bot/etc-storage-mules.md`.
 - The snapshot is up to 30 minutes old, so a bin can come up short; the farmer then replans from its bag.
 - Not yet: crafting for other fleet members (phase C).
+
+**Debugging: `/api/craftplan?id=`** (2026-10-15)
+- Runs the errand's own `choose` live and returns the plan, pickups, rejected counts by reason and the 10
+  nearest upgrades with why each lost (`bestPlan`'s `Rejects` collector).
+- First live read, SipsBuddy1 (64 IL) and SipsBuddy2 (77 Priest), 24 bins counted: no plan; every upgrade lost
+  on materials. Their level gloves and shoes need Dragon Skin (4000030) 50 to 70, Star Rock or Moon Rock, or a
+  base glove (gear isn't crafted as an input). Screws and plates are not the blocker; they refine from ore.
