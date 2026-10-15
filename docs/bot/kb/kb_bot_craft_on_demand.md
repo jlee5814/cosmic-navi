@@ -7,8 +7,9 @@ Built 2026-10-15 in `BotCraftManager` (phase A: the bot's own upgrade from its o
 
 **Recipes**
 - `tools/bots/gen_npc_recipes.py` exports every scripts/npc recipe table (itemSet, matSet, matQtySet, costSet) to
-  `src/main/resources/bots/npc-recipes.csv`: `npcId,outputId,fee,mat:qty;...,yield`. 652 recipes, 524 of them
-  gear. Yield is what one craft gives (screws 15, arrows by id); rerun the script when scripts change.
+  `src/main/resources/bots/npc-recipes.csv`: `npcId,outputId,fee,mat:qty;...,yield`. 651 recipes, 524 of them
+  gear. Yield is what one craft gives (screws 15, arrows by id); placeholder entries (ids below 1000000) are
+  skipped. Rerun the script when scripts change.
 - The crafting parts list (`BotInventoryManager.isCraftingPart`) is derived from the same file, so there is one
   recipe source.
 

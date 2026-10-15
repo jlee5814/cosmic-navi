@@ -39,6 +39,8 @@ for f in sorted(glob.glob('scripts/npc/*.js')):
                 mats, q = [mats], [q]
             if len(mats) != len(q) or not all(isinstance(x, int) for x in list(mats) + list(q) + [out]):
                 continue
+            if not all(x >= 1000000 for x in list(mats) + [out]) or not all(n > 0 for n in q):
+                continue  # placeholder entries (1052003 pads a set with 1), not items
             fee = costs[i] if i < len(costs) and isinstance(costs[i], int) else 0
             rows.append((npc, out, fee, ';'.join(f'{m}:{n}' for m, n in zip(mats, q)), yield_of(s, out)))
     for t in re.finditer(r'var\s+(itemSet|matSet|matQtySet|costSet)\s*=\s*(\[[^;]*?\]);', s, re.S):
