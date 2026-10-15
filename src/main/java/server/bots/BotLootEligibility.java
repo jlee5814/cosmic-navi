@@ -44,7 +44,8 @@ public final class BotLootEligibility {
         if (itemId > 0 && !bot.needQuestItem(drop.getQuest(), itemId)) {
             return false;
         }
-        if (itemId > 0 && BotInventoryManager.isUnwantedOffClassAmmo(bot, itemId)) {
+        if (itemId > 0 && BotInventoryManager.isUnwantedOffClassAmmo(bot, itemId)
+                && !BotStorageMuleManager.isPartnerDrop(bot, drop)) { // a mule takes Maple stars for its bin
             return false; // more ammo it can't fire; the sell rules would only dump it again
         }
         if (drop.getMeso() <= 0 && itemId > 0) {

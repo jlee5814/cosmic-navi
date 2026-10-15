@@ -36,6 +36,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class BotShopManagerTest {
+    static {
+        BotInventoryManager.itemName = id -> null; // hermetic: no WZ name lookup
+    }
+
     @Test
     void shouldNotTriggerClawShopVisitWhenBestStarIsAboveThreshold() {
         Character bot = clawBotWithStars(800, 1000, 1000, 1000, 1000, 1000); // 5800 of the best star

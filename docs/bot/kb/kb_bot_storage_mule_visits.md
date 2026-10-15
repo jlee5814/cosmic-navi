@@ -27,6 +27,16 @@ Built 2026-10-14 in `BotStorageMuleManager`; design and flow in `docs/bot/etc-st
 - In `BotManager.tickCore` a mule on duty skips the idle fast path and the park at cap (it is a capped roster
   bot standing still on purpose), and `tickMule` runs after the logout branch, before the autopilot.
 
+**Maple items (owner rule)**
+- Never sold: `isMapleItem` (name contains Maple, not a quest item) is checked in the equip sell collector and
+  classifier (status BIN), the USE classifier (RUNWAY, maple-item) and the ETC sell collector.
+- `handoffItems` = ETC shelf + BIN equips + Maple USE, SETUP and ETC items that survive a drop; `roleFor` routes a
+  Maple item by kind (`mapleBinRole`) and a material by family (`binRole`). Bins are roster role names; the test
+  reads `docs/bot/rosters/sipsbuddy.csv` to prove every role exists.
+- A batch counts the mule's free slots per tab. The mule on duty skips autoEquip and loot offers, and the off
+  class ammo loot filter lets its partner's drops through.
+- Tests must stub `BotInventoryManager.itemName` (and `questItem` for Maple names); the default reads WZ names.
+
 **Shelf hold**
 - `holdsShelf`: while a visit is active or due, the automatic cramped shop trip leaves the shelf alone
   (`shouldAutoSellTrash` ETC term and the sell escalation). An explicit sell order still sells it. Every visit
