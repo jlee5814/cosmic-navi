@@ -210,6 +210,53 @@ class BotStorageMuleManagerTest {
     }
 
     @Test
+    void aMuleOnAPickupGivesItsPartnerTheDropsAndTakesNone() {
+        Character farmer = mock(Character.class);
+        when(farmer.getId()).thenReturn(10);
+        Character mule = mock(Character.class);
+        when(mule.getId()).thenReturn(61);
+        BotStorageMuleManager.DUTIES.put(61, new BotStorageMuleManager.Duty(10, System.currentTimeMillis(),
+                new java.util.concurrent.ConcurrentHashMap<>(Map.of(4000021, 15))));
+
+        assertTrue(BotStorageMuleManager.isPartnerDrop(farmer, drop(61, true))); // the mule's drop, for its partner
+        assertFalse(BotStorageMuleManager.isPartnerDrop(mule, drop(10, true))); // a pickup mule takes nothing
+        assertTrue(BotStorageMuleManager.givingTo(61, 10));
+        assertFalse(BotStorageMuleManager.givingTo(61, 11));
+
+        BotStorageMuleManager.DUTIES.put(61, new BotStorageMuleManager.Duty(10, System.currentTimeMillis()));
+        assertFalse(BotStorageMuleManager.isPartnerDrop(farmer, drop(61, true))); // a visit mule gives nothing
+        assertFalse(BotStorageMuleManager.givingTo(61, 10));
+    }
+
+    @Test
+    void binStockIsTheFreeBinsOfTheFarmersOwner() {
+        int farmer = 10;
+        var dir = new BotStorageMuleManager.Directory(Map.of(farmer, 1, 61, 1, 62, 1, 70, 2),
+                Map.of(1, Map.of("monster etc drops", 61, "iron and bronze", 62), 2, Map.of("monster etc drops", 70)),
+                Map.of(61, "monster etc drops", 62, "iron and bronze", 70, "monster etc drops"),
+                Map.of(1, List.of(
+                                new BotStorageMuleManager.Member(61, 0, 10, Map.of(), Map.of(), Map.of(4000021, 50)),
+                                new BotStorageMuleManager.Member(62, 0, 10, Map.of(), Map.of(), Map.of(4010000, 30)),
+                                new BotStorageMuleManager.Member(farmer, 100, 30, Map.of(), Map.of(), Map.of(4000021, 9))),
+                        2, List.of(new BotStorageMuleManager.Member(70, 0, 10, Map.of(), Map.of(), Map.of(4000021, 80)))),
+                0L);
+        assertEquals(Map.of(61, Map.of(4000021, 50), 62, Map.of(4010000, 30)),
+                BotStorageMuleManager.binStock(dir, farmer, mule -> true));
+        assertEquals(Map.of(61, Map.of(4000021, 50)), BotStorageMuleManager.binStock(dir, farmer, mule -> mule != 62));
+        assertTrue(BotStorageMuleManager.binStock(dir, 99, mule -> true).isEmpty()); // no owner
+    }
+
+    @Test
+    void pickupsTakeEachItemFromTheBinsThatHoldIt() {
+        Map<Integer, Map<Integer, Integer>> stock = Map.of(
+                62, Map.of(4000021, 20, 4010000, 5), 61, Map.of(4000021, 10));
+        assertEquals(Map.of(61, Map.of(4000021, 10), 62, Map.of(4000021, 15, 4010000, 5)),
+                BotStorageMuleManager.assignPickups(stock, Map.of(4000021, 25, 4010000, 5)));
+        assertEquals(Map.of(61, Map.of(4000021, 4)), BotStorageMuleManager.assignPickups(stock, Map.of(4000021, 4)));
+        assertTrue(BotStorageMuleManager.assignPickups(stock, Map.of()).isEmpty());
+    }
+
+    @Test
     void theFreeMarketIsEnteredByEachTownsPortalAndLeftOnlyToTheSavedTown() {
         assertEquals("market00", BotWorldGraph.scriptedEntrancePortal(100000100, BotWorldGraph.FREE_MARKET));
         assertEquals("st00", BotWorldGraph.scriptedEntrancePortal(130000200, BotWorldGraph.FREE_MARKET));

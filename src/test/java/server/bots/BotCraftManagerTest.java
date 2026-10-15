@@ -95,6 +95,10 @@ class BotCraftManagerTest {
         assertEquals(JUNO, p.steps().get(1).recipe().outputId());
         assertEquals(1000 + p.steps().get(0).recipe().fee(), p.fees());
         assertEquals(25, p.inputValue()); // 15 leather + 10 ore at 1 meso each
+        assertEquals(Map.of(LEATHER, 15, STEEL_ORE, 10), p.used()); // the plate it makes isn't drawn from holdings
+        // Holding 5 leather, the bins must bring the other 10 and all the ore.
+        assertEquals(Map.of(LEATHER, 10, STEEL_ORE, 10), BotCraftManager.shortfall(p.used(), Map.of(LEATHER, 5)));
+        assertTrue(BotCraftManager.shortfall(p.used(), have).isEmpty());
     }
 
     @Test
@@ -123,6 +127,7 @@ class BotCraftManagerTest {
                 .mapToInt(BotCraftManager.Step::times).sum();
         assertEquals(4, bronze); // 3 for the gloves + 1 for the screws, 10 ore each
         assertEquals(3, steel);
+        assertEquals(Map.of(BRONZE_ORE, 40, STEEL_ORE, 30), p.used());
     }
 
     @Test

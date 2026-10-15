@@ -101,7 +101,9 @@ final class BotCraftManager {
     /** Craft {@code recipe} this many times, in order; the last step is the goal. */
     record Step(Recipe recipe, int times) {}
 
-    record Plan(Recipe goal, List<Step> steps, long fees, double inputValue, double gain) {}
+    /** {@code used}: how much of each item the steps take from what the bot holds (its bag and bins), not
+     *  counting what an earlier step makes. */
+    record Plan(Recipe goal, List<Step> steps, long fees, double inputValue, double gain, Map<Integer, Integer> used) {}
 
     private static final int MAX_CHAIN_DEPTH = 3;      // gear <- screws <- plates <- ores
     static final int OUTGROWN_LEVELS = 20;             // gear this far under the bot's level isn't worth a trip
@@ -204,33 +206,73 @@ final class BotCraftManager {
 
     /** The steps that make one {@code goal} from {@code have}, refining what's short, or null when it can't. */
     static Plan plan(Character bot, Recipe goal, Map<Integer, Integer> have, double gain) {
-        Map<Integer, Integer> left = new HashMap<>(have);
-        List<Step> steps = new ArrayList<>();
-        double[] value = new double[1];
+        Acc acc = new Acc(new HashMap<>(have), new HashMap<>(), new ArrayList<>(), new HashMap<>(), 0);
         for (Mat m : goal.mats()) {
-            if (!resolve(m.itemId(), m.qty(), goal.npcId(), left, steps, value, 0)) {
+            if (!resolve(m.itemId(), m.qty(), goal.npcId(), acc, 0)) {
                 return null;
             }
         }
-        steps.add(new Step(goal, 1));
+        acc.steps.add(new Step(goal, 1));
         long fees = 0;
-        for (Step s : steps) {
+        for (Step s : acc.steps) {
             fees += (long) s.recipe().fee() * s.times();
         }
-        return new Plan(goal, List.copyOf(steps), fees, value[0], gain);
+        return new Plan(goal, List.copyOf(acc.steps), fees, acc.value, gain, Map.copyOf(acc.used));
     }
 
-    // Takes qty of itemId from what's left, crafting the shortfall (ETC recipes only, preferring the NPC the
-    // parent recipe uses, so one stop does both). Steps come out in the order they must run.
-    private static boolean resolve(int itemId, int qty, int preferNpc, Map<Integer, Integer> left,
-                                   List<Step> steps, double[] value, int depth) {
-        int held = left.getOrDefault(itemId, 0);
-        int use = Math.min(held, qty);
-        if (use > 0) {
-            left.put(itemId, held - use);
-            value[0] += lookups.sellPrice(itemId, use);
+    // A plan in progress: what's left of the holdings, what earlier steps made and left over, the steps so far,
+    // what was taken from the holdings and its sell value. Copied to try a recipe, kept when it works.
+    private static final class Acc {
+        final Map<Integer, Integer> left, made, used;
+        final List<Step> steps;
+        double value;
+
+        Acc(Map<Integer, Integer> left, Map<Integer, Integer> made, List<Step> steps, Map<Integer, Integer> used,
+            double value) {
+            this.left = left;
+            this.made = made;
+            this.steps = steps;
+            this.used = used;
+            this.value = value;
         }
-        int shortfall = qty - use;
+
+        Acc copy() {
+            return new Acc(new HashMap<>(left), new HashMap<>(made), new ArrayList<>(steps), new HashMap<>(used), value);
+        }
+
+        void take(Acc o) {
+            left.clear();
+            left.putAll(o.left);
+            made.clear();
+            made.putAll(o.made);
+            steps.clear();
+            steps.addAll(o.steps);
+            used.clear();
+            used.putAll(o.used);
+            value = o.value;
+        }
+
+        /** Takes up to {@code qty} from {@code from}; returns how much it got. */
+        static int draw(Map<Integer, Integer> from, int itemId, int qty) {
+            int held = from.getOrDefault(itemId, 0);
+            int got = Math.min(held, qty);
+            if (got > 0) {
+                from.put(itemId, held - got);
+            }
+            return got;
+        }
+    }
+
+    // Takes qty of itemId from what earlier steps made, then from the holdings, crafting the shortfall (ETC recipes
+    // only, preferring the NPC the parent recipe uses, so one stop does both). Steps come out in the order they run.
+    private static boolean resolve(int itemId, int qty, int preferNpc, Acc acc, int depth) {
+        int need = qty - Acc.draw(acc.made, itemId, qty);
+        int held = Acc.draw(acc.left, itemId, need);
+        if (held > 0) {
+            acc.used.merge(itemId, held, Integer::sum);
+            acc.value += lookups.sellPrice(itemId, held);
+        }
+        int shortfall = need - held;
         if (shortfall == 0) {
             return true;
         }
@@ -244,24 +286,18 @@ final class BotCraftManager {
                 continue;
             }
             int times = (shortfall + r.yield() - 1) / r.yield();
-            Map<Integer, Integer> tryLeft = new HashMap<>(left);
-            List<Step> trySteps = new ArrayList<>(steps);
-            double[] tryValue = {value[0]};
+            Acc t = acc.copy();
             boolean ok = true;
             for (Mat m : r.mats()) {
-                if (!resolve(m.itemId(), m.qty() * times, r.npcId(), tryLeft, trySteps, tryValue, depth + 1)) {
+                if (!resolve(m.itemId(), m.qty() * times, r.npcId(), t, depth + 1)) {
                     ok = false;
                     break;
                 }
             }
             if (ok) {
-                trySteps.add(new Step(r, times));
-                tryLeft.merge(itemId, times * r.yield() - shortfall, Integer::sum);
-                left.clear();
-                left.putAll(tryLeft);
-                steps.clear();
-                steps.addAll(trySteps);
-                value[0] = tryValue[0];
+                t.steps.add(new Step(r, times));
+                t.made.merge(itemId, times * r.yield() - shortfall, Integer::sum);
+                acc.take(t);
                 return true;
             }
         }
@@ -281,7 +317,7 @@ final class BotCraftManager {
     private static boolean busy(BotEntry entry) {
         return entry.following || entry.shopVisitPending || entry.autopilotErrandMapId != -1
                 || entry.jobErrandMapId != -1 || entry.questErrandMapId != -1 || entry.gachaErrandMapId != -1
-                || BotStorageMuleManager.visitActive(entry);
+                || BotStorageMuleManager.visitActive(entry) || BotStorageMuleManager.onDuty(entry);
     }
 
     /** Look for a craft now and then; start the errand when there is one. */
@@ -294,7 +330,17 @@ final class BotCraftManager {
         if (busy(entry) || bot.getMap() == null) {
             return;
         }
-        Plan plan = bestPlan(bot, bagCounts(bot), bot.getMeso());
+        Map<Integer, Integer> bag = bagCounts(bot);
+        Map<Integer, Map<Integer, Integer>> stock = BotStorageMuleManager.binStock(bot);
+        Map<Integer, Integer> have = new HashMap<>(bag);
+        stock.values().forEach(held -> held.forEach((id, qty) -> have.merge(id, qty, Integer::sum)));
+        Plan plan = bestPlan(bot, have, bot.getMeso());
+        Map<Integer, Map<Integer, Integer>> pickups = plan == null ? Map.of()
+                : BotStorageMuleManager.assignPickups(stock, shortfall(plan.used(), bag));
+        if (!pickups.isEmpty() && !canFetch(bot, pickups)) {
+            plan = bestPlan(bot, bag, bot.getMeso()); // what its own bag makes, without the market trip
+            pickups = Map.of();
+        }
         if (plan == null) {
             return;
         }
@@ -307,10 +353,52 @@ final class BotCraftManager {
             return;
         }
         String name = ItemInformationProvider.getInstance().getName(entry.craftGoalId);
-        log.info("craft: {} plans {} ({} steps, {} meso)", bot.getName(), name, plan.steps().size(), plan.fees());
-        BotManager.getInstance().botReply(entry, BotManager.randomReply(List.of(
-                "gonna get a " + name + " made, brb", "i have the mats for a " + name + ", going to craft it",
-                "heading to the npc to make a " + name)));
+        if (!pickups.isEmpty()) {
+            entry.craftErrandMapId = BotWorldGraph.FREE_MARKET; // the market first; nextStop again from there
+            entry.craftPickupSinceMs = 0L;
+            for (Map<Integer, Integer> give : pickups.values()) {
+                for (int id : give.keySet()) {
+                    entry.craftNeed.put(id, plan.used().get(id));
+                }
+            }
+            entry.craftPickups.putAll(pickups);
+            if (!BotStorageMuleManager.claimPickups(bot.getId(), pickups)) {
+                clear(entry); // a mule got taken meanwhile; look again next time
+                return;
+            }
+        }
+        log.info("craft: {} plans {} ({} steps, {} meso, pickups {})", bot.getName(), name, plan.steps().size(),
+                plan.fees(), pickups);
+        BotManager.getInstance().botReply(entry, BotManager.randomReply(pickups.isEmpty()
+                ? List.of("gonna get a " + name + " made, brb", "i have the mats for a " + name + ", going to craft it",
+                        "heading to the npc to make a " + name)
+                : List.of("grabbing mats from my storage guys to craft a " + name,
+                        "my storage guys have the mats for a " + name + ", heading to the FM",
+                        "gonna make a " + name + ", picking up mats at the FM first")));
+    }
+
+    /** What the plan takes from the holdings beyond what the bag has: the part the bins supply. */
+    static Map<Integer, Integer> shortfall(Map<Integer, Integer> used, Map<Integer, Integer> bag) {
+        Map<Integer, Integer> out = new java.util.TreeMap<>();
+        used.forEach((id, qty) -> {
+            int short_ = qty - bag.getOrDefault(id, 0);
+            if (short_ > 0) {
+                out.put(id, short_);
+            }
+        });
+        return out;
+    }
+
+    // Room for what the mules bring (a slot per item, kept one spare), and a way to the market.
+    private static boolean canFetch(Character bot, Map<Integer, Map<Integer, Integer>> pickups) {
+        long items = pickups.values().stream().flatMap(m -> m.keySet().stream()).distinct().count();
+        Inventory etc = bot.getInventory(InventoryType.ETC);
+        if (etc == null || etc.getNumFreeSlot() <= items) {
+            return false;
+        }
+        return bot.getMapId() == BotWorldGraph.FREE_MARKET || BotAutopilotManager.routeForBot(bot, bot.getMapId(),
+                BotWorldGraph.FREE_MARKET, BotAutopilotManager.MAX_TRAVEL_HOPS,
+                BotAutopilotManager.travelOptions(bot, false)) != null;
     }
 
     /** Points the errand at the nearest map with the next step's NPC; false when none is reachable. */
@@ -351,6 +439,9 @@ final class BotCraftManager {
         if (entry.craftProgress.stalled(now, STALL_MS)) {
             finish(entry, bot, "couldn't get to the crafting npc, maybe later");
             return false;
+        }
+        if (!entry.craftPickups.isEmpty()) {
+            return tickPickup(entry, bot, now, runAiTick);
         }
         BotTravelManager.ApproachStatus status = BotTravelManager.tickApproachNpc(entry, bot,
                 entry.craftErrandMapId, entry.craftNpcId, BotAutopilotManager.MAX_TRAVEL_HOPS, runAiTick, false,
@@ -398,6 +489,56 @@ final class BotCraftManager {
         return true;
     }
 
+    private static final long PICKUP_WAIT_MS = 5 * 60_000L;
+
+    /** At the market, the mules drop their share and the farmer picks it up; then on to the NPC, replanning
+     *  from the bag when a bin came up short. */
+    private static boolean tickPickup(BotEntry entry, Character bot, long now, boolean runAiTick) {
+        if (bot.getMapId() != BotWorldGraph.FREE_MARKET) {
+            boolean moved = BotTravelManager.tickTravel(entry, bot, BotWorldGraph.FREE_MARKET,
+                    BotAutopilotManager.MAX_TRAVEL_HOPS, runAiTick, false);
+            entry.craftProgress.record(bot, moved, now);
+            return moved;
+        }
+        entry.craftProgress.touch(now);
+        if (entry.craftPickupSinceMs == 0L) {
+            entry.craftPickupSinceMs = now;
+        }
+        entry.craftPickups.keySet().removeIf(mule -> !BotStorageMuleManager.givingTo(mule, bot.getId()));
+        Map<Integer, Integer> bag = bagCounts(bot);
+        boolean got = entry.craftNeed.entrySet().stream().allMatch(e -> bag.getOrDefault(e.getKey(), 0) >= e.getValue());
+        if (!got && !entry.craftPickups.isEmpty() && now - entry.craftPickupSinceMs < PICKUP_WAIT_MS) {
+            return BotStorageMuleManager.collectPickup(entry, bot, entry.craftPickups.keySet(), runAiTick);
+        }
+        releasePickups(entry, bot.getId());
+        String goal = ItemInformationProvider.getInstance().getName(entry.craftGoalId);
+        if (!got) {
+            Step last = entry.craftSteps.peekLast();
+            Plan p = last == null ? null : plan(bot, last.recipe(), bag, 0);
+            if (p == null) {
+                finish(entry, bot, "my storage guys didn't have everything for the " + goal + ", never mind");
+                return false;
+            }
+            entry.craftSteps.clear();
+            entry.craftSteps.addAll(p.steps());
+        }
+        if (!nextStop(entry, bot)) {
+            finish(entry, bot, "can't find the npc for the " + goal + ", never mind");
+            return false;
+        }
+        BotManager.getInstance().botReply(entry, "got the mats, off to craft the " + goal);
+        return true;
+    }
+
+    private static void releasePickups(BotEntry entry, int farmerId) {
+        for (int mule : List.copyOf(entry.craftPickups.keySet())) {
+            BotStorageMuleManager.releasePickup(mule, farmerId);
+        }
+        entry.craftPickups.clear();
+        entry.craftNeed.clear();
+        entry.craftPickupSinceMs = 0L;
+    }
+
     /**
      * One step at the NPC, as its script does it: checks the materials, the fee and room, then
      * {@code gainItem(mat, -qty)}, {@code gainMeso(-fee)}, {@code gainItem(output, yield)}. False when short.
@@ -436,6 +577,9 @@ final class BotCraftManager {
     }
 
     static void clear(BotEntry entry) {
+        if (entry.bot != null) {
+            releasePickups(entry, entry.bot.getId());
+        }
         if (entry.craftErrandMapId != -1) {
             BotTravelManager.clearMoveTargetPin(entry);
             BotTravelManager.clearNpcApproach(entry);
