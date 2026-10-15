@@ -44,8 +44,9 @@ either; the Iron and bronze bin can take them until a role does.
 
 Every piece of Maple gear a bot holds (any equip whose name says Maple: weapons, shields, hats, capes,
 earrings) is never sold, by any sell path, and goes to a bin on the next visit
-(`BotInventoryManager.isMapleItem`, `BotStorageMuleManager.mapleBinRole`). Other Maple items (leaves, coins,
-food, stars) follow the normal sell rules.
+(`BotInventoryManager.isMapleItem`, `BotStorageMuleManager.mapleBinRole`). Maple Throwing-Stars get the same
+rule (owner, 2026-10-15): never sold, always looted, handed to the Thief weapons bin unless the holder throws
+them itself. Other Maple items (leaves, coins, food) follow the normal sell rules.
 
 - Weapons to the weapon bin of the class that uses them (lowest reqJob bit: Warrior, Mage, Bowman, Thief,
   Pirate); hats, tops, overalls, pants and shields to that class's armor bin.

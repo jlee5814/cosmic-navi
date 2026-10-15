@@ -28,9 +28,10 @@ Built 2026-10-14 in `BotStorageMuleManager`; design and flow in `docs/bot/etc-st
   bot standing still on purpose), and `tickMule` runs after the logout branch, before the autopilot.
 
 **Maple gear (owner rule)**
-- Never sold: `isMapleItem` (an equip whose name contains Maple, not a quest item) is checked in the equip sell
-  collector and classifier (status BIN). Non-gear Maple items sell normally.
-- `handoffItems` = ETC shelf + BIN equips; `roleFor` routes Maple gear by kind (`mapleBinRole`) and a material
+- Never sold: `isMapleItem` (an equip or throwing star whose name contains Maple, not a quest item) is checked
+  in the equip sell collector and classifier (status BIN) and the USE classifier (Maple stars forced RUNWAY);
+  `isUnwantedOffClassAmmo` never blocks looting them. Other Maple items sell normally.
+- `handoffItems` = ETC shelf + BIN equips + Maple stars the holder doesn't throw (`isOwnAmmo`); `roleFor` routes Maple gear by kind (`mapleBinRole`) and a material
   by family (`binRole`). The test reads `docs/bot/rosters/sipsbuddy.csv` to prove every bin role exists.
 - A batch counts the mule's free slots per tab. The mule on duty skips autoEquip and loot offers.
 - `refillBins`: when a visit's bins run out, it claims mules it still needs that came free (another farmer's
