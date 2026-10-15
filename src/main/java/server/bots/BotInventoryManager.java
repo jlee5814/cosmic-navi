@@ -1764,42 +1764,81 @@ class BotInventoryManager {
                 }
             }
         }
-        result.addAll(valuableEquipOverflow(ii, keptValuables));
+        result.addAll(valuableEquipOverflow(ii, holdLookups(bot), keptValuables));
         return result;
     }
 
-    // The valuables shelf is bounded: good-roll equips kept for future trading are ranked by
-    // trade value and only the best KEEP_VALUABLE_EQUIP_SLOTS stay; the overflow sells like
-    // any junk. Without the cap every above-base roll accumulates forever.
+    // The valuables shelf is bounded: only the KEEP_VALUABLE_EQUIP_SLOTS equips most worth holding stay;
+    // the rest sell like any junk. Without the cap every above-base roll accumulates forever.
     static final int KEEP_VALUABLE_EQUIP_SLOTS = 24;
 
-    // Absolute keep gate ON TOP of the bounded shelf: an equip this far above its clean base
-    // (one good att-scroll pass, or +25 raw stat points) is never auto-sold even when the
-    // shelf overflows — a mule spawned holding a bag of genuine valuables must not liquidate
-    // them just because there are more than the shelf holds. Bag pressure is the lesser evil.
-    static final double NEVER_SELL_TRADE_SCORE = 25.0;
-
-    /** Kept-for-value equips ranked by trade value descending (rank = index + 1). Shared by
-     *  the real sell pipeline ({@link #valuableEquipOverflow}) and the debug classifier
-     *  ({@link #classifyBagEquips}) so both always agree. */
-    static List<Equip> rankKeptValuables(ItemInformationProvider ii, List<Equip> kept) {
-        List<Equip> ranked = new ArrayList<>(kept);
-        ranked.sort(Comparator.comparingDouble((Equip e) -> tradeValueScore(ii, e)).reversed()
-                .thenComparingInt(Item::getItemId));
-        return ranked;
+    /**
+     * What an equip is worth holding instead of selling (owner question, 2026-10-15): a copy is worth holding
+     * only while the fleet will wear it, and then it is worth no more than what getting it again would cost.
+     * {@code demand} counts the fleet members who will wear an item ({@link BotStorageMuleManager#fleetDemand});
+     * {@code obtainCost} is the cheapest way to get one again, a shop's price or the farming effort (the same
+     * SSOT the USE shelf prices with).
+     */
+    interface HoldLookups {
+        int demand(Equip equip);
+        double obtainCost(int itemId);
     }
 
-    /** Kept-for-value equips beyond the shelf cap, weakest trade value first — except equips
-     *  at or above {@link #NEVER_SELL_TRADE_SCORE}, which never sell regardless of overflow. */
-    static List<Item> valuableEquipOverflow(ItemInformationProvider ii, List<Equip> kept) {
-        if (kept.size() <= KEEP_VALUABLE_EQUIP_SLOTS) {
-            return List.of();
+    // Test seams: fleet demand and obtain cost (both read the roster, WZ and drop data).
+    static java.util.function.ToIntBiFunction<Character, Equip> fleetDemand = BotStorageMuleManager::fleetDemand;
+    static ScrollMarketValueLookup equipObtainCost = BotScrollManager::scrollMarketValueMeso;
+
+    static HoldLookups holdLookups(Character bot) {
+        return new HoldLookups() {
+            @Override public int demand(Equip equip) { return fleetDemand.applyAsInt(bot, equip); }
+            @Override public double obtainCost(int itemId) { return equipObtainCost.value(bot, itemId); }
+        };
+    }
+
+    /** One kept-for-value equip's place: {@code keeps} on the shelf, else it sells. {@code holdValue} is 0 for a
+     *  copy past the fleet's demand ({@code copy} is its 1-based place among copies of that item, best roll first). */
+    record HoldRank(Equip equip, int rank, boolean keeps, int copy, int demand, double holdValue) {}
+
+    /**
+     * Ranks kept-for-value equips by what they are worth holding. Copies of one item compete by roll (trade
+     * value); the best {@code demand} of them are worth their obtain cost, the rest nothing (they sell). Worth
+     * holding, best first, the top {@link #KEEP_VALUABLE_EQUIP_SLOTS} stay. Shared by the sell pipeline
+     * ({@link #valuableEquipOverflow}) and the classifier ({@link #classifyBagEquips}) so both agree.
+     */
+    static List<HoldRank> rankHold(ItemInformationProvider ii, HoldLookups lookups, List<Equip> kept) {
+        Map<Integer, List<Equip>> copies = new java.util.LinkedHashMap<>();
+        for (Equip e : kept) {
+            copies.computeIfAbsent(e.getItemId(), k -> new ArrayList<>()).add(e);
         }
-        List<Equip> ranked = rankKeptValuables(ii, kept);
+        record Scored(Equip equip, int copy, int demand, double holdValue, double score) {}
+        List<Scored> scored = new ArrayList<>();
+        for (List<Equip> same : copies.values()) {
+            same.sort(Comparator.comparingDouble((Equip e) -> tradeValueScore(ii, e)).reversed());
+            int demand = lookups.demand(same.get(0));
+            double obtain = demand > 0 ? Math.max(1.0, lookups.obtainCost(same.get(0).getItemId())) : 0.0;
+            for (int i = 0; i < same.size(); i++) {
+                Equip e = same.get(i);
+                scored.add(new Scored(e, i + 1, demand, i < demand ? obtain : 0.0, tradeValueScore(ii, e)));
+            }
+        }
+        scored.sort(Comparator.comparingDouble(Scored::holdValue).reversed()
+                .thenComparing(Comparator.comparingDouble(Scored::score).reversed())
+                .thenComparingInt(s -> s.equip().getItemId()));
+        List<HoldRank> out = new ArrayList<>(scored.size());
+        for (int i = 0; i < scored.size(); i++) {
+            Scored s = scored.get(i);
+            boolean keeps = s.holdValue() > 0 && i < KEEP_VALUABLE_EQUIP_SLOTS;
+            out.add(new HoldRank(s.equip(), i + 1, keeps, s.copy(), s.demand(), s.holdValue()));
+        }
+        return out;
+    }
+
+    /** Kept-for-value equips the shelf doesn't hold: copies past fleet demand, then the least worth holding. */
+    static List<Item> valuableEquipOverflow(ItemInformationProvider ii, HoldLookups lookups, List<Equip> kept) {
         List<Item> overflow = new ArrayList<>();
-        for (Equip e : ranked.subList(KEEP_VALUABLE_EQUIP_SLOTS, ranked.size())) {
-            if (tradeValueScore(ii, e) < NEVER_SELL_TRADE_SCORE) {
-                overflow.add(e);
+        for (HoldRank r : rankHold(ii, lookups, kept)) {
+            if (!r.keeps()) {
+                overflow.add(r.equip());
             }
         }
         return overflow;
@@ -1842,7 +1881,7 @@ class BotInventoryManager {
 
     // === USE value model tunables (pressure-driven + value shelf) ===
     // A USE stack worth at least this much is a trade good and is never auto-sold, even when the
-    // bag is cramped (analog of NEVER_SELL_TRADE_SCORE for equips).
+    // bag is cramped.
     static int USE_NEVER_SELL_MESO = 50_000;
     // All-cure (status insurance) reserve kept in the combat runway.
     static int ALL_CURE_RESERVE_SLOTS = 1;
@@ -2033,10 +2072,6 @@ class BotInventoryManager {
 
         for (Item item : all) {
             int id = item.getItemId();
-            if (isMapleItem(id)) {
-                out.put(item, new UseClass(UseTier.RUNWAY, 0, 0, "maple-item")); // never sold: it goes to its bin
-                continue;
-            }
             if (isUseJunk(bot, id)) {
                 out.put(item, new UseClass(UseTier.JUNK, 0, 0, junkReason(bot, id)));
                 continue;
@@ -2515,7 +2550,7 @@ class BotInventoryManager {
                 return true; // omok clutter: always sold, overrides the rare-drop/leftover keeps below
             }
             if (SKILL_CONSUMED_ETC.contains(id) || BotFerryManager.isTicket(id) || isMakerMaterial(id)
-                    || isMapleItem(id) || isRareDrop(id) || keepCrystalLeftover(bot, item)) {
+                    || isRareDrop(id) || keepCrystalLeftover(bot, item)) {
                 return false;
             }
             return true;
@@ -2753,6 +2788,7 @@ class BotInventoryManager {
                     case TRASH -> 0;
                     case HLIM -> 1;
                     case HOARD -> 2;
+                    case SURPLUS -> 0;
                     case RESV_OTHER, BIN -> 3;
                     case RESV_SELF -> 4;
                 };
@@ -2838,12 +2874,18 @@ class BotInventoryManager {
     // sell pipeline uses (no parallel decision tree):
     //   RESV-SELF  reserved for the bot's own upgrades (collectPotentialSelfUpgradeItems)
     //   RESV-OTHER promised to other recipients (BotOfferManager)
-    //   HOARD#r    kept for value, rank r on the bounded shelf (or above the never-sell gate)
-    //   HLIM#r     kept for value but beyond the shelf and below the gate -> sells next trip
+    //   BIN        Maple gear, never sold, for its storage bin
+    //   HOARD#r    worth holding, rank r on the bounded shelf (see rankHold)
+    //   HLIM#r     worth holding but beyond the shelf -> sells next trip
+    //   SURPLUS    a copy past what the fleet will wear -> sells next trip
     //   TRASH      sells next trip
-    enum BagEquipStatus { RESV_SELF, RESV_OTHER, BIN, HOARD, HLIM, TRASH }
+    enum BagEquipStatus { RESV_SELF, RESV_OTHER, BIN, HOARD, HLIM, SURPLUS, TRASH }
 
-    record BagEquipClass(BagEquipStatus status, int rank) {
+    record BagEquipClass(BagEquipStatus status, int rank, int demand) {
+        BagEquipClass(BagEquipStatus status, int rank) {
+            this(status, rank, 0);
+        }
+
         String label() {
             return switch (status) {
                 case RESV_SELF -> "RESV-SELF";
@@ -2851,6 +2893,7 @@ class BotInventoryManager {
                 case BIN -> "BIN";
                 case HOARD -> "HOARD#" + rank;
                 case HLIM -> "HLIM#" + rank;
+                case SURPLUS -> "SURPLUS(fleet " + demand + ")";
                 case TRASH -> "TRASH";
             };
         }
@@ -2862,11 +2905,18 @@ class BotInventoryManager {
         collectFromBag(bot, all, InventoryType.EQUIP, item -> true);
         Set<Item> selfKeep = BotEquipManager.collectPotentialSelfUpgradeItems(bot);
         return classifyBagEquips(ii, all, selfKeep,
-                item -> entry != null && BotOfferManager.isReservedForOtherRecipients(entry, bot, item));
+                item -> entry != null && BotOfferManager.isReservedForOtherRecipients(entry, bot, item),
+                holdLookups(bot));
     }
 
     static Map<Item, BagEquipClass> classifyBagEquips(ItemInformationProvider ii, List<Item> bagEquips,
                                                       Set<Item> reservedSelf, Predicate<Item> reservedOther) {
+        return classifyBagEquips(ii, bagEquips, reservedSelf, reservedOther, holdLookups(null));
+    }
+
+    static Map<Item, BagEquipClass> classifyBagEquips(ItemInformationProvider ii, List<Item> bagEquips,
+                                                      Set<Item> reservedSelf, Predicate<Item> reservedOther,
+                                                      HoldLookups lookups) {
         Map<Item, BagEquipClass> out = new IdentityHashMap<>();
         List<Equip> kept = new ArrayList<>();
         for (Item item : bagEquips) {
@@ -2885,13 +2935,10 @@ class BotInventoryManager {
                 out.put(item, new BagEquipClass(BagEquipStatus.TRASH, 0));
             }
         }
-        List<Equip> ranked = rankKeptValuables(ii, kept);
-        for (int i = 0; i < ranked.size(); i++) {
-            Equip e = ranked.get(i);
-            int rank = i + 1;
-            boolean keeps = rank <= KEEP_VALUABLE_EQUIP_SLOTS
-                    || tradeValueScore(ii, e) >= NEVER_SELL_TRADE_SCORE;
-            out.put(e, new BagEquipClass(keeps ? BagEquipStatus.HOARD : BagEquipStatus.HLIM, rank));
+        for (HoldRank r : rankHold(ii, lookups, kept)) {
+            BagEquipStatus status = r.keeps() ? BagEquipStatus.HOARD
+                    : r.holdValue() > 0 ? BagEquipStatus.HLIM : BagEquipStatus.SURPLUS;
+            out.put(r.equip(), new BagEquipClass(status, r.rank(), r.demand()));
         }
         return out;
     }
@@ -2907,9 +2954,11 @@ class BotInventoryManager {
         classifyBagEquips(entry, bot).forEach((item, c) -> out.put(item, switch (c.status()) {
             case RESV_SELF -> new BagVerdict("keep", "own upgrade");
             case RESV_OTHER -> new BagVerdict("keep", "promised to a teammate");
-            case BIN -> new BagVerdict("keep", "maple item, for its bin");
-            case HOARD -> new BagVerdict("keep", "valuable, shelf #" + c.rank());
-            case HLIM -> new BagVerdict("sell", "valuable past the shelf, #" + c.rank());
+            case BIN -> new BagVerdict("keep", "maple gear, for its bin");
+            case HOARD -> new BagVerdict("keep", "worth holding, shelf #" + c.rank());
+            case HLIM -> new BagVerdict("sell", "worth holding but past the shelf, #" + c.rank());
+            case SURPLUS -> new BagVerdict("sell", c.demand() == 0 ? "nobody in the fleet wears it"
+                    : "surplus, the fleet wears " + c.demand());
             case TRASH -> new BagVerdict("sell", "trash");
         }));
         Map<Item, UseClass> use = classifyBagUse(bot);
@@ -3052,9 +3101,6 @@ class BotInventoryManager {
         }
         if (SKILL_CONSUMED_ETC.contains(id)) {
             return "skill-consumed";
-        }
-        if (isMapleItem(id)) {
-            return "maple-item";
         }
         if (BotFerryManager.isTicket(id)) {
             return "ferry-ticket";
@@ -3414,11 +3460,13 @@ class BotInventoryManager {
     static IntPredicate questItem = id -> ItemInformationProvider.getInstance().isQuestItem(id);
     static java.util.function.IntFunction<String> itemName = id -> ItemInformationProvider.getInstance().getName(id);
 
-    /** A Maple item (Maple weapons, shields, hats, capes, leaves, coins, chairs: any item whose name says
-     *  Maple). Owner rule: they are never sold; they go to the storage bins
-     *  ({@link BotStorageMuleManager}). Quest items are left to the quest rules. Names are cached by the
-     *  item provider. */
+    /** Maple gear (Maple weapons, shields, hats, capes, earrings: any equip whose name says Maple). Owner
+     *  rule: it is never sold; it goes to the storage bins ({@link BotStorageMuleManager}). Quest items are
+     *  left to the quest rules. Names are cached by the item provider. */
     static boolean isMapleItem(int itemId) {
+        if (ItemConstants.getInventoryType(itemId) != InventoryType.EQUIP) {
+            return false;
+        }
         String name = itemName.apply(itemId);
         return name != null && name.contains("Maple") && !questItem.test(itemId);
     }
