@@ -539,6 +539,7 @@ final class BotStorageMuleManager {
         }
         // A batch never holds more than the mule has room for, per tab (a Maple weapon needs an equip slot).
         Map<InventoryType, Integer> room = new java.util.EnumMap<>(InventoryType.class);
+        Character muleChar = mule.bot;
         int dropped = 0;
         for (Item item : stacks) {
             if (dropped >= BATCH_STACKS) {
@@ -546,7 +547,7 @@ final class BotStorageMuleManager {
             }
             InventoryType type = item.getInventoryType();
             int free = room.computeIfAbsent(type, t -> {
-                Inventory inv = mule.bot.getInventory(t);
+                Inventory inv = muleChar.getInventory(t);
                 return inv == null ? 0 : (int) inv.getNumFreeSlot();
             });
             if (free > 0 && BotInventoryManager.hasItem(bot, item) && item.getQuantity() > 0) {
