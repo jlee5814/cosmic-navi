@@ -167,6 +167,16 @@ final class BotCraftManager {
      * (refining on the way). Cheaper than getting the item another way, and affordable with half its meso.
      */
     static Plan bestPlan(Character bot, Map<Integer, Integer> have, long meso) {
+        return bestPlan(bot, have, meso, null);
+    }
+
+    /** Why a recipe didn't make the plan, for {@code /api/craftplan}: the recipe, the reason, its offense gain. */
+    interface Rejects {
+        void reject(Recipe recipe, String reason, double gain);
+    }
+
+    static Plan bestPlan(Character bot, Map<Integer, Integer> have, long meso, Rejects rejects) {
+        Rejects why = rejects != null ? rejects : (r, reason, gain) -> {};
         Plan best = null;
         for (Recipe r : RECIPES) {
             if (!r.gear()) {
@@ -174,26 +184,33 @@ final class BotCraftManager {
             }
             Map<String, Integer> st = lookups.stats(r.outputId());
             if (st == null || st.getOrDefault("cash", 0) > 0) {
+                why.reject(r, "no item data", 0);
                 continue;
             }
             int req = st.getOrDefault("reqLevel", 0);
             if (req > bot.getLevel() || req < bot.getLevel() - OUTGROWN_LEVELS) {
+                why.reject(r, "outside its level window", 0);
                 continue;
             }
             int slot = BotStorageMuleManager.gearSlot(r.outputId());
             double gain = lookups.offense(bot, st) - lookups.wornOffense(bot, slot);
-            if (gain <= 0 || (best != null && gain < best.gain())) {
+            if (gain <= 0) {
+                why.reject(r, "no better than what it wears", gain);
+                continue;
+            }
+            if (best != null && gain < best.gain()) {
+                why.reject(r, "a bigger upgrade won", gain);
                 continue;
             }
             Plan p = plan(bot, r, have, gain);
-            if (p == null || p.fees() * 2 > meso
-                    || p.fees() + p.inputValue() >= lookups.obtainCost(bot, r.outputId())) {
-                continue;
-            }
-            if (ItemConstants.isWeapon(r.outputId()) && !lookups.preferredWeapon(bot, r.outputId())) {
-                continue;
-            }
-            if (!lookups.wearable(bot, r.outputId())) {
+            String no = p == null ? "short on materials"
+                    : p.fees() * 2 > meso ? "fees over half its meso"
+                    : p.fees() + p.inputValue() >= lookups.obtainCost(bot, r.outputId()) ? "cheaper to buy or farm"
+                    : ItemConstants.isWeapon(r.outputId()) && !lookups.preferredWeapon(bot, r.outputId())
+                            ? "not its weapon type"
+                    : !lookups.wearable(bot, r.outputId()) ? "can't wear it yet" : null;
+            if (no != null) {
+                why.reject(r, no, gain);
                 continue;
             }
             if (best == null || gain > best.gain() || (gain == best.gain()
@@ -334,17 +351,9 @@ final class BotCraftManager {
             entry.craftNextCheckAtMs = now + 5_000L; // the roster snapshot is loading; the bins count once it's in
             return;
         }
-        Map<Integer, Integer> bag = bagCounts(bot);
-        Map<Integer, Map<Integer, Integer>> stock = BotStorageMuleManager.binStock(bot);
-        Map<Integer, Integer> have = new HashMap<>(bag);
-        stock.values().forEach(held -> held.forEach((id, qty) -> have.merge(id, qty, Integer::sum)));
-        Plan plan = bestPlan(bot, have, bot.getMeso());
-        Map<Integer, Map<Integer, Integer>> pickups = plan == null ? Map.of()
-                : BotStorageMuleManager.assignPickups(stock, shortfall(plan.used(), bag));
-        if (!pickups.isEmpty() && !canFetch(bot, pickups)) {
-            plan = bestPlan(bot, bag, bot.getMeso()); // what its own bag makes, without the market trip
-            pickups = Map.of();
-        }
+        Choice choice = choose(bot, null);
+        Plan plan = choice.plan();
+        Map<Integer, Map<Integer, Integer>> pickups = choice.pickups();
         if (plan == null) {
             return;
         }
@@ -379,6 +388,25 @@ final class BotCraftManager {
                 : List.of("grabbing mats from my storage guys to craft a " + name,
                         "my storage guys have the mats for a " + name + ", heading to the FM",
                         "gonna make a " + name + ", picking up mats at the FM first")));
+    }
+
+    /** A craft and the pickups it needs (mule char id to item to quantity; empty when the bag covers it). */
+    record Choice(Plan plan, Map<Integer, Map<Integer, Integer>> pickups) {}
+
+    /** The craft this bot would start now, planning against its bag plus its free bins; the bag alone when the
+     *  pickup can't be fetched. */
+    static Choice choose(Character bot, Rejects rejects) {
+        Map<Integer, Integer> bag = bagCounts(bot);
+        Map<Integer, Map<Integer, Integer>> stock = BotStorageMuleManager.binStock(bot);
+        Map<Integer, Integer> have = new HashMap<>(bag);
+        stock.values().forEach(held -> held.forEach((id, qty) -> have.merge(id, qty, Integer::sum)));
+        Plan plan = bestPlan(bot, have, bot.getMeso(), rejects);
+        Map<Integer, Map<Integer, Integer>> pickups = plan == null ? Map.of()
+                : BotStorageMuleManager.assignPickups(stock, shortfall(plan.used(), bag));
+        if (!pickups.isEmpty() && !canFetch(bot, pickups)) {
+            return new Choice(bestPlan(bot, bag, bot.getMeso()), Map.of()); // its own bag, no market trip
+        }
+        return new Choice(plan, pickups);
     }
 
     /** What the plan takes from the holdings beyond what the bag has: the part the bins supply. */

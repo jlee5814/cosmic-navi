@@ -191,6 +191,7 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/learned/readiness", BotWorldGraphWebServer::serveLearnedReadiness);
             s.createContext("/api/chat", BotWorldGraphWebServer::serveChat);
             s.createContext("/api/inventory", BotWorldGraphWebServer::serveInventory);
+            s.createContext("/api/craftplan", BotWorldGraphWebServer::serveCraftPlan);
             s.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "bot-worldmap-web");
                 t.setDaemon(true);
@@ -308,6 +309,76 @@ public final class BotWorldGraphWebServer {
         }
         return "{\"id\":" + bot.getId() + ",\"name\":" + jsonStr(bot.getName()) + ",\"meso\":" + bot.getMeso()
                 + ",\"map\":" + bot.getMapId() + ",\"tabs\":" + rawArr(tabs) + "}";
+    }
+
+    /** GET /api/craftplan?id=botCharId: the craft an online bot would start now (BotCraftManager.choose, its
+     *  bag plus its free bins), the pickups it needs, and why the other recipes lost, counted by reason with the
+     *  closest upgrades listed. */
+    private static void serveCraftPlan(HttpExchange ex) throws IOException {
+        int id;
+        try {
+            id = Integer.parseInt(queryParams(ex.getRequestURI().getRawQuery()).getOrDefault("id", "").trim());
+        } catch (NumberFormatException e) {
+            send(ex, 400, "application/json", "{\"error\":\"id required\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        BotEntry e = lookupBotEntry(id);
+        Character bot = e == null ? null : e.bot;
+        if (bot == null) {
+            send(ex, 404, "application/json", "{\"error\":\"bot not online\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        String body;
+        try {
+            body = craftPlanJson(e, bot);
+        } catch (RuntimeException err) { // the game thread can move items mid read; poll again
+            send(ex, 503, "application/json", "{\"error\":\"bag changed, retry\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        send(ex, 200, "application/json", body.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String craftPlanJson(BotEntry e, Character bot) {
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
+        Map<String, Integer> reasons = new java.util.TreeMap<>();
+        record Near(BotCraftManager.Recipe recipe, String reason, double gain) {}
+        List<Near> near = new ArrayList<>();
+        BotCraftManager.Choice c = BotCraftManager.choose(bot, (r, reason, gain) -> {
+            reasons.merge(reason, 1, Integer::sum);
+            if (gain > 0) {
+                near.add(new Near(r, reason, gain));
+            }
+        });
+        near.sort((a, b) -> Double.compare(b.gain(), a.gain()));
+        List<String> nearJson = new ArrayList<>();
+        for (Near n : near.subList(0, Math.min(10, near.size()))) {
+            nearJson.add("{\"id\":" + n.recipe().outputId() + ",\"n\":" + jsonStr(String.valueOf(ii.getName(n.recipe().outputId())))
+                    + ",\"npc\":" + n.recipe().npcId() + ",\"gain\":" + Math.round(n.gain() * 10) / 10.0
+                    + ",\"why\":" + jsonStr(n.reason()) + "}");
+        }
+        List<String> reasonJson = new ArrayList<>();
+        reasons.forEach((k, v) -> reasonJson.add(jsonStr(k) + ":" + v));
+        String plan = "null";
+        BotCraftManager.Plan p = c.plan();
+        if (p != null) {
+            List<String> steps = new ArrayList<>();
+            for (BotCraftManager.Step st : p.steps()) {
+                steps.add("{\"npc\":" + st.recipe().npcId() + ",\"id\":" + st.recipe().outputId() + ",\"n\":"
+                        + jsonStr(String.valueOf(ii.getName(st.recipe().outputId()))) + ",\"times\":" + st.times() + "}");
+            }
+            List<String> pickups = new ArrayList<>();
+            c.pickups().forEach((mule, give) -> pickups.add("{\"mule\":" + mule + ",\"items\":" + give.entrySet().stream()
+                    .map(g -> "{\"id\":" + g.getKey() + ",\"q\":" + g.getValue() + "}")
+                    .collect(java.util.stream.Collectors.joining(",", "[", "]")) + "}"));
+            plan = "{\"goal\":" + p.goal().outputId() + ",\"n\":" + jsonStr(String.valueOf(ii.getName(p.goal().outputId())))
+                    + ",\"gain\":" + Math.round(p.gain() * 10) / 10.0 + ",\"fees\":" + p.fees()
+                    + ",\"inputValue\":" + Math.round(p.inputValue()) + ",\"steps\":" + rawArr(steps)
+                    + ",\"pickups\":" + rawArr(pickups) + "}";
+        }
+        return "{\"id\":" + bot.getId() + ",\"name\":" + jsonStr(bot.getName()) + ",\"level\":" + bot.getLevel()
+                + ",\"meso\":" + bot.getMeso() + ",\"active\":" + BotCraftManager.active(e)
+                + ",\"bins\":" + BotStorageMuleManager.binStock(bot).size() + ",\"plan\":" + plan
+                + ",\"rejected\":{" + String.join(",", reasonJson) + "},\"near\":" + rawArr(nearJson) + "}";
     }
 
     /** POST /api/fleetops/act {"bot":id,"action":"rescue|hold_errands|sell_trash|park","arg":n,"reason":"..."}:
