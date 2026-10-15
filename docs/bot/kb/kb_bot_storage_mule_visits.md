@@ -27,15 +27,25 @@ Built 2026-10-14 in `BotStorageMuleManager`; design and flow in `docs/bot/etc-st
 - In `BotManager.tickCore` a mule on duty skips the idle fast path and the park at cap (it is a capped roster
   bot standing still on purpose), and `tickMule` runs after the logout branch, before the autopilot.
 
-**Maple items (owner rule)**
-- Never sold: `isMapleItem` (name contains Maple, not a quest item) is checked in the equip sell collector and
-  classifier (status BIN), the USE classifier (RUNWAY, maple-item) and the ETC sell collector.
-- `handoffItems` = ETC shelf + BIN equips + Maple USE, SETUP and ETC items that survive a drop; `roleFor` routes a
-  Maple item by kind (`mapleBinRole`) and a material by family (`binRole`). Bins are roster role names; the test
-  reads `docs/bot/rosters/sipsbuddy.csv` to prove every role exists.
-- A batch counts the mule's free slots per tab. The mule on duty skips autoEquip and loot offers, and the off
-  class ammo loot filter lets its partner's drops through.
+**Maple gear (owner rule)**
+- Never sold: `isMapleItem` (an equip whose name contains Maple, not a quest item) is checked in the equip sell
+  collector and classifier (status BIN). Non-gear Maple items sell normally.
+- `handoffItems` = ETC shelf + BIN equips; `roleFor` routes Maple gear by kind (`mapleBinRole`) and a material
+  by family (`binRole`). The test reads `docs/bot/rosters/sipsbuddy.csv` to prove every bin role exists.
+- A batch counts the mule's free slots per tab. The mule on duty skips autoEquip and loot offers.
+- `refillBins`: when a visit's bins run out, it claims mules it still needs that came free (another farmer's
+  visit held them), checking every 5 s, for up to 4 minutes after its last bin. `muleVisitServed` stops repeats.
 - Tests must stub `BotInventoryManager.itemName` (and `questItem` for Maple names); the default reads WZ names.
+
+**Equip hold value (replaces the never-sell line, 2026-10-15)**
+- `BotInventoryManager.rankHold`: kept-for-value equips (past `shouldKeepForSellTrash`) group by item; copies rank
+  by roll (`tradeValueScore`); the best `demand` copies are worth their obtain cost (`equipObtainCost`, the
+  `scrollMarketValueMeso` SSOT: shop price, else farming effort), the rest 0 (SURPLUS, sells). Worth holding,
+  best first, the top 24 stay (HOARD); the rest past the shelf sell (HLIM).
+- Demand: `BotStorageMuleManager.fleetDemand`, the owner and the owner's bots (beginners and the holder itself
+  excluded) who pass the player requirement check at level + 10 and haven't outgrown it by 30 levels.
+  The roster snapshot (job, level) loads with the mule directory. `UNKNOWN_DEMAND` until it loads, so nothing
+  sells on a guess. Tests stub `fleetDemand` and `equipObtainCost`.
 
 **Shelf hold**
 - `holdsShelf`: while a visit is active or due, the automatic cramped shop trip leaves the shelf alone
