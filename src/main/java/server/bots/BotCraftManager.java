@@ -330,6 +330,10 @@ final class BotCraftManager {
         if (busy(entry) || bot.getMap() == null) {
             return;
         }
+        if (BotStorageMuleManager.directory(now) == null) {
+            entry.craftNextCheckAtMs = now + 5_000L; // the roster snapshot is loading; the bins count once it's in
+            return;
+        }
         Map<Integer, Integer> bag = bagCounts(bot);
         Map<Integer, Map<Integer, Integer>> stock = BotStorageMuleManager.binStock(bot);
         Map<Integer, Integer> have = new HashMap<>(bag);
