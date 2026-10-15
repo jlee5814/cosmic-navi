@@ -65,6 +65,9 @@ public final class BotLootEligibility {
         if (bot == null || drop == null) {
             return MIN_TARGET_LOOT_AGE_MS;
         }
+        if (BotStorageMuleManager.isPartnerDrop(bot, drop)) {
+            return MIN_TARGET_LOOT_AGE_MS; // a handoff: the mule standing there is who it was dropped for
+        }
         if (isBotInventoryDrop(drop)) {
             return BOT_INVENTORY_DROP_TARGET_LOOT_AGE_MS;
         }

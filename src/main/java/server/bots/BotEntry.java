@@ -489,6 +489,20 @@ public class BotEntry {
     long gachaTripBudgetNx = 0L;          // personality NX budget for this trip; replaces the flat ticket cap
     int gachaSpentThisTrip = 0;           // NX spent so far this trip (vs gachaTripBudgetNx)
 
+    // Storage mule visit (BotStorageMuleManager): the farmer walks to the Free Market and drops its shelf
+    // materials beside each bin's mule. muleVisitMapId = -1 when no visit is active; muleVisitBins is the
+    // queue of mule char ids still to serve. muleStandSpot is the mule's own waiting spot while on duty.
+    volatile int muleVisitMapId = -1;
+    final java.util.concurrent.ConcurrentLinkedDeque<Integer> muleVisitBins = new java.util.concurrent.ConcurrentLinkedDeque<>(); // read by the mules' ticks
+    final BotTravelManager.ErrandProgress muleVisitProgress = new BotTravelManager.ErrandProgress();
+    long muleVisitArrivedAtMs = 0L;
+    long muleVisitLastDropAtMs = 0L;
+    long muleVisitNextDropAtMs = 0L;
+    long muleNextVisitAtMs = 0L;
+    long muleVisitCheckAtMs = 0L;
+    Point muleVisitStand = null;
+    Point muleStandSpot = null;
+
     // Supervised-mode quest AUTO-SUGGEST (Feature A): when the owner is online and the bot is at
     // their side, the bot occasionally SUGGESTS a standout nearby quest in chat (it never wanders
     // off to do it - that's autopilot's job). nextQuestSuggestAtMs is the multi-minute cooldown;
