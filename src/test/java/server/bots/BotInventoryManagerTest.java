@@ -178,6 +178,33 @@ class BotInventoryManagerTest {
     }
 
     @Test
+    void aTopRollIsJudgedAgainstWhatThatWeaponCanRoll() {
+        // The bar is the best fifth of the clean range: the old +4 at range 5, the perfect roll at small ranges.
+        assertEquals(4, BotInventoryManager.topRollAboveBase(49)); // War Hammer: range 5, +4 or +5
+        assertEquals(3, BotInventoryManager.topRollAboveBase(32)); // Metal Axe: range 4, +3 or +4
+        assertEquals(3, BotInventoryManager.topRollAboveBase(25)); // range 3: only the perfect +3
+        assertEquals(2, BotInventoryManager.topRollAboveBase(20)); // Maple Claw: range 2, only +2
+        assertEquals(1, BotInventoryManager.topRollAboveBase(8));  // range 1: +1
+        assertEquals(4, BotInventoryManager.topRollAboveBase(0));  // an axis that doesn't roll keeps the old bar
+
+        Equip baseClaw = mock(Equip.class);
+        when(baseClaw.getWatk()).thenReturn((short) 20);
+        Equip perfectClaw = mock(Equip.class);
+        when(perfectClaw.getWatk()).thenReturn((short) 22);
+        Equip goodClaw = mock(Equip.class);
+        when(goodClaw.getWatk()).thenReturn((short) 21);
+        assertTrue(BotInventoryManager.hasProtectedSellTrashWeaponStat(perfectClaw, baseClaw), "a perfect low base roll is kept");
+        assertFalse(BotInventoryManager.hasProtectedSellTrashWeaponStat(goodClaw, baseClaw));
+
+        Equip baseHammer = mock(Equip.class);
+        when(baseHammer.getWatk()).thenReturn((short) 49);
+        Equip plusThreeHammer = mock(Equip.class);
+        when(plusThreeHammer.getWatk()).thenReturn((short) 52);
+        assertFalse(BotInventoryManager.hasProtectedSellTrashWeaponStat(plusThreeHammer, baseHammer),
+                "+3 of a possible +5 is an ordinary roll");
+    }
+
+    @Test
     void shouldProtectAboveBaseMatkRollOnAnyJobWeapon() {
         // Black Umbrella field case: reqJob-0 ONE-HANDED SWORD with base MAD 85 that rolled
         // 92 (+7 over base). The protected-roll gate must read the MAD axis even though the
