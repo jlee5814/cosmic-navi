@@ -547,7 +547,7 @@ final class BotStorageMuleManager {
             InventoryType type = item.getInventoryType();
             int free = room.computeIfAbsent(type, t -> {
                 Inventory inv = mule.bot.getInventory(t);
-                return inv == null ? 0 : inv.getNumFreeSlot();
+                return inv == null ? 0 : (int) inv.getNumFreeSlot();
             });
             if (free > 0 && BotInventoryManager.hasItem(bot, item) && item.getQuantity() > 0) {
                 InventoryManipulator.drop(bot.getClient(), type, item.getPosition(), item.getQuantity());
