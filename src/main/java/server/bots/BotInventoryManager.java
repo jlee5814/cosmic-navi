@@ -1975,7 +1975,7 @@ class BotInventoryManager {
                 && item.getQuantity() >= MONSTER_CRYSTAL_LEFTOVER_KEEP_QUANTITY;
     }
 
-    private static boolean isMakerMaterial(int itemId) {
+    static boolean isMakerMaterial(int itemId) {
         return ItemConstants.isMakerReagent(itemId)
                 || isInRange(itemId, 4004000, 4004004) // stat crystal ores
                 || isInRange(itemId, 4005000, 4005004) // stat crystals
@@ -2465,7 +2465,7 @@ class BotInventoryManager {
     /**
      * The ETC items NPC gear recipes consume besides maker materials (leather, screws, skins, tails): kept for
      * crafting like the materials (the ETC shelf, then the Monster ETC drops bin) instead of sold as trash. The
-     * list is generated from the recipe tables in scripts/npc (tools/bots/gen_crafting_parts.py), with the most
+     * list comes from the NPC recipe tables ({@link BotCraftManager#craftingPartsMaxPerRecipe}), with the most
      * one recipe needs, which caps how much the bin keeps ({@link BotStorageMuleManager}).
      */
     static boolean isCraftingPart(int itemId) {
@@ -2478,25 +2478,7 @@ class BotInventoryManager {
     }
 
     private static final class CraftingParts {
-        static final Map<Integer, Integer> MAX_PER_RECIPE = load();
-
-        private static Map<Integer, Integer> load() {
-            Map<Integer, Integer> parts = new HashMap<>();
-            try (var in = BotInventoryManager.class.getResourceAsStream("/bots/crafting-parts.csv")) {
-                if (in == null) {
-                    return parts;
-                }
-                for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
-                    String[] f = line.trim().split(",");
-                    if (f.length >= 2 && !f[0].startsWith("#")) {
-                        parts.put(Integer.parseInt(f[0].trim()), Integer.parseInt(f[1].trim()));
-                    }
-                }
-            } catch (java.io.IOException | NumberFormatException e) {
-                log.warn("crafting parts list unreadable", e);
-            }
-            return parts;
-        }
+        static final Map<Integer, Integer> MAX_PER_RECIPE = BotCraftManager.craftingPartsMaxPerRecipe();
     }
 
     /** The ETC shelf, lowest value first (sold first): NPC meso of the whole stack, then the smaller stack. */

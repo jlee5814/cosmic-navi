@@ -1,0 +1,180 @@
+package server.bots;
+
+import client.Character;
+import client.Client;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import scripting.AbstractPlayerInteraction;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyShort;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class BotCraftManagerTest {
+    // Real recipes from npc-recipes.csv (Perion: 1022003 refines, 1022004 makes gloves).
+    private static final int LEATHER = 4000021, BRONZE_ORE = 4010000, STEEL_ORE = 4010001;
+    private static final int BRONZE_PLATE = 4011000, STEEL_PLATE = 4011001, SCREW = 4003000;
+    private static final int JUNO = 1082003, STEEL_FINGERLESS = 1082007;
+
+    private BotCraftManager.Lookups prev;
+    private final Map<Integer, Map<String, Integer>> stats = new HashMap<>();
+    private double obtainCost = 1_000_000;
+
+    @BeforeEach
+    void hermeticLookups() {
+        prev = BotCraftManager.lookups;
+        stats.put(JUNO, Map.of("reqLevel", 15, "PAD", 0, "DEF", 10));
+        BotCraftManager.lookups = new BotCraftManager.Lookups() {
+            @Override public Map<String, Integer> stats(int itemId) { return stats.get(itemId); }
+            @Override public double offense(Character bot, Map<String, Integer> st) { return st.getOrDefault("DEF", 0); }
+            @Override public double wornOffense(Character bot, int slot) { return 0; }
+            @Override public boolean wearable(Character bot, int itemId) { return true; }
+            @Override public boolean preferredWeapon(Character bot, int itemId) { return true; }
+            @Override public int sellPrice(int itemId, int qty) { return qty; }
+            @Override public double obtainCost(Character bot, int itemId) { return obtainCost; }
+        };
+    }
+
+    @AfterEach
+    void restore() {
+        BotCraftManager.lookups = prev;
+    }
+
+    private static BotCraftManager.Recipe recipe(int npc, int out) {
+        return BotCraftManager.RECIPES.stream().filter(r -> r.npcId() == npc && r.outputId() == out)
+                .findFirst().orElseThrow();
+    }
+
+    private static Character bot(int level) {
+        Character bot = mock(Character.class);
+        when(bot.getLevel()).thenReturn(level);
+        return bot;
+    }
+
+    @Test
+    void recipesLoadWithYields() {
+        assertEquals(15, recipe(1022004, SCREW).yield());
+        assertEquals(300, recipe(1022003, STEEL_PLATE).fee());
+        assertTrue(recipe(1022004, JUNO).gear());
+        assertFalse(recipe(1022003, STEEL_PLATE).gear());
+    }
+
+    @Test
+    void craftingPartsAreTheNonMakerEtcInputsOfGear() {
+        Map<Integer, Integer> parts = BotCraftManager.craftingPartsMaxPerRecipe();
+        assertEquals(100, parts.get(LEATHER));
+        assertEquals(65, parts.get(SCREW));
+        assertFalse(parts.containsKey(STEEL_PLATE)); // a maker material rides its own shelf rule
+    }
+
+    @Test
+    void planRefinesOreIntoThePlateTheGoalNeeds() {
+        Map<Integer, Integer> have = Map.of(LEATHER, 15, STEEL_ORE, 10);
+        BotCraftManager.Plan p = BotCraftManager.plan(bot(20), recipe(1022004, JUNO), have, 1);
+        assertNotNull(p);
+        assertEquals(2, p.steps().size());
+        assertEquals(STEEL_PLATE, p.steps().get(0).recipe().outputId());
+        assertEquals(1, p.steps().get(0).times());
+        assertEquals(JUNO, p.steps().get(1).recipe().outputId());
+        assertEquals(1000 + p.steps().get(0).recipe().fee(), p.fees());
+        assertEquals(25, p.inputValue()); // 15 leather + 10 ore at 1 meso each
+    }
+
+    @Test
+    void planMakesScrewsFromPlatesAndKeepsEnoughPlatesForTheGoal() {
+        // The gloves need 3 bronze, 2 steel and 15 screws; one screw craft (1 bronze + 1 steel) yields 15.
+        Map<Integer, Integer> have = Map.of(BRONZE_PLATE, 4, STEEL_PLATE, 3);
+        BotCraftManager.Plan p = BotCraftManager.plan(bot(30), recipe(1022004, STEEL_FINGERLESS), have, 1);
+        assertNotNull(p);
+        assertEquals(List.of(SCREW, STEEL_FINGERLESS), p.steps().stream().map(s -> s.recipe().outputId()).toList());
+        assertEquals(1022004, p.steps().get(0).recipe().npcId()); // the goal's own NPC makes the screws
+        assertNull(BotCraftManager.plan(bot(30), recipe(1022004, STEEL_FINGERLESS),
+                Map.of(BRONZE_PLATE, 3, STEEL_PLATE, 3), 1)); // a bronze plate short once screws take one
+    }
+
+    @Test
+    void planRefinesPlatesForScrewsWhenOnlyOreIsHeld() {
+        Map<Integer, Integer> have = Map.of(BRONZE_ORE, 40, STEEL_ORE, 30);
+        BotCraftManager.Plan p = BotCraftManager.plan(bot(30), recipe(1022004, STEEL_FINGERLESS), have, 1);
+        assertNotNull(p);
+        List<Integer> outs = p.steps().stream().map(s -> s.recipe().outputId()).toList();
+        assertEquals(STEEL_FINGERLESS, outs.get(outs.size() - 1));
+        assertTrue(outs.indexOf(SCREW) > outs.indexOf(BRONZE_PLATE) && outs.indexOf(SCREW) > outs.indexOf(STEEL_PLATE));
+        int bronze = p.steps().stream().filter(s -> s.recipe().outputId() == BRONZE_PLATE)
+                .mapToInt(BotCraftManager.Step::times).sum();
+        int steel = p.steps().stream().filter(s -> s.recipe().outputId() == STEEL_PLATE)
+                .mapToInt(BotCraftManager.Step::times).sum();
+        assertEquals(4, bronze); // 3 for the gloves + 1 for the screws, 10 ore each
+        assertEquals(3, steel);
+    }
+
+    @Test
+    void bestPlanPicksAWearableUpgradeTheBagCovers() {
+        Map<Integer, Integer> have = Map.of(LEATHER, 15, STEEL_ORE, 10);
+        BotCraftManager.Plan p = BotCraftManager.bestPlan(bot(20), have, 10_000);
+        assertNotNull(p);
+        assertEquals(JUNO, p.goal().outputId());
+    }
+
+    @Test
+    void bestPlanSkipsWhatItCantUseOrAfford() {
+        Map<Integer, Integer> have = Map.of(LEATHER, 15, STEEL_ORE, 10);
+        assertNull(BotCraftManager.bestPlan(bot(14), have, 10_000), "level too low");
+        assertNull(BotCraftManager.bestPlan(bot(15 + BotCraftManager.OUTGROWN_LEVELS + 1), have, 10_000), "outgrown");
+        assertNull(BotCraftManager.bestPlan(bot(20), have, 2_000), "fees take more than half the meso");
+        assertNull(BotCraftManager.bestPlan(bot(20), Map.of(LEATHER, 14, STEEL_ORE, 10), 10_000), "short");
+        obtainCost = 1_300;
+        assertNull(BotCraftManager.bestPlan(bot(20), have, 10_000), "cheaper to get it another way");
+    }
+
+    @Test
+    void craftDoesWhatTheScriptDoes() {
+        Character bot = bot(20);
+        Client c = mock(Client.class);
+        AbstractPlayerInteraction cm = mock(AbstractPlayerInteraction.class);
+        when(bot.getClient()).thenReturn(c);
+        when(c.getAbstractPlayerInteraction()).thenReturn(cm);
+        when(bot.getMeso()).thenReturn(5_000);
+        when(cm.haveItem(anyInt(), anyInt())).thenReturn(true);
+        when(cm.canHold(anyInt(), anyInt())).thenReturn(true);
+
+        assertTrue(BotCraftManager.craft(bot, new BotCraftManager.Step(recipe(1022004, SCREW), 2)));
+        verify(cm).gainItem(BRONZE_PLATE, (short) -2);
+        verify(cm).gainItem(STEEL_PLATE, (short) -2);
+        verify(cm).gainItem(SCREW, (short) 30);
+        verify(bot).gainMeso(0);
+
+        assertTrue(BotCraftManager.craft(bot, new BotCraftManager.Step(recipe(1022004, JUNO), 1)));
+        verify(cm).gainItem(LEATHER, (short) -15);
+        verify(cm).gainItem(JUNO, (short) 1);
+        verify(bot).gainMeso(-1000);
+    }
+
+    @Test
+    void craftStopsWhenShort() {
+        Character bot = bot(20);
+        Client c = mock(Client.class);
+        AbstractPlayerInteraction cm = mock(AbstractPlayerInteraction.class);
+        when(bot.getClient()).thenReturn(c);
+        when(c.getAbstractPlayerInteraction()).thenReturn(cm);
+        when(bot.getMeso()).thenReturn(500);
+        when(cm.haveItem(anyInt(), anyInt())).thenReturn(true);
+        when(cm.canHold(anyInt(), anyInt())).thenReturn(true);
+
+        assertFalse(BotCraftManager.craft(bot, new BotCraftManager.Step(recipe(1022004, JUNO), 1))); // fee 1000
+        verify(cm, never()).gainItem(anyInt(), anyShort());
+    }
+}

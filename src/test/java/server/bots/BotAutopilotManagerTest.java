@@ -29,6 +29,7 @@ class BotAutopilotManagerTest {
         BotInventoryManager.itemName = id -> null; // hermetic: no WZ name lookup
         BotInventoryManager.fleetDemand = (bot, equip) -> BotStorageMuleManager.UNKNOWN_DEMAND;
         BotInventoryManager.equipObtainCost = (bot, id) -> 0.0;
+        BotCraftManager.lookups = org.mockito.Mockito.mock(BotCraftManager.Lookups.class); // no item data: no craft
     }
 
 
