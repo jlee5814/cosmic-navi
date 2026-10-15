@@ -195,7 +195,8 @@ final class BotShopManager {
             return true;
         }
         return etcCramped && (!BotInventoryManager.collectSellTrashEtcItems(bot).isEmpty()
-                || BotInventoryManager.crampedEtcSalesAvailable(bot));
+                || (BotInventoryManager.crampedEtcSalesAvailable(bot)
+                    && !BotStorageMuleManager.holdsShelf(entry, bot))); // a mule takes the shelf first
     }
 
     static boolean isCramped(Character bot, InventoryType type) {
@@ -789,7 +790,9 @@ final class BotShopManager {
             }
         }
         // The same escalation for the ETC tab: maker materials a bot can't craft with, lowest value first.
-        if (isCramped(sequence.bot(), InventoryType.ETC)) {
+        // Skipped on an automatic trip while a storage mule visit holds the shelf.
+        if (isCramped(sequence.bot(), InventoryType.ETC)
+                && (explicitSell || !BotStorageMuleManager.holdsShelf(sequence.entry(), sequence.bot()))) {
             var etcInv = sequence.bot().getInventory(InventoryType.ETC);
             int freeNow = etcInv != null ? etcInv.getNumFreeSlot() : 0;
             long junkEtcSlots = items.stream()

@@ -68,12 +68,22 @@ final class BotWorldGraph {
     // (set when the bot boarded), resolved per-bot so the shrine is never a static cross-continent
     // shortcut to Lith Harbor. See expand()/findTaxiEdge() and BotTravelManager.taxiRide.
     static final int MUSHROOM_SHRINE = 800000000;
+    // The Free Market Entrance: entered from 22 towns through a scripted portal that saves the town as the
+    // FREE_MARKET location; its only way out (out00, script market00) returns there. Like the shrine, the
+    // exit is resolved per bot (fmReturn), so the market is never a static shortcut between towns.
+    static final int FREE_MARKET = 910000000;
 
     /** Per-query toggles for the consumable edges; pure portal walking ignores them all.
      *  {@code worldTourReturn} is the bot's saved WORLDTOUR origin (or -1) — the only exit Spinel
-     *  offers from {@link #MUSHROOM_SHRINE}, so it's empty for any bot not standing there. */
+     *  offers from {@link #MUSHROOM_SHRINE}, so it's empty for any bot not standing there.
+     *  {@code fmReturn} is the same for the {@link #FREE_MARKET}: the town its exit returns the bot to. */
     record RouteOptions(boolean withReturnScroll, int meso, boolean withFerry, boolean isBeginner,
-                        int riderLevel, int worldTourReturn) {
+                        int riderLevel, int worldTourReturn, int fmReturn) {
+        /** Travel options for a specific rider outside the Free Market. */
+        RouteOptions(boolean withReturnScroll, int meso, boolean withFerry, boolean isBeginner, int riderLevel,
+                     int worldTourReturn) {
+            this(withReturnScroll, meso, withFerry, isBeginner, riderLevel, worldTourReturn, -1);
+        }
         /** Travel options for a specific rider, without a saved world-tour return. */
         RouteOptions(boolean withReturnScroll, int meso, boolean withFerry, boolean isBeginner, int riderLevel) {
             this(withReturnScroll, meso, withFerry, isBeginner, riderLevel, -1);
@@ -493,6 +503,10 @@ final class BotWorldGraph {
         if (mapId == MUSHROOM_SHRINE && options.worldTourReturn() != -1) {
             out.add(new WeightedEdge(options.worldTourReturn(), BotTravelCost.TAXI_SECONDS));
         }
+        // The Free Market's exit portal returns the bot standing in it to the town it came from.
+        if (mapId == FREE_MARKET && options.fmReturn() != -1) {
+            out.add(new WeightedEdge(options.fmReturn(), BotTravelCost.PORTAL_HOP_SECONDS));
+        }
         if (options.withFerry()) {
             for (BotFerryManager.FerryRoute ferry : BotFerryManager.routesBoardingAt(mapId)) {
                 if (options.meso() >= ferry.ticketCost()) {
@@ -584,13 +598,44 @@ final class BotWorldGraph {
             // Leafre: Cave of Life entrance -> Leafre field 240040600, script hontale_morph2
             new ScriptedEntrance(240040700, "out00", 240040600),
             // Helios Tower Time Control Room -> Ellin Forest Small Forest, script move_elin.
-            new ScriptedEntrance(222020400, "in01", 300000100)
+            new ScriptedEntrance(222020400, "in01", 300000100),
+            // Free Market entrances (scripts marketNN: save FREE_MARKET, warp to 910000000 out00). The exit is
+            // per bot (RouteOptions.fmReturn), walked through out00 (see scriptedEntrancePortal).
+            new ScriptedEntrance(100000100, "market00", FREE_MARKET), // Henesys Market
+            new ScriptedEntrance(102000000, "market00", FREE_MARKET), // Perion
+            new ScriptedEntrance(120000200, "market00", FREE_MARKET), // Nautilus
+            new ScriptedEntrance(130000200, "st00", FREE_MARKET), // Ereve
+            new ScriptedEntrance(140000000, "market00", FREE_MARKET), // Rien
+            new ScriptedEntrance(200000000, "market00", FREE_MARKET), // Orbis
+            new ScriptedEntrance(211000100, "market00", FREE_MARKET), // El Nath
+            new ScriptedEntrance(220000000, "market00", FREE_MARKET), // Ludibrium
+            new ScriptedEntrance(221000000, "market00", FREE_MARKET), // Omega Sector
+            new ScriptedEntrance(222000000, "market00", FREE_MARKET), // Korean Folk Town
+            new ScriptedEntrance(230000000, "market01", FREE_MARKET), // Aquarium
+            new ScriptedEntrance(240000000, "market00", FREE_MARKET), // Leafre
+            new ScriptedEntrance(250000000, "market00", FREE_MARKET), // Mu Lung
+            new ScriptedEntrance(251000000, "market00", FREE_MARKET), // Herb Town
+            new ScriptedEntrance(260000000, "market00", FREE_MARKET), // Ariant
+            new ScriptedEntrance(261000000, "market0", FREE_MARKET), // Magatia
+            new ScriptedEntrance(540000000, "market00", FREE_MARKET), // Singapore CBD
+            new ScriptedEntrance(541000000, "market00", FREE_MARKET), // Boat Quay Town
+            new ScriptedEntrance(550000000, "market00", FREE_MARKET), // Kampung Village area
+            new ScriptedEntrance(551000000, "market00", FREE_MARKET), // Kampung Village
+            new ScriptedEntrance(600000000, "market00", FREE_MARKET), // New Leaf City
+            new ScriptedEntrance(801000300, "market00", FREE_MARKET) // Showa
     );
+
+    /** The Free Market's exit portal (script market00 warps back to the saved FREE_MARKET town). */
+    static final String FREE_MARKET_EXIT_PORTAL = "out00";
 
     /** The scripted-entrance portal name to walk for a {@code fromMap -> destMap} hop, or null when that
      *  hop isn't a known scripted entrance. The travel executor enters it like a normal portal; its own
      *  script does the warp. */
     static String scriptedEntrancePortal(int fromMap, int destMap) {
+        // Leaving the Free Market for its saved town (the only way out; the rooms 910000001..22 are plain portals).
+        if (fromMap == FREE_MARKET && destMap / 1000 != FREE_MARKET / 1000) {
+            return FREE_MARKET_EXIT_PORTAL;
+        }
         for (ScriptedEntrance e : SCRIPTED_ENTRANCES) {
             if (e.fromMap() == fromMap && e.destMap() == destMap) {
                 return e.portalName();

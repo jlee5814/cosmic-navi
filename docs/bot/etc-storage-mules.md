@@ -1,7 +1,7 @@
-# Storage mules for ETC materials (design draft, 2026-10-14)
+# Storage mules for ETC materials (2026-10-14)
 
-Status: draft for review. The ETC value shelf (`BotInventoryManager.etcShelf`, `collectCrampedEtcSales`) ships
-first and stays as the backstop; this document covers the mule visits that come after it.
+Status: built (`BotStorageMuleManager`). The ETC value shelf (`BotInventoryManager.etcShelf`,
+`collectCrampedEtcSales`) stays as the backstop; this document covers the mule visits on top of it.
 
 ## Goal
 
@@ -42,43 +42,52 @@ either; the Iron and bronze bin can take them until a role does.
 
 ## Visit flow
 
-1. Trigger: the ETC tab is cramped and the shelf holds items a bin takes, the bot is in or near a town, and no
-   visit ran in the last hour (jittered). Checked where the shop trigger runs (`BotShopManager.shouldAutoSellTrash`).
-2. Pick the bins: group the shelf items by bin; skip a bin that is full (fewer free slots than the stacks it
-   would take after merging). What no bin takes goes to the next shop visit as today.
-3. Summon: each chosen mule logs in for one session (`BotManager.spawnManagedBot`, the same call as
-   `/api/spawnbot`; it does not change `rosterActive`).
-4. Meet: both walk to the meeting place (see the open questions), with human delays.
-5. Trade: the existing peer trade sequence (`BotInventoryManager` trade batches, 9 items per window,
-   `TRADE_WINDOW_ITEM_LIMIT`), the mule accepting as a peer partner. `isPeerTradePartner` accepts the same
-   owner or crew today; mules are self owned and not crewmates, so it gains a third arm: the same registered
-   owner (`BotOwnershipService`, the roster stable).
-6. Leave: the mule logs out once its trades finish or after a timeout; the bot resumes its plan.
+The handoff is a drop in the Free Market, the way players hand loot to a storage character: the mule stands
+there first, the farmer drops a batch beside it, the mule picks it up.
 
-About 10 trades move 90 slots, a few minutes in all, roughly a shop trip. Expected once every few hours per
-bot.
+1. Trigger (`maybeStartVisit`, a detour errand after the gachapon in `BotAutopilotManager.DETOUR_ERRANDS`): an
+   autopilot farmer, not following, no shop trip or errand pending, ETC tab cramped, off its cooldown (45 to
+   90 minutes after the last visit), and its shelf holds stacks a free mule takes. Checked every 30 s.
+2. Bins (`planBins`): the shelf grouped by `binRole`, each role mapped to the mule with that `rosterRole` under
+   the same registered owner (`bot_owners`). The directory loads off the tick thread and refreshes every 30
+   minutes. A mule someone else has online, one on another farmer's visit, or one found full in the last 6
+   hours is skipped.
+3. Summon: each chosen mule goes on duty and logs in (`spawnManagedBot` on a daemon thread; `rosterActive`
+   stays as it is). On duty it walks to the Free Market (910000000) and waits by the exit portal.
+4. Route: 22 towns enter the market through scripted portals (`BotWorldGraph.SCRIPTED_ENTRANCES`, scripts
+   marketNN save the town as FREE_MARKET). The only way out, out00, returns to that saved town, so the exit edge
+   exists only for a bot standing in the market (`RouteOptions.fmReturn`, from `peekSavedLocation`), the same
+   pattern as the Mushroom Shrine.
+5. Handoff (`tickVisit`): the farmer walks within 60 px of the mule and drops up to 8 stacks (never more than the
+   mule's free ETC slots), whole stacks, through `InventoryManipulator.drop`. The farmer keeps its own loot off
+   meanwhile. The mule walks onto the newest drop and passive loot takes it; `BotLootEligibility` lets the mule on
+   duty skip the 15 s wait other bots have for a bot's drop (`isPartnerDrop`). The next batch waits for the
+   floor to clear (30 s at most), with a jittered pause.
+6. Leave: a bin is done when its stacks are gone, the mule is full, or a batch sat 30 s. The mule logs out after
+   a short linger; the farmer leaves through out00 and resumes its plan.
+
+Dropped items vanish after 3 minutes and the map holds 200, so the mule arrives before anything drops, and
+a batch is small.
 
 ## Rules
 
-- Never trade away a ferry ticket, a skill consumed item, or anything the shelf would keep (`onEtcShelf` is
-  the SSOT for what may leave).
+- Only shelf items leave (`onEtcShelf` is the SSOT): no ferry tickets, nothing a skill consumes, nothing the
+  shelf keeps.
 - A mule only receives. It never sells, crafts or grinds; its bag is the record of what the fleet holds.
-- If a mule is online already (a player logged it in), it is not summoned again; if a player owns the
-  session, the visit skips that bin.
-- The shelf still sells when no bin can take an item or the visit fails.
+- While a visit is under way or due (`holdsShelf`), an automatic shop trip sells only true trash and leaves the
+  shelf alone. A visit that ends, well or not, starts the cooldown, and whatever stayed behind sells on the next
+  trip. An owner's explicit sell order still sells the shelf.
 - The dashboard item window shows each mule's bags, so a full bin is visible.
 
-## Open questions
+## Decisions (2026-10-14)
 
-1. Meeting place: the Free Market (players trade there; every town has a portal, but the bot graph's route
-   into 910000000 is unverified), the mule walking to the bot's town, or the bot walking to the mule's map.
-2. Working set: should a bot keep one stack of each material for its own future crafting or quests, or hand
-   everything over?
-3. A full bin: sell its lowest value stack, or notify the owner?
+1. Meeting place: the Free Market, with a drop handoff instead of trade windows.
+2. Working set: every shelf item with a bin goes; the bot keeps nothing back.
+3. A full bin, or a visit that fails: the shelf sells, as before.
 
 ## Order of work
 
 1. ETC value shelf (shipped first, the backstop).
-2. Peer partner arm for the same registered owner; mule summon and logout.
-3. Visit trigger, bin routing, meeting, trade batches.
-4. Live check on SipsBuddy2, then the fleet.
+2. Free Market routing, mule summon and logout, visit trigger, bin routing, drop handoff (this change).
+3. Live check on SipsBuddy2, then the fleet.
+4. Later: something that empties a bin (a crafter, or the mule selling its lowest value stack).
