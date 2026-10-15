@@ -52,7 +52,9 @@ Built 2026-10-14 in `BotStorageMuleManager`; design and flow in `docs/bot/etc-st
   best first, the top 24 stay (HOARD); the rest past the shelf sell (HLIM).
 - Demand: `BotStorageMuleManager.fleetDemand`, the owner and the owner's bots (beginners and the holder itself
   excluded) who pass the player requirement check at level + 10 and haven't outgrown it by 30 levels.
-  The roster snapshot (job, level) loads with the mule directory. `UNKNOWN_DEMAND` until it loads, so nothing
+  Members already wearing gear of at least the item's level in that slot (`gearSlot`: one weapon slot, an
+  overall covers top and pants) don't count, and copies already in fleet bags and bins are subtracted. The
+  roster snapshot (job, level, worn levels, bag equips from `inventoryitems`) loads with the mule directory. `UNKNOWN_DEMAND` until it loads, so nothing
   sells on a guess. Tests stub `fleetDemand` and `equipObtainCost`.
 
 **Shelf hold**

@@ -87,9 +87,11 @@ class BotStorageMuleManagerTest {
     }
 
     @Test
-    void fleetDemandCountsTheMembersWhoWillWearItButNotTheHolderOrTheBeginnerMules() {
+    void fleetDemandCountsWhoWillWearItLessWhoIsCoveredAndWhatIsAlreadyHeld() {
         BotStorageMuleManager.WearCheck prev = BotStorageMuleManager.wearCheck;
+        java.util.function.IntUnaryOperator prevReq = BotStorageMuleManager.reqLevel;
         BotStorageMuleManager.wearCheck = (m, e) -> m.jobId() / 100 == 1; // a warrior item
+        BotStorageMuleManager.reqLevel = id -> id == 1322014 ? 30 : id == 1432008 ? 20 : 35; // hammer 30, spear 20
         try {
             Equip hammer = mock(Equip.class);
             when(hammer.getItemId()).thenReturn(1322014);
@@ -100,8 +102,20 @@ class BotStorageMuleManagerTest {
                     new BotStorageMuleManager.Member(13, 230, 70),  // a priest
                     new BotStorageMuleManager.Member(61, 0, 10));   // a storage mule (beginner)
             assertEquals(2, BotStorageMuleManager.countDemand(members, 10, hammer));
+
+            // Coverage: a warrior already wearing a level 35 weapon doesn't want a level 30 hammer; one wearing a
+            // level 20 spear still does. Copies already in a bag or a bin count against what's left.
+            var geared = List.of(
+                    new BotStorageMuleManager.Member(11, 130, 34, Map.of(130, 35), Map.of()),     // covered
+                    new BotStorageMuleManager.Member(12, 100, 30, Map.of(130, 20), Map.of()),     // wants one
+                    new BotStorageMuleManager.Member(14, 110, 28, Map.of(), Map.of()),            // wants one
+                    new BotStorageMuleManager.Member(15, 120, 31, Map.of(105, 30), Map.of()),     // overall, no weapon: wants
+                    new BotStorageMuleManager.Member(63, 0, 10, Map.of(), Map.of(1322014, 2)));   // two in a bin
+            assertEquals(1, BotStorageMuleManager.countDemand(geared, 10, hammer));
+            assertEquals(130, BotStorageMuleManager.gearSlot(1432008)); // every weapon is one slot
         } finally {
             BotStorageMuleManager.wearCheck = prev;
+            BotStorageMuleManager.reqLevel = prevReq;
         }
     }
 
