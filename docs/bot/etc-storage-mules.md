@@ -33,7 +33,7 @@ From the roster (`docs/bot/rosters/sipsbuddy.csv`, tier `storage`). Item ranges 
 | SipsBuddy91 | Iron and bronze | Bronze Ore 4010000, Bronze Plate 4011000 (no iron ore exists in v83) |
 | SipsBuddy92 | Mithril, adamantium, steel | ores 4010001 to 4010003 and their plates |
 | SipsBuddy93 | Processed materials | magic powders 4007xxx, stimulators and manuals 413xxxx, monster crystals 426xxxx |
-| SipsBuddy94 | Monster ETC drops | none by default: mob drops still sell |
+| SipsBuddy94 | Monster ETC drops | crafting parts: the leather, screws, skins and tails NPC gear recipes need (`isCraftingPart`), up to three crafts' worth of each |
 | SipsBuddy95 | Quest materials | quest items the bot holds for a started quest it can't finish yet |
 
 The Processed materials bin takes stimulators and manuals because no role names them; at about 100 slots
