@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntPredicate;
@@ -168,18 +170,29 @@ final class BotStorageMuleManager {
 
     // muleCharId -> who it waits for. Written when a visit summons it (any tick thread), read by its own tick.
     static final Map<Integer, Duty> DUTIES = new ConcurrentHashMap<>();
-    private static final long DUTY_MAX_MS = 20 * 60_000L;
+    private static final long DUTY_MAX_MS = 30 * 60_000L; // eight bins served one after another fit in this
 
     /** Test seam: bring an offline mule online (a DB load, so never on a tick thread). */
     interface Summoner {
         void summon(int muleCharId);
     }
 
-    static Summoner summoner = muleId -> Thread.ofPlatform().daemon().name("bot-mule-summon").start(() -> {
+    // One login at a time: a character load holds several pool connections, and eight at once exhausted the
+    // pool (HikariPool timeout, loadCharFromDB returned null). Serial logins also stagger like players do.
+    private static final ExecutorService SUMMONS = Executors.newSingleThreadExecutor(
+            Thread.ofPlatform().daemon().name("bot-mule-summon").factory());
+
+    static Summoner summoner = muleId -> SUMMONS.execute(() -> {
+        BotManager manager = BotManager.getInstance();
+        boolean online;
         try {
-            BotManager.getInstance().spawnManagedBot(muleId); // no-op when already online
+            online = manager.spawnManagedBot(muleId) || manager.getEntryByBotCharId(muleId) != null;
         } catch (RuntimeException e) {
             log.warn("storage mules: could not summon {}", muleId, e);
+            online = false;
+        }
+        if (!online) {
+            DUTIES.remove(muleId); // the farmer skips this bin instead of waiting for it
         }
     });
 
@@ -265,7 +278,7 @@ final class BotStorageMuleManager {
 
     private static final long VISIT_CHECK_EVERY_MS = 30_000L;
     private static final long VISIT_STALL_MS = 6 * 60_000L;   // no hop progress for this long: give up
-    private static final long MULE_WAIT_MS = 4 * 60_000L;     // at the market, wait this long for a mule
+    private static final long MULE_WAIT_MS = 4 * 60_000L;     // at the market, wait this long for the next mule
     private static final long PICKUP_WAIT_MS = 30_000L;       // a dropped batch must be gone by then
     private static final int BATCH_STACKS = 8;
     private static final int STAND_PX = 40;
@@ -361,7 +374,7 @@ final class BotStorageMuleManager {
         entry.muleVisitBins.clear();
         entry.muleVisitBins.addAll(plan.keySet());
         entry.muleVisitProgress.begin(now);
-        entry.muleVisitArrivedAtMs = 0L;
+        entry.muleVisitWaitSinceMs = 0L;
         entry.muleVisitLastDropAtMs = 0L;
         entry.muleVisitNextDropAtMs = 0L;
         entry.muleVisitStand = null;
@@ -396,23 +409,35 @@ final class BotStorageMuleManager {
             return moved;
         }
         entry.muleVisitProgress.touch(now);
-        if (entry.muleVisitArrivedAtMs == 0L) {
-            entry.muleVisitArrivedAtMs = now;
+        if (entry.muleVisitWaitSinceMs == 0L) {
+            entry.muleVisitWaitSinceMs = now; // each bin's mule gets its own wait
         }
-        Integer muleId = entry.muleVisitBins.peekFirst();
-        if (muleId == null) {
+        entry.muleVisitBins.removeIf(id -> !DUTIES.containsKey(id)); // its login failed or it gave up
+        if (entry.muleVisitBins.isEmpty()) {
             finishVisit(entry, bot, "all sorted, back to it");
             return false;
         }
-        BotEntry mule = BotManager.getInstance().getEntryByBotCharId(muleId);
-        boolean muleHere = mule != null && mule.bot != null && !mule.loggingOut
-                && mule.bot.getMapId() == BotWorldGraph.FREE_MARKET && mule.bot.getMap() == bot.getMap();
-        if (!muleHere) {
-            if (!DUTIES.containsKey(muleId) || now - entry.muleVisitArrivedAtMs > MULE_WAIT_MS) {
-                nextBin(entry, muleId, now); // it never came: its stacks stay on the shelf
-                return true;
+        // Serve whichever mule is here, the one at the head first (mid handoff it stays there); wait for the rest.
+        Integer muleId = null;
+        BotEntry mule = null;
+        for (Integer id : entry.muleVisitBins) {
+            BotEntry m = BotManager.getInstance().getEntryByBotCharId(id);
+            if (m != null && m.bot != null && !m.loggingOut && m.bot.getMap() == bot.getMap()) {
+                muleId = id;
+                mule = m;
+                break;
+            }
+        }
+        if (mule == null) {
+            if (now - entry.muleVisitWaitSinceMs > MULE_WAIT_MS) {
+                finishVisit(entry, bot, "my storage guys never showed, oh well"); // their stacks stay on the shelf
+                return false;
             }
             return standNear(entry, bot, marketMeetingPoint(bot), runAiTick); // wait by the entry
+        }
+        if (!muleId.equals(entry.muleVisitBins.peekFirst())) {
+            entry.muleVisitBins.remove(muleId);
+            entry.muleVisitBins.addFirst(muleId);
         }
         Point mulePos = mule.bot.getPosition();
         if (manhattan(bot.getPosition(), mulePos) > HANDOFF_PX) {
@@ -483,6 +508,7 @@ final class BotStorageMuleManager {
     private static void nextBin(BotEntry entry, int muleId, long now) {
         entry.muleVisitBins.remove((Integer) muleId);
         endDuty(muleId);
+        entry.muleVisitWaitSinceMs = 0L;
         entry.muleVisitNextDropAtMs = now + BotManager.randMs(1_000, 3_000);
     }
 
