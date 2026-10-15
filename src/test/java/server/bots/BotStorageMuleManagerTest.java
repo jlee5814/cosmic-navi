@@ -85,6 +85,25 @@ class BotStorageMuleManagerTest {
         assertEquals(Map.of(63, List.<Item>of(claw)), BotStorageMuleManager.planBins(dir, 10, List.of(claw)));
     }
 
+    @Test
+    void fleetDemandCountsTheMembersWhoWillWearItButNotTheHolderOrTheBeginnerMules() {
+        BotStorageMuleManager.WearCheck prev = BotStorageMuleManager.wearCheck;
+        BotStorageMuleManager.wearCheck = (m, e) -> m.jobId() / 100 == 1; // a warrior item
+        try {
+            Equip hammer = mock(Equip.class);
+            when(hammer.getItemId()).thenReturn(1322014);
+            var members = List.of(
+                    new BotStorageMuleManager.Member(10, 110, 30),  // the holder itself: its own use is RESV_SELF
+                    new BotStorageMuleManager.Member(11, 130, 28),  // a spearman
+                    new BotStorageMuleManager.Member(12, 100, 25),  // a warrior
+                    new BotStorageMuleManager.Member(13, 230, 70),  // a priest
+                    new BotStorageMuleManager.Member(61, 0, 10));   // a storage mule (beginner)
+            assertEquals(2, BotStorageMuleManager.countDemand(members, 10, hammer));
+        } finally {
+            BotStorageMuleManager.wearCheck = prev;
+        }
+    }
+
     /** The storage roles in the roster record (docs/bot/rosters/sipsbuddy.csv): name,tier,role,... */
     private static Set<String> rosterStorageRoles() {
         Set<String> roles = new java.util.HashSet<>();
