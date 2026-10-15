@@ -67,6 +67,12 @@ public final class ItemConstants {
         return 0;
     }
 
+    /** How far a clean drop can roll a stat from its base: 10% of it rounded up, at most {@code maxRange}
+     *  ({@code ItemInformationProvider.randomizeStats} rolls WATK and MATK with 5, HP and MP with 10). */
+    public static int randStatRange(int defaultValue, int maxRange) {
+        return defaultValue == 0 ? 0 : (int) Math.min(Math.ceil(defaultValue * 0.1), maxRange);
+    }
+
     public static boolean isThrowingStar(int itemId) {
         return itemId / 10000 == 207;
     }
