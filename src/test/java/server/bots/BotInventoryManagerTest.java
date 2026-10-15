@@ -1156,6 +1156,35 @@ class BotInventoryManagerTest {
     }
 
     @Test
+    void aCrampedEtcTabSellsTheLowestValueMakerMaterialsFirst() throws Exception {
+        // SipsBuddy2 (2026-10-14): 91 of 96 ETC slots were maker materials it can't craft with, kept forever.
+        Character bot = mock(Character.class);
+        when(bot.getLevel()).thenReturn(70);
+        Inventory etc = new Inventory(bot, InventoryType.ETC, (byte) 24);
+        etc.addItem(Items.itemWithQuantity(4004001, 100)); // Wisdom Crystal Ore, 2,000 each
+        etc.addItem(Items.itemWithQuantity(4010001, 100)); // Steel Ore, 100 each
+        etc.addItem(Items.itemWithQuantity(4007006, 12)); // Magic Powder (Red), 1 each
+        etc.addItem(Items.itemWithQuantity(4031045, 1)); // a ferry ticket stays out of it
+        when(bot.getInventory(InventoryType.ETC)).thenReturn(etc);
+        BotInventoryManager.SellPriceLookup price = (id, qty) -> switch (id) {
+            case 4004001 -> 2000 * qty;
+            case 4010001 -> 100 * qty;
+            case 4007006 -> qty;
+            default -> 1;
+        };
+        try (AutoCloseable sell = withSellSeams(price, id -> -1, id -> 600000);
+             AutoCloseable quest = withQuestSeams(id -> false, id -> List.of(), status(Set.of(), Set.of()))) {
+            assertTrue(BotInventoryManager.collectSellTrashEtcItems(bot).isEmpty(), "no routine sale: they are shelf, not trash");
+            List<Item> sales = BotInventoryManager.collectCrampedEtcSales(bot, 2, null);
+            assertEquals(List.of(4007006, 4010001), sales.stream().map(Item::getItemId).toList(), "cheapest stacks first");
+        }
+        try (AutoCloseable sell = withSellSeams(price, id -> -1, id -> 600000, 1);
+             AutoCloseable quest = withQuestSeams(id -> false, id -> List.of(), status(Set.of(), Set.of()))) {
+            assertFalse(BotInventoryManager.crampedEtcSalesAvailable(bot), "a bot with Maker keeps its crafting fuel");
+        }
+    }
+
+    @Test
     void staleUntradeableQuestItemRespectsUntradeableConfig() throws Exception {
         // A stale quest item flagged untradeable (info/tradeBlock=1, ~26% of quest ETC items).
         // Whether it sells depends on the server's UNTRADEABLE_ITEMS_TRADEABLE config, the same

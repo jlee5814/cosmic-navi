@@ -268,6 +268,24 @@ class BotShopManagerTest {
     }
 
     @Test
+    void aCrampedEtcTabOfShelfMaterialsStillTriggersASellVisit() {
+        // No routine ETC trash, but maker materials the bot can't craft with are on the shelf: a cramped tab
+        // must still send it to a shop, or the tab jams (SipsBuddy2, 2026-10-14).
+        Character bot = mock(Character.class);
+        BotEntry entry = new BotEntry(bot, null, null);
+        Inventory etc = new Inventory(bot, InventoryType.ETC, (byte) 3); // 2 free slots -> cramped
+        etc.addItem(Items.itemWithQuantity(4010001, 100));
+        when(bot.getInventory(InventoryType.EQUIP)).thenReturn(null);
+        when(bot.getInventory(InventoryType.USE)).thenReturn(null);
+        when(bot.getInventory(InventoryType.ETC)).thenReturn(etc);
+        try (MockedStatic<BotInventoryManager> inventories = mockStatic(BotInventoryManager.class)) {
+            inventories.when(() -> BotInventoryManager.collectSellTrashEtcItems(bot)).thenReturn(List.of());
+            inventories.when(() -> BotInventoryManager.crampedEtcSalesAvailable(bot)).thenReturn(true);
+            assertTrue(BotShopManager.shouldAutoSellTrash(entry, bot));
+        }
+    }
+
+    @Test
     void shouldNotAutoTriggerSellTrashVisitWithThreeFreeSlots() {
         Character bot = mock(Character.class);
         BotEntry entry = new BotEntry(bot, null, null);
