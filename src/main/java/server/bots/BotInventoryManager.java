@@ -2459,7 +2459,44 @@ class BotInventoryManager {
 
     /** A maker material this bot only carries: it has no Maker skill to craft with it. */
     private static boolean onEtcShelf(Character bot, int itemId) {
-        return isMakerMaterial(itemId) && !canMakeMonsterCrystals(bot);
+        return (isMakerMaterial(itemId) && !canMakeMonsterCrystals(bot)) || isCraftingPart(itemId);
+    }
+
+    /**
+     * The ETC items NPC gear recipes consume besides maker materials (leather, screws, skins, tails): kept for
+     * crafting like the materials (the ETC shelf, then the Monster ETC drops bin) instead of sold as trash. The
+     * list is generated from the recipe tables in scripts/npc (tools/bots/gen_crafting_parts.py), with the most
+     * one recipe needs, which caps how much the bin keeps ({@link BotStorageMuleManager}).
+     */
+    static boolean isCraftingPart(int itemId) {
+        return CraftingParts.MAX_PER_RECIPE.containsKey(itemId);
+    }
+
+    /** The most of this crafting part one recipe needs; 0 when it isn't one. */
+    static int craftingPartMaxPerRecipe(int itemId) {
+        return CraftingParts.MAX_PER_RECIPE.getOrDefault(itemId, 0);
+    }
+
+    private static final class CraftingParts {
+        static final Map<Integer, Integer> MAX_PER_RECIPE = load();
+
+        private static Map<Integer, Integer> load() {
+            Map<Integer, Integer> parts = new HashMap<>();
+            try (var in = BotInventoryManager.class.getResourceAsStream("/bots/crafting-parts.csv")) {
+                if (in == null) {
+                    return parts;
+                }
+                for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+                    String[] f = line.trim().split(",");
+                    if (f.length >= 2 && !f[0].startsWith("#")) {
+                        parts.put(Integer.parseInt(f[0].trim()), Integer.parseInt(f[1].trim()));
+                    }
+                }
+            } catch (java.io.IOException | NumberFormatException e) {
+                log.warn("crafting parts list unreadable", e);
+            }
+            return parts;
+        }
     }
 
     /** The ETC shelf, lowest value first (sold first): NPC meso of the whole stack, then the smaller stack. */
@@ -2556,7 +2593,7 @@ class BotInventoryManager {
                 return true; // omok clutter: always sold, overrides the rare-drop/leftover keeps below
             }
             if (SKILL_CONSUMED_ETC.contains(id) || BotFerryManager.isTicket(id) || isMakerMaterial(id)
-                    || isRareDrop(id) || keepCrystalLeftover(bot, item)) {
+                    || isCraftingPart(id) || isRareDrop(id) || keepCrystalLeftover(bot, item)) {
                 return false;
             }
             return true;
@@ -2982,7 +3019,8 @@ class BotInventoryManager {
         for (Item item : bot.getInventory(InventoryType.ETC).list()) {
             boolean sell = sellingEtc.contains(item);
             int rank = etcShelf.indexOf(item) + 1;
-            out.put(item, rank > 0 ? new BagVerdict("shelf", "shelf #" + rank + ", maker-material")
+            out.put(item, rank > 0 ? new BagVerdict("shelf", "shelf #" + rank
+                            + (isCraftingPart(item.getItemId()) ? ", crafting part" : ", maker-material"))
                     : new BagVerdict(sell ? "sell" : "keep", etcVerdictReason(bot, item, sell)));
         }
         return out;
@@ -3113,6 +3151,9 @@ class BotInventoryManager {
         }
         if (isMakerMaterial(id)) {
             return "maker-material";
+        }
+        if (isCraftingPart(id)) {
+            return "crafting-part";
         }
         if (isRareDrop(id)) {
             return "rare-drop";

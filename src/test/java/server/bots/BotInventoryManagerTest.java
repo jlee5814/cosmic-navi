@@ -1316,7 +1316,8 @@ class BotInventoryManagerTest {
         etc.addItem(Items.itemWithQuantity(4250000, 3));    // maker reagent -> keep
         etc.addItem(Items.itemWithQuantity(4006000, 5));    // magic rock (skill-consumed) -> keep
         etc.addItem(Items.itemWithQuantity(4006001, 5));    // summoning rock (skill-consumed) -> keep
-        etc.addItem(Items.itemWithQuantity(4000100, 45));   // small crystal leftover stack -> trash
+        etc.addItem(Items.itemWithQuantity(4000116, 45));   // small crystal leftover stack -> trash
+        etc.addItem(Items.itemWithQuantity(4000021, 30));   // Leather, a crafting part -> keep
         etc.addItem(Items.itemWithQuantity(4000101, 1252)); // crystal leftover >=100, has Maker -> keep
         etc.addItem(Items.itemWithQuantity(4000102, 200));  // crystal leftover >=100, has Maker -> keep
         etc.addItem(Items.itemWithQuantity(4000200, 9));    // NPC pays nothing -> trash (generic 0-sell)
@@ -1335,7 +1336,7 @@ class BotInventoryManagerTest {
 
         // 4030014 (omok) is also a rare drop, proving the omok sell-whitelist overrides the keep.
         BotInventoryManager.SellPriceLookup price = (id, qty) -> id == 4000200 ? -1 : 10;
-        IntUnaryOperator leftover = id -> isIn(id, 4000100, 4000101, 4000102) ? 4260000 : -1;
+        IntUnaryOperator leftover = id -> isIn(id, 4000116, 4000101, 4000102) ? 4260000 : -1;
         IntUnaryOperator dropChance = id -> isIn(id, 4000001, 4030014) ? 5000 : 600000;
 
         try (AutoCloseable seams = withSellSeams(price, leftover, dropChance, 2 /* has Maker */)) {
@@ -1343,7 +1344,10 @@ class BotInventoryManagerTest {
             assertEquals(4, trash.size());
             assertTrue(trash.stream().anyMatch(item -> item.getItemId() == 4000000));
             assertTrue(trash.stream().anyMatch(item ->
-                    item.getItemId() == 4000100 && BotInventoryManager.sellTrashQuantity(item) == 45));
+                    item.getItemId() == 4000116 && BotInventoryManager.sellTrashQuantity(item) == 45));
+            assertTrue(trash.stream().noneMatch(item -> item.getItemId() == 4000021), "crafting parts are kept");
+            assertTrue(BotInventoryManager.etcShelf(bot).stream().anyMatch(item -> item.getItemId() == 4000021),
+                    "a crafting part waits on the shelf for its bin");
             assertTrue(trash.stream().anyMatch(item -> item.getItemId() == 4000200),
                     "0-NPC-price clutter should now be sold");
             assertTrue(trash.stream().anyMatch(item -> item.getItemId() == 4030014),

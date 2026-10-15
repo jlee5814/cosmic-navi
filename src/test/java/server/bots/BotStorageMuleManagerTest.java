@@ -87,6 +87,24 @@ class BotStorageMuleManagerTest {
     }
 
     @Test
+    void craftingPartsGoToThePartsBinUntilItHoldsThreeCraftsWorth() {
+        assertEquals(BotStorageMuleManager.CRAFTING_PARTS_ROLE, BotStorageMuleManager.roleFor(4000021)); // Leather
+        assertEquals(100, BotInventoryManager.craftingPartMaxPerRecipe(4000021));
+        int owner = 1;
+        int farmer = 10;
+        Item leather = new Item(4000021, (short) 1, (short) 60);
+        Item more = new Item(4000021, (short) 2, (short) 60);
+        var emptyBin = new BotStorageMuleManager.Directory(Map.of(farmer, owner), Map.of(owner, Map.of("monster etc drops", 94)),
+                Map.of(94, "monster etc drops"), Map.of(owner, List.of(new BotStorageMuleManager.Member(94, 0, 10))), 0L);
+        assertEquals(List.of(leather, more), BotStorageMuleManager.planBins(emptyBin, farmer, List.of(leather, more)).get(94));
+        // The bin holds 250 of 300 (three crafts of the 100 Leather recipe): one stack fits, the next stays on the shelf.
+        var nearlyFull = new BotStorageMuleManager.Directory(Map.of(farmer, owner), Map.of(owner, Map.of("monster etc drops", 94)),
+                Map.of(94, "monster etc drops"), Map.of(owner, List.of(new BotStorageMuleManager.Member(94, 0, 10,
+                        Map.of(), Map.of(), Map.of(4000021, 250)))), 0L);
+        assertEquals(List.of(leather), BotStorageMuleManager.planBins(nearlyFull, farmer, List.of(leather, more)).get(94));
+    }
+
+    @Test
     void fleetDemandCountsWhoWillWearItLessWhoIsCoveredAndWhatIsAlreadyHeld() {
         BotStorageMuleManager.WearCheck prev = BotStorageMuleManager.wearCheck;
         java.util.function.IntUnaryOperator prevReq = BotStorageMuleManager.reqLevel;

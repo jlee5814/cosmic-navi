@@ -80,7 +80,14 @@ final class BotStorageMuleManager {
                     || in(id, 4011004, 4011006) || id == 4011008),
             // Powders, stimulators and manuals, monster crystals, maker reagents, Moon Rock, Piece of Time, Star Rock.
             new Bin("Processed materials", id -> id / 1000 == 4007 || id / 10000 == 413 || id / 10000 == 426
-                    || ItemConstants.isMakerReagent(id) || id == 4011007 || id == 4020009 || id == 4021009));
+                    || ItemConstants.isMakerReagent(id) || id == 4011007 || id == 4020009 || id == 4021009),
+            // Leather, screws, skins and tails NPC gear recipes need (BotInventoryManager.isCraftingPart).
+            new Bin(CRAFTING_PARTS_ROLE, BotInventoryManager::isCraftingPart));
+
+    static final String CRAFTING_PARTS_ROLE = "Monster ETC drops";
+    // The parts bin keeps enough of each part for this many of the most demanding recipe; past that the part
+    // stays on the farmer's shelf and sells when the tab is cramped, so the bin never fills with one kind.
+    static final int CRAFTING_PART_BIN_CRAFTS = 3;
 
     /** The storage role that takes this item, or null. */
     static String binRole(int itemId) {
@@ -173,9 +180,14 @@ final class BotStorageMuleManager {
      * gear slot ({@link #gearSlot}) to the highest required level among what it wears there; {@code bagCopies}
      * counts the equips in its bag by item id (a storage mule's bag is its bin).
      */
-    record Member(int charId, int jobId, int level, Map<Integer, Integer> wornReq, Map<Integer, Integer> bagCopies) {
+    record Member(int charId, int jobId, int level, Map<Integer, Integer> wornReq, Map<Integer, Integer> bagCopies,
+                  Map<Integer, Integer> etcHeld) {
         Member(int charId, int jobId, int level) {
-            this(charId, jobId, level, Map.of(), Map.of());
+            this(charId, jobId, level, Map.of(), Map.of(), Map.of());
+        }
+
+        Member(int charId, int jobId, int level, Map<Integer, Integer> wornReq, Map<Integer, Integer> bagCopies) {
+            this(charId, jobId, level, wornReq, bagCopies, Map.of());
         }
     }
 
@@ -344,18 +356,23 @@ final class BotStorageMuleManager {
         return new Directory(ownerOf, mulesByOwner, roleOfMule, membersByOwner, nowMs);
     }
 
-    /** Fills in each member's worn gear levels and bag equips from the saved inventories (type 1 = a character's
-     *  own items; inventorytype -1 worn, 1 the equip bag). */
+    /** Fills in each member's worn gear levels, bag equips and ETC holdings from the saved inventories (type 1 =
+     *  a character's own items; inventorytype -1 worn, 1 the equip bag, 4 the ETC bag). */
     private static void loadFleetGear(Connection con, Map<Integer, List<Member>> membersByOwner) throws Exception {
         Map<Integer, Map<Integer, Integer>> worn = new HashMap<>();
         Map<Integer, Map<Integer, Integer>> bags = new HashMap<>();
+        Map<Integer, Map<Integer, Integer>> etc = new HashMap<>();
         try (PreparedStatement ps = con.prepareStatement(
-                "SELECT characterid, itemid, inventorytype FROM inventoryitems WHERE type=1 AND inventorytype IN (-1,1) "
+                "SELECT characterid, itemid, inventorytype, quantity FROM inventoryitems WHERE type=1 AND inventorytype IN (-1,1,4) "
                         + "AND characterid IN (SELECT bot_char_id FROM bot_owners UNION SELECT owner_char_id FROM bot_owners)");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 int charId = rs.getInt("characterid");
                 int itemId = rs.getInt("itemid");
+                if (rs.getInt("inventorytype") == 4) {
+                    etc.computeIfAbsent(charId, k -> new HashMap<>()).merge(itemId, rs.getInt("quantity"), Integer::sum);
+                    continue;
+                }
                 if (rs.getInt("inventorytype") == 1) {
                     bags.computeIfAbsent(charId, k -> new HashMap<>()).merge(itemId, 1, Integer::sum);
                     continue;
@@ -370,8 +387,8 @@ final class BotStorageMuleManager {
             }
         }
         for (List<Member> members : membersByOwner.values()) {
-            members.replaceAll(m -> new Member(m.charId(), m.jobId(), m.level(),
-                    worn.getOrDefault(m.charId(), Map.of()), bags.getOrDefault(m.charId(), Map.of())));
+            members.replaceAll(m -> new Member(m.charId(), m.jobId(), m.level(), worn.getOrDefault(m.charId(), Map.of()),
+                    bags.getOrDefault(m.charId(), Map.of()), etc.getOrDefault(m.charId(), Map.of())));
         }
     }
 
@@ -513,14 +530,35 @@ final class BotStorageMuleManager {
         if (dir == null) {
             return plan;
         }
+        Map<Integer, Integer> partsPlanned = new HashMap<>();
         for (Item item : shelf) {
             String role = roleFor(item.getItemId());
             Integer mule = role == null ? null : dir.muleFor(farmerId, role);
-            if (mule != null && mule != farmerId) {
-                plan.computeIfAbsent(mule, k -> new ArrayList<>()).add(item);
+            if (mule == null || mule == farmerId) {
+                continue;
             }
+            if (CRAFTING_PARTS_ROLE.equals(role)) {
+                int id = item.getItemId();
+                int held = binHolds(dir, farmerId, mule, id) + partsPlanned.getOrDefault(id, 0);
+                if (held >= CRAFTING_PART_BIN_CRAFTS * BotInventoryManager.craftingPartMaxPerRecipe(id)) {
+                    continue; // the bin has enough of this part
+                }
+                partsPlanned.merge(id, (int) item.getQuantity(), Integer::sum);
+            }
+            plan.computeIfAbsent(mule, k -> new ArrayList<>()).add(item);
         }
         return plan;
+    }
+
+    /** How much of an ETC item the mule held at the last roster snapshot. */
+    private static int binHolds(Directory dir, int farmerId, int muleId, int itemId) {
+        Integer owner = dir.ownerOf().get(farmerId);
+        for (Member m : owner == null ? List.<Member>of() : dir.membersByOwner().getOrDefault(owner, List.of())) {
+            if (m.charId() == muleId) {
+                return m.etcHeld().getOrDefault(itemId, 0);
+            }
+        }
+        return 0;
     }
 
     /** The bins this farmer can visit now: {@link #planBins} minus mules someone else has (a player logged it
