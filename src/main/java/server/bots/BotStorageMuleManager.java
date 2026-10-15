@@ -1,6 +1,7 @@
 package server.bots;
 
 import client.Character;
+import client.inventory.Equip;
 import client.inventory.Inventory;
 import client.inventory.InventoryType;
 import client.inventory.Item;
@@ -94,12 +95,11 @@ final class BotStorageMuleManager {
     // ---- Maple items: never sold, each goes to the roster bin for its kind (owner rule, 2026-10-15) --------------
 
     static final String RARE_EQUIPMENT = "Rare and high-stat equipment";
-    static final String EVENT_STORAGE = "Event items and emergency storage";
     private static final String[] CLASSES = {"Warrior", "Mage", "Bowman", "Thief", "Pirate"}; // reqJob bits 1..16
     static final List<String> MAPLE_ROLES = List.of(
             "Warrior weapons", "Mage weapons", "Bowman weapons", "Thief weapons", "Pirate weapons",
             "Warrior armor", "Mage armor", "Bowman armor", "Thief armor", "Pirate armor",
-            "Gloves", "Shoes", "Capes", "Accessories", RARE_EQUIPMENT, EVENT_STORAGE);
+            "Gloves", "Shoes", "Capes", "Accessories", RARE_EQUIPMENT);
 
     /** Test seam: an equip's reqJob mask from its WZ info (0 = any job). */
     static IntUnaryOperator reqJob = id -> {
@@ -107,12 +107,9 @@ final class BotStorageMuleManager {
         return stats == null ? 0 : stats.getOrDefault("reqJob", 0);
     };
 
-    /** The roster bin for a Maple item, by kind: weapons and armor by the class that wears them, then gloves,
-     *  shoes, capes and accessories; any job gear to the rare equipment bin, everything else to event storage. */
+    /** The roster bin for Maple gear, by kind: weapons and armor by the class that wears them, then gloves,
+     *  shoes, capes and accessories; gear any job can wear to the rare equipment bin. */
     static String mapleBinRole(int itemId) {
-        if (ItemConstants.getInventoryType(itemId) != InventoryType.EQUIP) {
-            return EVENT_STORAGE;
-        }
         if (ItemConstants.isWeapon(itemId)) {
             return byClass(itemId, " weapons");
         }
@@ -135,13 +132,13 @@ final class BotStorageMuleManager {
         return RARE_EQUIPMENT;
     }
 
-    /** The bin an item goes to: a Maple item by its kind, a maker material by its family, else null. */
+    /** The bin an item goes to: Maple gear by its kind, a maker material by its family, else null. */
     static String roleFor(int itemId) {
         return BotInventoryManager.isMapleItem(itemId) ? mapleBinRole(itemId) : binRole(itemId);
     }
 
-    /** What a farmer hands over: its ETC shelf, plus every Maple item it holds that it isn't wearing next or
-     *  holding for a teammate (equips the sell rules mark BIN) and that survives being dropped. */
+    /** What a farmer hands over: its ETC shelf, plus the Maple gear it isn't wearing next or holding for a
+     *  teammate (equips the sell rules mark BIN) and that survives being dropped. */
     static List<Item> handoffItems(BotEntry entry, Character bot) {
         List<Item> out = new ArrayList<>(BotInventoryManager.etcShelf(bot));
         BotInventoryManager.classifyBagEquips(entry, bot).forEach((item, c) -> {
@@ -149,14 +146,6 @@ final class BotStorageMuleManager {
                 out.add(item);
             }
         });
-        for (InventoryType type : List.of(InventoryType.USE, InventoryType.SETUP, InventoryType.ETC)) {
-            Inventory inv = bot.getInventory(type);
-            for (Item item : inv == null ? List.<Item>of() : inv.list()) {
-                if (BotInventoryManager.isMapleItem(item.getItemId()) && BotInventoryManager.isSafeToDrop(item)) {
-                    out.add(item);
-                }
-            }
-        }
         return out;
     }
 
@@ -167,8 +156,16 @@ final class BotStorageMuleManager {
     // ---- directory: which roster character holds which bin, per registered owner ------------------------------
     // Loaded off the tick thread (a DB scan), refreshed every 30 minutes. Until it is ready, visits don't start.
 
+    /** A fleet member as the roster snapshot saw it: the owner or one of the owner's bots. */
+    record Member(int charId, int jobId, int level) {}
+
     record Directory(Map<Integer, Integer> ownerOf, Map<Integer, Map<String, Integer>> mulesByOwner,
-                     Map<Integer, String> roleOfMule, long loadedAtMs) {
+                     Map<Integer, String> roleOfMule, Map<Integer, List<Member>> membersByOwner, long loadedAtMs) {
+        Directory(Map<Integer, Integer> ownerOf, Map<Integer, Map<String, Integer>> mulesByOwner,
+                  Map<Integer, String> roleOfMule, long loadedAtMs) {
+            this(ownerOf, mulesByOwner, roleOfMule, Map.of(), loadedAtMs);
+        }
+
         Integer muleFor(int farmerId, String role) {
             Integer owner = ownerOf.get(farmerId);
             Map<String, Integer> mules = owner == null ? null : mulesByOwner.get(owner);
@@ -193,6 +190,7 @@ final class BotStorageMuleManager {
             Thread.ofPlatform().daemon().name("bot-storage-mules").start(() -> {
                 try {
                     directory = directoryLoader.load(System.currentTimeMillis());
+                    DEMAND.clear();
                 } catch (Exception e) {
                     log.warn("storage mules: could not load the roster directory", e);
                 } finally {
@@ -205,6 +203,57 @@ final class BotStorageMuleManager {
 
     static void setDirectoryForTest(Directory d) {
         directory = d;
+        DEMAND.clear();
+    }
+
+    // ---- fleet demand: how many fleet members will wear an equip (the hold value model's copy cap) ----------
+
+    static final int UNKNOWN_DEMAND = Integer.MAX_VALUE;
+    static final int DEMAND_LEAD_LEVELS = 10;     // a member this many levels short will wear it soon
+    static final int DEMAND_OUTGROWN_LEVELS = 30; // a member this far past its level has moved on
+    private static final int ANY_STAT = 30_000;   // stat requirements grow with levels; only job and level gate
+    private static final Map<Long, Integer> DEMAND = new ConcurrentHashMap<>(); // (holder, item) for this snapshot
+
+    /** Test seam: whether a member wears this equip now or within the lead, by the player requirement check. */
+    interface WearCheck {
+        boolean wears(Member member, Equip equip);
+    }
+
+    static WearCheck wearCheck = (member, equip) -> {
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
+        if (ii.getEquipLevelReq(equip.getItemId()) < member.level() - DEMAND_OUTGROWN_LEVELS) {
+            return false;
+        }
+        client.Job job = client.Job.getById(member.jobId());
+        return job != null && ii.meetsEquipRequirements(equip, job, member.level() + DEMAND_LEAD_LEVELS,
+                ANY_STAT, ANY_STAT, ANY_STAT, ANY_STAT, Short.MAX_VALUE);
+    };
+
+    /**
+     * How many of the holder's fleet (its owner and the owner's other bots) will wear this equip now or within
+     * {@link #DEMAND_LEAD_LEVELS} levels, without having outgrown it. Beginners don't count: every storage mule
+     * is one, and a beginner wears almost nothing. {@link #UNKNOWN_DEMAND} until the roster snapshot loads or
+     * when the holder has no registered owner, so nothing sells on a guess.
+     */
+    static int fleetDemand(Character holder, Equip equip) {
+        Directory d = directory(System.currentTimeMillis());
+        Integer owner = d == null || holder == null ? null : d.ownerOf().get(holder.getId());
+        if (owner == null) {
+            return UNKNOWN_DEMAND;
+        }
+        long key = ((long) holder.getId() << 32) | (equip.getItemId() & 0xffffffffL);
+        return DEMAND.computeIfAbsent(key, k ->
+                countDemand(d.membersByOwner().getOrDefault(owner, List.of()), holder.getId(), equip));
+    }
+
+    static int countDemand(List<Member> members, int holderId, Equip equip) {
+        int n = 0;
+        for (Member m : members) {
+            if (m.charId() != holderId && m.jobId() != 0 && wearCheck.wears(m, equip)) {
+                n++;
+            }
+        }
+        return n;
     }
 
     private static Directory loadDirectory(long nowMs) throws Exception {
@@ -218,24 +267,41 @@ final class BotStorageMuleManager {
         Map<Integer, Integer> ownerOf = new HashMap<>();
         Map<Integer, Map<String, Integer>> mulesByOwner = new HashMap<>();
         Map<Integer, String> roleOfMule = new HashMap<>();
-        try (Connection con = DatabaseConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement(
-                     "SELECT b.bot_char_id, b.config, o.owner_char_id FROM bot_config b "
-                             + "JOIN bot_owners o ON o.bot_char_id=b.bot_char_id");
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                int bot = rs.getInt("bot_char_id");
-                int owner = rs.getInt("owner_char_id");
-                ownerOf.put(bot, owner);
-                String role = roleKey(BotPersonality.parse(rs.getString("config")).rosterRole());
-                if (binRoles.contains(role)) {
-                    mulesByOwner.computeIfAbsent(owner, k -> new HashMap<>()).put(role, bot);
-                    roleOfMule.put(bot, role);
+        Map<Integer, List<Member>> membersByOwner = new HashMap<>();
+        try (Connection con = DatabaseConnection.getConnection()) {
+            try (PreparedStatement ps = con.prepareStatement(
+                    "SELECT o.bot_char_id, o.owner_char_id, b.config, c.job, c.level FROM bot_owners o "
+                            + "LEFT JOIN bot_config b ON b.bot_char_id=o.bot_char_id "
+                            + "LEFT JOIN characters c ON c.id=o.bot_char_id");
+                 ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int bot = rs.getInt("bot_char_id");
+                    int owner = rs.getInt("owner_char_id");
+                    ownerOf.put(bot, owner);
+                    membersByOwner.computeIfAbsent(owner, k -> new ArrayList<>())
+                            .add(new Member(bot, rs.getInt("job"), rs.getInt("level")));
+                    String role = roleKey(BotPersonality.parse(rs.getString("config")).rosterRole());
+                    if (binRoles.contains(role)) {
+                        mulesByOwner.computeIfAbsent(owner, k -> new HashMap<>()).put(role, bot);
+                        roleOfMule.put(bot, role);
+                    }
+                }
+            }
+            // The owners themselves play too.
+            try (PreparedStatement ps = con.prepareStatement("SELECT job, level FROM characters WHERE id=?")) {
+                for (Map.Entry<Integer, List<Member>> e : membersByOwner.entrySet()) {
+                    ps.setInt(1, e.getKey());
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) {
+                            e.getValue().add(new Member(e.getKey(), rs.getInt("job"), rs.getInt("level")));
+                        }
+                    }
                 }
             }
         }
-        log.info("storage mules: {} bins across {} owners", roleOfMule.size(), mulesByOwner.size());
-        return new Directory(ownerOf, mulesByOwner, roleOfMule, nowMs);
+        log.info("storage mules: {} bins across {} owners, {} fleet members", roleOfMule.size(),
+                mulesByOwner.size(), membersByOwner.values().stream().mapToInt(List::size).sum());
+        return new Directory(ownerOf, mulesByOwner, roleOfMule, membersByOwner, nowMs);
     }
 
     // ---- mule duty (mule side) -------------------------------------------------------------------------------
@@ -419,7 +485,7 @@ final class BotStorageMuleManager {
         return dir != null && !availablePlan(bot, dir, BotInventoryManager.etcShelf(bot)).isEmpty();
     }
 
-    /** Start a visit when the ETC tab is cramped, or the bag holds a Maple item, and a free mule takes some of it. */
+    /** Start a visit when the ETC tab is cramped, or the bag holds Maple gear, and a free mule takes some of it. */
     static void maybeStartVisit(BotEntry entry, Character bot) {
         long now = System.currentTimeMillis();
         if (visitActive(entry) || now < entry.muleNextVisitAtMs || now < entry.muleVisitCheckAtMs) {
@@ -449,6 +515,8 @@ final class BotStorageMuleManager {
         entry.muleVisitMapId = BotWorldGraph.FREE_MARKET;
         entry.muleVisitBins.clear();
         entry.muleVisitBins.addAll(plan.keySet());
+        entry.muleVisitServed.clear();
+        entry.muleVisitRefillAtMs = 0L;
         entry.muleVisitProgress.begin(now);
         entry.muleVisitWaitSinceMs = 0L;
         entry.muleVisitLastDropAtMs = 0L;
@@ -464,7 +532,7 @@ final class BotStorageMuleManager {
 
     private static final List<String> START_LINES = List.of(
             "bag's full of mats, meeting my storage guy at the FM",
-            "got some maple stuff, dropping it with my storage guys at the FM",
+            "got some maple gear, dropping it with my storage guys at the FM",
             "gonna drop my ores off at the FM real quick",
             "etc tab is stuffed, running to the FM to unload");
 
@@ -489,10 +557,22 @@ final class BotStorageMuleManager {
         if (entry.muleVisitWaitSinceMs == 0L) {
             entry.muleVisitWaitSinceMs = now; // each bin's mule gets its own wait
         }
-        entry.muleVisitBins.removeIf(id -> !DUTIES.containsKey(id)); // its login failed or it gave up
+        entry.muleVisitBins.removeIf(id -> { // its login failed or it gave up
+            boolean gone = !DUTIES.containsKey(id);
+            if (gone) {
+                entry.muleVisitServed.add(id);
+            }
+            return gone;
+        });
         if (entry.muleVisitBins.isEmpty()) {
-            finishVisit(entry, bot, "all sorted, back to it");
-            return false;
+            // Before leaving, call in any mule it still needs that has come free (another farmer had it).
+            if (now - entry.muleVisitWaitSinceMs > MULE_WAIT_MS || !refillBins(entry, bot, now)) {
+                finishVisit(entry, bot, "all sorted, back to it");
+                return false;
+            }
+            if (entry.muleVisitBins.isEmpty()) {
+                return standNear(entry, bot, marketMeetingPoint(bot), runAiTick); // its mule is still busy
+            }
         }
         // Serve whichever mule is here, the one at the head first (mid handoff it stays there); wait for the rest.
         Integer muleId = null;
@@ -567,6 +647,47 @@ final class BotStorageMuleManager {
         return true;
     }
 
+    private static final long REFILL_CHECK_EVERY_MS = 5_000L;
+
+    /**
+     * Claims the mules this visit still needs that weren't free when it started, once they are. True while
+     * there is something to wait for: a mule it just claimed, or one still busy with another farmer. False
+     * when nothing it holds has a mule left to go to (the visit can end).
+     */
+    private static boolean refillBins(BotEntry entry, Character bot, long now) {
+        if (now < entry.muleVisitRefillAtMs) {
+            return entry.muleVisitRefillWaiting;
+        }
+        entry.muleVisitRefillAtMs = now + REFILL_CHECK_EVERY_MS;
+        Directory dir = directory(now);
+        Map<Integer, List<Item>> wanted = planBins(dir, bot.getId(), handoffItems(entry, bot));
+        wanted.keySet().removeAll(entry.muleVisitServed);
+        boolean busy = false;
+        List<Integer> claimed = new ArrayList<>();
+        for (int mule : wanted.keySet()) {
+            if (now < FULL_BINS.getOrDefault(mule, 0L)) {
+                continue;
+            }
+            BotEntry m = BotManager.getInstance().getEntryByBotCharId(mule);
+            if (m != null && m.bot != null && m.owner != m.bot && !DUTIES.containsKey(mule)) {
+                continue; // a player has it
+            }
+            if (DUTIES.putIfAbsent(mule, new Duty(bot.getId(), now)) != null) {
+                busy = true; // another farmer's visit still holds it
+                continue;
+            }
+            entry.muleVisitBins.add(mule); // before the login, so the mule's first tick sees it is wanted
+            summoner.summon(mule);
+            claimed.add(mule);
+        }
+        if (!claimed.isEmpty()) {
+            entry.muleVisitWaitSinceMs = now;
+            log.info("storage mules: {} calls in freed bins {}", bot.getName(), claimed);
+        }
+        entry.muleVisitRefillWaiting = busy || !claimed.isEmpty();
+        return entry.muleVisitRefillWaiting;
+    }
+
     private static boolean standNear(BotEntry entry, Character bot, Point near, boolean runAiTick) {
         if (entry.muleVisitStand == null) {
             entry.muleVisitStand = BotTravelManager.pickReachableApproachPoint(
@@ -592,6 +713,7 @@ final class BotStorageMuleManager {
 
     private static void nextBin(BotEntry entry, int muleId, long now) {
         entry.muleVisitBins.remove((Integer) muleId);
+        entry.muleVisitServed.add(muleId);
         endDuty(muleId);
         entry.muleVisitWaitSinceMs = 0L;
         entry.muleVisitNextDropAtMs = now + BotManager.randMs(1_000, 3_000);
@@ -614,6 +736,9 @@ final class BotStorageMuleManager {
         BotTravelManager.clearMoveTargetPin(entry);
         entry.muleVisitMapId = -1;
         entry.muleVisitBins.clear();
+        entry.muleVisitServed.clear();
+        entry.muleVisitRefillAtMs = 0L;
+        entry.muleVisitRefillWaiting = false;
         entry.muleVisitProgress.clear();
         entry.muleVisitStand = null;
     }

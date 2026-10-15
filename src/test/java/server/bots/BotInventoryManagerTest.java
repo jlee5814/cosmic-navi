@@ -46,6 +46,9 @@ import static org.mockito.Mockito.when;
 class BotInventoryManagerTest {
     static {
         BotInventoryManager.itemName = id -> null; // hermetic: no WZ name lookup (Maple items are tested apart)
+        // Hermetic hold value: no fleet roster (demand unknown) and no shop or drop data (obtain cost 0).
+        BotInventoryManager.fleetDemand = (bot, equip) -> BotStorageMuleManager.UNKNOWN_DEMAND;
+        BotInventoryManager.equipObtainCost = (bot, id) -> 0.0;
     }
 
     @Test
@@ -204,7 +207,7 @@ class BotInventoryManagerTest {
             kept.add(equip);
         }
 
-        var overflow = BotInventoryManager.valuableEquipOverflow(null, kept);
+        var overflow = BotInventoryManager.valuableEquipOverflow(null, NO_FLEET, kept);
 
         // 10 kept, cap 8: the two weakest rolls (STR 1 and 2) overflow and sell.
         assertEquals(2, overflow.size());
@@ -213,31 +216,49 @@ class BotInventoryManagerTest {
 
         // At or below the cap nothing is forced out.
         assertTrue(BotInventoryManager.valuableEquipOverflow(
-                null, kept.subList(2, kept.size())).isEmpty());
+                null, NO_FLEET, kept.subList(2, kept.size())).isEmpty());
+    }
+
+    private static final BotInventoryManager.HoldLookups NO_FLEET = lookups(id -> BotStorageMuleManager.UNKNOWN_DEMAND, id -> 0.0);
+
+    private static BotInventoryManager.HoldLookups lookups(java.util.function.IntUnaryOperator demand,
+                                                         java.util.function.IntToDoubleFunction obtain) {
+        return new BotInventoryManager.HoldLookups() {
+            @Override public int demand(Equip equip) { return demand.applyAsInt(equip.getItemId()); }
+            @Override public double obtainCost(int itemId) { return obtain.applyAsDouble(itemId); }
+        };
     }
 
     @Test
-    void shouldNeverSellEquipsAboveTheHardValueGateEvenOnOverflow() {
-        // A mule holding a bag of genuine valuables: every kept equip is one att-scroll above
-        // base (+5 watk = score 25, the gate). The shelf cap alone would force 6 out — the
-        // absolute gate keeps them all; bag pressure is the lesser evil.
+    void anEquipIsWorthHoldingOnlyWhileTheFleetWillWearItAndAtMostWhatItCostsToGetAgain() {
+        // SipsBuddy2's pile: six War Hammers (a shop sells them for 40,000), two of which the fleet will wear;
+        // a Steel Avarice no shop sells (farming one costs 900,000) that one thief wears; an Eagle Crow nobody
+        // wears. Every one is a +5 roll or better, the old never-sell line.
         java.util.List<Equip> kept = new java.util.ArrayList<>();
-        for (int i = 0; i < BotInventoryManager.KEEP_VALUABLE_EQUIP_SLOTS + 6; i++) {
-            Equip equip = mock(Equip.class);
-            when(equip.getItemId()).thenReturn(1082000 + i);
-            when(equip.getWatk()).thenReturn((short) 5);
-            kept.add(equip);
+        java.util.List<Equip> hammers = new java.util.ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            Equip hammer = equipWithWatk(1322014, 5 + i); // the +10 roll is the best copy
+            hammers.add(hammer);
+            kept.add(hammer);
         }
-        assertTrue(BotInventoryManager.valuableEquipOverflow(null, kept).isEmpty());
+        Equip avarice = equipWithWatk(1472014, 5);
+        Equip crow = equipWithWatk(1462004, 9);
+        kept.add(avarice);
+        kept.add(crow);
+        var fleet = lookups(id -> id == 1322014 ? 2 : id == 1472014 ? 1 : 0,
+                id -> id == 1322014 ? 40_000 : id == 1472014 ? 900_000 : 200_000);
 
-        // Sub-gate rolls beyond the cap still sell like before.
-        for (int i = 0; i < 3; i++) {
-            Equip weak = mock(Equip.class);
-            when(weak.getItemId()).thenReturn(1090000 + i);
-            when(weak.getStr()).thenReturn((short) 2);
-            kept.add(weak);
-        }
-        assertEquals(3, BotInventoryManager.valuableEquipOverflow(null, kept).size());
+        var ranks = BotInventoryManager.rankHold(null, fleet, kept);
+        var overflow = BotInventoryManager.valuableEquipOverflow(null, fleet, kept);
+
+        // The two best hammers and the Avarice stay; the Avarice ranks first (dearer to get again).
+        assertEquals(avarice, ranks.get(0).equip());
+        assertEquals(List.of(hammers.get(5), hammers.get(4)), List.of(ranks.get(1).equip(), ranks.get(2).equip()));
+        assertTrue(ranks.subList(0, 3).stream().allMatch(BotInventoryManager.HoldRank::keeps));
+        // Four surplus hammers and the crow nobody wears sell, however good the roll.
+        assertEquals(5, overflow.size());
+        assertTrue(overflow.containsAll(hammers.subList(0, 4)));
+        assertTrue(overflow.contains(crow));
     }
 
     @Test
@@ -856,15 +877,18 @@ class BotInventoryManagerTest {
             shelf.add(e);
             bag.add(e);
         }
-        Equip neverSellBeyondShelf = equipWithWatk(1104000, 5); // score 25 = never-sell gate
-        Equip overflow = equipWithWatk(1104001, 1);             // score 5, beyond shelf -> sells
-        bag.add(neverSellBeyondShelf);
+        Equip beyondShelf = equipWithWatk(1104000, 5); // score 25 (the old never-sell line), beyond the shelf
+        Equip overflow = equipWithWatk(1104001, 1);    // score 5, beyond the shelf
+        Equip unworn = equipWithWatk(1104002, 40);     // the best roll in the bag, but nobody wears it
+        bag.add(beyondShelf);
         bag.add(overflow);
+        bag.add(unworn);
 
         Set<Item> self = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         self.add(reservedSelf);
         Map<Item, BotInventoryManager.BagEquipClass> out =
-                BotInventoryManager.classifyBagEquips(null, bag, self, item -> item == reservedOther);
+                BotInventoryManager.classifyBagEquips(null, bag, self, item -> item == reservedOther,
+                        lookups(id -> id == 1104002 ? 0 : BotStorageMuleManager.UNKNOWN_DEMAND, id -> 0.0));
 
         // Reservation wins over hoarding even for the highest-value items.
         assertEquals(BotInventoryManager.BagEquipStatus.RESV_SELF, out.get(reservedSelf).status());
@@ -873,17 +897,14 @@ class BotInventoryManagerTest {
         // Shelf ranks follow trade value descending.
         assertEquals("HOARD#1", out.get(shelf.get(0)).label());
         assertEquals("HOARD#2", out.get(shelf.get(1)).label());
-        // At/above the never-sell gate stays HOARD even beyond the shelf cap.
-        assertEquals(BotInventoryManager.BagEquipStatus.HOARD, out.get(neverSellBeyondShelf).status());
-        assertEquals(BotInventoryManager.KEEP_VALUABLE_EQUIP_SLOTS + 1, out.get(neverSellBeyondShelf).rank());
-        // Kept-for-value but beyond the shelf and below the gate -> HLIM (matches valuableEquipOverflow).
+        // No never-sell line any more: past the shelf is HLIM however good the roll (matches valuableEquipOverflow).
+        assertEquals(BotInventoryManager.BagEquipStatus.HLIM, out.get(beyondShelf).status());
+        assertEquals(BotInventoryManager.KEEP_VALUABLE_EQUIP_SLOTS + 1, out.get(beyondShelf).rank());
         assertEquals(BotInventoryManager.BagEquipStatus.HLIM, out.get(overflow).status());
-        assertEquals(BotInventoryManager.KEEP_VALUABLE_EQUIP_SLOTS + 2, out.get(overflow).rank());
         assertEquals("HLIM#" + (BotInventoryManager.KEEP_VALUABLE_EQUIP_SLOTS + 2), out.get(overflow).label());
-        var overflowItems = BotInventoryManager.valuableEquipOverflow(null,
-                java.util.stream.Stream.concat(shelf.stream(),
-                        java.util.stream.Stream.of(neverSellBeyondShelf, overflow)).toList());
-        assertEquals(List.of(overflow), overflowItems);
+        // A copy nobody in the fleet wears is surplus, ranked last.
+        assertEquals(BotInventoryManager.BagEquipStatus.SURPLUS, out.get(unworn).status());
+        assertEquals("SURPLUS(fleet 0)", out.get(unworn).label());
     }
 
     private static Equip equipWithWatk(int itemId, int watk) {

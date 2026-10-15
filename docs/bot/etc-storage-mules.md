@@ -40,23 +40,23 @@ The Processed materials bin takes stimulators and manuals because no role names 
 merged they may need a second bin. Silver, Orihalcon and Gold ores (4010004 to 4010006) have no named bin
 either; the Iron and bronze bin can take them until a role does.
 
-## Maple items (owner rule, 2026-10-15)
+## Maple gear (owner rule, 2026-10-15)
 
-Every Maple item a bot holds (any item whose name says Maple: weapons, shields, hats, capes, earrings, leaves,
-coins, chairs, stars) is never sold, by any sell path, and goes to a bin on the next visit
-(`BotInventoryManager.isMapleItem`, `BotStorageMuleManager.mapleBinRole`):
+Every piece of Maple gear a bot holds (any equip whose name says Maple: weapons, shields, hats, capes,
+earrings) is never sold, by any sell path, and goes to a bin on the next visit
+(`BotInventoryManager.isMapleItem`, `BotStorageMuleManager.mapleBinRole`). Other Maple items (leaves, coins,
+food, stars) follow the normal sell rules.
 
 - Weapons to the weapon bin of the class that uses them (lowest reqJob bit: Warrior, Mage, Bowman, Thief,
   Pirate); hats, tops, overalls, pants and shields to that class's armor bin.
 - Gloves, shoes and capes to their own bins; earrings, face and eye accessories, rings, pendants, belts and
-  medals to Accessories.
-- Gear any job can wear to Rare and high-stat equipment; everything that isn't an equip to Event items and
-  emergency storage.
-- Kept back: a Maple piece the bot would wear next (own upgrade) or has promised a teammate, quest items (the
-  quest rules own them), and anything that would vanish on the floor.
+  medals to Accessories; gear any job can wear to Rare and high-stat equipment.
+- Kept back: a piece the bot would wear next (own upgrade) or has promised a teammate, quest items, and
+  anything that would vanish on the floor.
 
-A Maple item in the bag starts a visit on its own (still once per 45 to 90 minute cooldown); the visit hands
-over the shelf materials too.
+Maple gear in the bag starts a visit on its own (still once per 45 to 90 minute cooldown); the visit hands
+over the shelf materials too. A farmer whose needed mule was busy with another farmer's visit waits for it
+(up to 4 minutes after its last bin) and calls it in when it frees.
 
 ## Visit flow
 
