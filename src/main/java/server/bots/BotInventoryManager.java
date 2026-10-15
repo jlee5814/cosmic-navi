@@ -1806,7 +1806,7 @@ class BotInventoryManager {
      * ({@link #valuableEquipOverflow}) and the classifier ({@link #classifyBagEquips}) so both agree.
      */
     static List<HoldRank> rankHold(ItemInformationProvider ii, HoldLookups lookups, List<Equip> kept) {
-        Map<Integer, List<Equip>> copies = new LinkedHashMap<>();
+        Map<Integer, List<Equip>> copies = new java.util.LinkedHashMap<>();
         for (Equip e : kept) {
             copies.computeIfAbsent(e.getItemId(), k -> new ArrayList<>()).add(e);
         }
