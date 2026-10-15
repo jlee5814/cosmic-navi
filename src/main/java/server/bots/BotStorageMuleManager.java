@@ -67,6 +67,11 @@ final class BotStorageMuleManager {
         return false;
     }
 
+    static final String CRAFTING_PARTS_ROLE = "Monster ETC drops";
+    // The parts bin keeps enough of each part for this many of the most demanding recipe; past that the part
+    // stays on the farmer's shelf and sells when the tab is cramped, so the bin never fills with one kind.
+    static final int CRAFTING_PART_BIN_CRAFTS = 3;
+
     // First match wins; Processed materials is the catch all for what the named bins don't take.
     static final List<Bin> BINS = List.of(
             new Bin("Power crystals", id -> in(id, 4004000, 4004003) || in(id, 4005000, 4005003)),
@@ -84,10 +89,6 @@ final class BotStorageMuleManager {
             // Leather, screws, skins and tails NPC gear recipes need (BotInventoryManager.isCraftingPart).
             new Bin(CRAFTING_PARTS_ROLE, BotInventoryManager::isCraftingPart));
 
-    static final String CRAFTING_PARTS_ROLE = "Monster ETC drops";
-    // The parts bin keeps enough of each part for this many of the most demanding recipe; past that the part
-    // stays on the farmer's shelf and sells when the tab is cramped, so the bin never fills with one kind.
-    static final int CRAFTING_PART_BIN_CRAFTS = 3;
 
     /** The storage role that takes this item, or null. */
     static String binRole(int itemId) {
