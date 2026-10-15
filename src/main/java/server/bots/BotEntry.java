@@ -504,6 +504,15 @@ public class BotEntry {
     long muleNextVisitAtMs = 0L;
     long muleVisitCheckAtMs = 0L;
     Point muleVisitStand = null;
+
+    // Crafting on demand (BotCraftManager): the bot walks to the NPC of each queued step and crafts it, the last
+    // step being the upgrade it then wears. craftErrandMapId = -1 when no craft errand is active.
+    int craftErrandMapId = -1;
+    int craftNpcId = 0;
+    int craftGoalId = 0;
+    final java.util.ArrayDeque<BotCraftManager.Step> craftSteps = new java.util.ArrayDeque<>();
+    final BotTravelManager.ErrandProgress craftProgress = new BotTravelManager.ErrandProgress();
+    long craftNextCheckAtMs = 0L;
     Point muleStandSpot = null;
 
     // Supervised-mode quest AUTO-SUGGEST (Feature A): when the owner is online and the bot is at
