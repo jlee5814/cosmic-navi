@@ -180,6 +180,27 @@ class BotCraftManagerTest {
     }
 
     @Test
+    void gearItCantWearIsNoWantEvenWhenShort() {
+        BotCraftManager.Lookups base = BotCraftManager.lookups;
+        BotCraftManager.lookups = new BotCraftManager.Lookups() {
+            @Override public Map<String, Integer> stats(int itemId) { return base.stats(itemId); }
+            @Override public Equip clean(int itemId) { return base.clean(itemId); }
+            @Override public double potential(Character bot, Equip e) { return base.potential(bot, e); }
+            @Override public double value(Character bot, Equip e) { return base.value(bot, e); }
+            @Override public Equip worn(Character bot, int itemId) { return base.worn(bot, itemId); }
+            @Override public boolean wearable(Character bot, Equip e) { return false; } // another class's gear
+            @Override public boolean preferredWeapon(Character bot, Equip e) { return true; }
+            @Override public int sellPrice(int itemId, int qty) { return base.sellPrice(itemId, qty); }
+            @Override public double obtainCost(Character bot, int itemId) { return base.obtainCost(bot, itemId); }
+        };
+        assertTrue(BotCraftManager.wants(null, bot(20)).isEmpty());
+        Map<String, Integer> why = new HashMap<>();
+        BotCraftManager.bestPlan(bot(20), Map.of(), 10_000, true, (r, reason, gain) -> why.merge(reason, 1, Integer::sum));
+        assertEquals(1, why.get("can't wear it yet")); // Juno, an empty bag: the wear check comes first
+        assertNull(why.get(BotCraftManager.SHORT));
+    }
+
+    @Test
     void aCleanBaseThatWinsOnceScrolledIsCraftedOnlyByABotThatScrolls() {
         // Its gloves beat clean Work Gloves as they are, but have no slots left; five open slots win once scrolled.
         worn = equip(WORN_GLOVES);
