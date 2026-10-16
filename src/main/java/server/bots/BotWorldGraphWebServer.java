@@ -193,6 +193,7 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/inventory", BotWorldGraphWebServer::serveInventory);
             s.createContext("/api/craftplan", BotWorldGraphWebServer::serveCraftPlan);
             s.createContext("/api/craftdemand", BotWorldGraphWebServer::serveCraftDemand);
+            s.createContext("/api/scrollmatch", BotWorldGraphWebServer::serveScrollMatch);
             s.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "bot-worldmap-web");
                 t.setDaemon(true);
@@ -439,6 +440,40 @@ public final class BotWorldGraphWebServer {
                     + ",\"aloneGain\":" + Math.round(d.aloneGain * 10) / 10.0 + ",\"for\":" + rawArr(outs) + "}");
         }
         String body = "{\"bots\":" + counted + ",\"materials\":" + rawArr(rows) + "}";
+        send(ex, 200, "application/json", body.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** GET /api/scrollmatch: equip scrolls fleet members hold but can't use, and who in the same fleet could
+     *  (BotOfferManager.fleetScrollMatches over the roster snapshot, offline members included). */
+    private static void serveScrollMatch(HttpExchange ex) throws IOException {
+        BotStorageMuleManager.Directory dir = BotStorageMuleManager.directory(System.currentTimeMillis());
+        if (dir == null) {
+            send(ex, 503, "application/json", "{\"error\":\"roster snapshot loading, retry\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
+        List<BotOfferManager.ScrollMatch> matches = new ArrayList<>(BotOfferManager.fleetScrollMatches(dir));
+        matches.sort((a, b) -> b.qty() != a.qty() ? Integer.compare(b.qty(), a.qty())
+                : Integer.compare(b.takers().size(), a.takers().size()));
+        int withTaker = 0, without = 0;
+        List<String> rows = new ArrayList<>();
+        for (BotOfferManager.ScrollMatch m : matches) {
+            if (m.takers().isEmpty()) {
+                without += m.qty();
+            } else {
+                withTaker += m.qty();
+            }
+            List<String> takers = new ArrayList<>();
+            for (BotStorageMuleManager.Member t : m.takers()) {
+                takers.add("{\"id\":" + t.charId() + ",\"n\":" + jsonStr(t.name()) + ",\"level\":" + t.level() + "}");
+            }
+            rows.add("{\"holder\":" + jsonStr(m.holder().name()) + ",\"holderId\":" + m.holder().charId()
+                    + ",\"id\":" + m.scrollId() + ",\"n\":" + jsonStr(String.valueOf(ii.getName(m.scrollId())))
+                    + ",\"q\":" + m.qty() + ",\"takers\":" + rawArr(takers) + "}");
+        }
+        String body = "{\"snapshotAgeS\":" + (System.currentTimeMillis() - dir.loadedAtMs()) / 1000
+                + ",\"strandedWithTaker\":" + withTaker + ",\"strandedNoTaker\":" + without
+                + ",\"matches\":" + rawArr(rows) + "}";
         send(ex, 200, "application/json", body.getBytes(StandardCharsets.UTF_8));
     }
 
