@@ -1219,7 +1219,7 @@ final class BotGrindAdvisor {
      */
     static double[] sampleEquipScores(Character bot, int itemId, int n, EquipRoll roll) {
         ItemInformationProvider ii = ItemInformationProvider.getInstance();
-        double evPerSlot = BotScrollManager.bestScrollEvPerSlot(bot, ii, itemId);
+        java.util.function.IntToDoubleFunction headroom = BotScrollManager.headroomFor(bot, ii, itemId);
         Short slot = BotScrollManager.primarySlot(ii, itemId);
         double speed = slot != null && slot == (short) -11 ? weaponSpeedFactor(itemId) : 1.0;
         double[] out = new double[n];
@@ -1231,7 +1231,7 @@ final class BotGrindAdvisor {
             Equip rolled = roll.roll((Equip) ii.getEquipById(itemId));
             long t1 = prof ? System.nanoTime() : 0L;
             out[i] = (BotScrollManager.equipValue(bot, rolled)
-                    + BotScrollManager.scrollHeadroom(rolled.getUpgradeSlots(), evPerSlot)) * speed;
+                    + headroom.applyAsDouble(rolled.getUpgradeSlots())) * speed;
             if (prof) {
                 rollNs += t1 - t0;
                 scoreNs += System.nanoTime() - t1;

@@ -174,13 +174,29 @@ final class BotOfferManager {
         return ii.getEquipStats(sid) != null;
     }
 
-    /** Useful to {@code c} = the scroll grants a stat c's job values AND applies to gear c wears. */
+    /** Useful to {@code c} = the scroll grants a stat c's job values AND applies to gear c wears or carries. */
     private static boolean scrollUsefulTo(ItemInformationProvider ii, Character c, int sid) {
-        List<Integer> worn = new ArrayList<>();
-        for (Item it : c.getInventory(InventoryType.EQUIPPED).list()) {
-            worn.add(it.getItemId());
+        return scrollUsefulTo(ScrollRules.of(ii), c.getJob(), gearIds(c), sid);
+    }
+
+    /** What a character wears and carries in its equip bag: a carried piece (a base it means to scroll, like a
+     *  crafted or bought weapon) wants its scrolls as much as a worn one. */
+    private static List<Integer> gearIds(Character c) {
+        List<Integer> ids = new ArrayList<>();
+        for (InventoryType t : List.of(InventoryType.EQUIPPED, InventoryType.EQUIP)) {
+            Inventory inv = c.getInventory(t);
+            for (Item it : inv == null ? List.<Item>of() : inv.list()) {
+                ids.add(it.getItemId());
+            }
         }
-        return scrollUsefulTo(ii, c.getJob(), worn, sid);
+        return ids;
+    }
+
+    /** The same for a roster snapshot member: worn ids and bag equips. */
+    static java.util.Set<Integer> gearIds(BotStorageMuleManager.Member m) {
+        java.util.Set<Integer> ids = new java.util.HashSet<>(m.wornIds());
+        ids.addAll(m.bagCopies().keySet());
+        return ids;
     }
 
     /** The rule on ids alone (a roster snapshot member): the scroll grants a stat the job values and applies to
@@ -189,7 +205,7 @@ final class BotOfferManager {
         return scrollUsefulTo(ScrollRules.of(ii), job, worn, sid);
     }
 
-    private static boolean scrollUsefulTo(ScrollRules rules, client.Job job, java.util.Collection<Integer> worn, int sid) {
+    static boolean scrollUsefulTo(ScrollRules rules, client.Job job, java.util.Collection<Integer> worn, int sid) {
         if (!scrollStatRelevantToJob(rules.stats(sid), job)) {
             return false;
         }
@@ -226,13 +242,14 @@ final class BotOfferManager {
         return scrollRules != null ? scrollRules : ScrollRules.of(ItemInformationProvider.getInstance());
     }
 
-    /** The live rule for a character: by its job and what it wears now. */
+    /** The live rule for a character: by its job and the gear it wears or carries now. */
     static boolean scrollUsefulTo(Character c, int sid) {
-        List<Integer> worn = new ArrayList<>();
-        for (Item it : c.getInventory(InventoryType.EQUIPPED).list()) {
-            worn.add(it.getItemId());
-        }
-        return scrollUsefulTo(rules(), c.getJob(), worn, sid);
+        return scrollUsefulTo(rules(), c.getJob(), gearIds(c), sid);
+    }
+
+    /** The rule for a roster snapshot member: by its job and its worn and bag gear. */
+    static boolean scrollUsefulTo(ScrollRules rules, BotStorageMuleManager.Member m, int sid) {
+        return scrollUsefulTo(rules, client.Job.getById(m.jobId()), gearIds(m), sid);
     }
 
     /** The members of the holder's fleet (same owner, beginners left out) a scroll is useful to. */
@@ -249,8 +266,7 @@ final class BotOfferManager {
         List<BotStorageMuleManager.Member> out = new ArrayList<>();
         for (BotStorageMuleManager.Member m : fleet) {
             // Beginners (every storage mule) count every stat and scroll nothing: never a taker.
-            if (m.charId() != holderId && m.jobId() != 0
-                    && scrollUsefulTo(rules, client.Job.getById(m.jobId()), m.wornIds(), sid)) {
+            if (m.charId() != holderId && m.jobId() != 0 && scrollUsefulTo(rules, m, sid)) {
                 out.add(m);
             }
         }
@@ -263,7 +279,8 @@ final class BotOfferManager {
 
     /**
      * Fleet wide, from the roster snapshot (offline members included): every routable equip scroll
-     * ({@link #isOfferableScroll}) a member holds that is useless to it by {@link #scrollUsefulTo}, with the
+     * ({@link #isOfferableScroll}) a member holds that is useless to it by {@link #scrollUsefulTo} (worn and bag
+     * gear), with the
      * other members of the same owner's fleet it is useful to (beginners left out).
      */
     static List<ScrollMatch> fleetScrollMatches(BotStorageMuleManager.Directory dir) {
@@ -274,9 +291,8 @@ final class BotOfferManager {
         }
         for (List<BotStorageMuleManager.Member> fleet : dir.membersByOwner().values()) {
             for (BotStorageMuleManager.Member holder : fleet) {
-                client.Job job = client.Job.getById(holder.jobId());
                 holder.scrollsHeld().forEach((sid, qty) -> {
-                    if (!rules.offerable(sid) || scrollUsefulTo(rules, job, holder.wornIds(), sid)) {
+                    if (!rules.offerable(sid) || scrollUsefulTo(rules, holder, sid)) {
                         return;
                     }
                     out.add(new ScrollMatch(holder, sid, qty, takers(rules, fleet, holder.charId(), sid)));

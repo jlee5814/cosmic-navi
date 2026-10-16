@@ -114,8 +114,8 @@ Scrolls move through the bins to the fleet member who can use them; a scroll nob
 with its holder.
 
 1. Who can use one: `BotOfferManager.scrollUsefulTo`, the cohort offer's rule (a stat the job values, applying to
-   a worn non cash piece), on live gear for the holder and on the roster snapshot for everyone else (worn item
-   ids and scrolls held load with it). Beginners, every storage mule among them, are never takers. The fleet
+   a non cash piece it wears or carries), on live gear for the holder and on the roster snapshot for everyone else
+   (worn item ids, bag equips and scrolls held load with it). Beginners, every storage mule among them, are never takers. The fleet
    view is `/api/scrollmatch`.
 2. Hand off (`BotScrollRouting.handoffScrolls`): a scroll its holder can't use and a member of its fleet can
    joins the handoff of its next visit (it doesn't start one). Its bin (`binRole`) is the one for the gear kind
@@ -123,9 +123,12 @@ with its holder.
    play, glove, shoe, cape and accessory scrolls by kind.
 3. Fetch (`BotScrollRouting`, a detour errand after the craft): a bot that scrolls its own gear checks every 20
    to 40 minutes whether its free bins hold scrolls useful to it. It takes up to its room per gear kind (open
-   upgrade slots on what it wears, less the useful scrolls already in its bag), best expected gain first, through
+   upgrade slots on what it wears and on bag pieces that beat it by the gear score, less the useful scrolls
+   already in its bag), best expected gain first, through
    the shared pickup (`startPickup` and `tickPickup`, the craft errand's too), then waits 45 to 65 minutes, past
    the snapshot's reload. Its scroll pass spends them on the next town break.
+4. Scoring: the gear score's scroll headroom (`BotScrollManager.headroomFor`) counts open slots the fleet's own
+   scrolls can fill at full worth, so a bot leans toward gear the fleet already holds scrolls for.
 
 ## Rules
 
