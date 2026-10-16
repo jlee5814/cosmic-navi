@@ -356,7 +356,8 @@ final class BotCraftManager {
     private static boolean busy(BotEntry entry) {
         return entry.following || entry.shopVisitPending || entry.autopilotErrandMapId != -1
                 || entry.jobErrandMapId != -1 || entry.questErrandMapId != -1 || entry.gachaErrandMapId != -1
-                || BotStorageMuleManager.visitActive(entry) || BotStorageMuleManager.onDuty(entry);
+                || BotStorageMuleManager.visitActive(entry) || BotStorageMuleManager.onDuty(entry)
+                || BotScrollRouting.active(entry);
     }
 
     /** Look for a craft now and then; start the errand when there is one. */
@@ -417,14 +418,13 @@ final class BotCraftManager {
         String name = ItemInformationProvider.getInstance().getName(entry.craftGoalId);
         if (!pickups.isEmpty()) {
             entry.craftErrandMapId = BotWorldGraph.FREE_MARKET; // the market first; nextStop again from there
-            entry.craftPickupSinceMs = 0L;
+            Map<Integer, Integer> need = new HashMap<>();
             for (Map<Integer, Integer> give : pickups.values()) {
                 for (int id : give.keySet()) {
-                    entry.craftNeed.put(id, plan.used().get(id));
+                    need.put(id, plan.used().get(id));
                 }
             }
-            entry.craftPickups.putAll(pickups);
-            if (!BotStorageMuleManager.claimPickups(bot.getId(), pickups)) {
+            if (!BotStorageMuleManager.startPickup(entry, bot.getId(), pickups, need)) {
                 clear(entry); // a mule got taken meanwhile; look again next time
                 return;
             }
@@ -565,8 +565,21 @@ final class BotCraftManager {
             finish(entry, bot, "couldn't get to the crafting npc, maybe later");
             return false;
         }
-        if (!entry.craftPickups.isEmpty()) {
-            return tickPickup(entry, bot, now, runAiTick);
+        if (BotStorageMuleManager.pickupActive(entry)) {
+            switch (BotStorageMuleManager.tickPickup(entry, bot, entry.craftProgress, now, runAiTick)) {
+                case TRAVELING, COLLECTING -> {
+                    return true;
+                }
+                case TRAVEL_YIELDED -> {
+                    return false;
+                }
+                case GOT_ALL -> {
+                    return afterPickup(entry, bot, true);
+                }
+                default -> {
+                    return afterPickup(entry, bot, false);
+                }
+            }
         }
         BotTravelManager.ApproachStatus status = BotTravelManager.tickApproachNpc(entry, bot,
                 entry.craftErrandMapId, entry.craftNpcId, BotAutopilotManager.MAX_TRAVEL_HOPS, runAiTick, false,
@@ -614,32 +627,12 @@ final class BotCraftManager {
         return true;
     }
 
-    private static final long PICKUP_WAIT_MS = 5 * 60_000L;
-
-    /** At the market, the mules drop their share and the farmer picks it up; then on to the NPC, replanning
-     *  from the bag when a bin came up short. */
-    private static boolean tickPickup(BotEntry entry, Character bot, long now, boolean runAiTick) {
-        if (bot.getMapId() != BotWorldGraph.FREE_MARKET) {
-            boolean moved = BotTravelManager.tickTravel(entry, bot, BotWorldGraph.FREE_MARKET,
-                    BotAutopilotManager.MAX_TRAVEL_HOPS, runAiTick, false);
-            entry.craftProgress.record(bot, moved, now);
-            return moved;
-        }
-        entry.craftProgress.touch(now);
-        if (entry.craftPickupSinceMs == 0L) {
-            entry.craftPickupSinceMs = now;
-        }
-        entry.craftPickups.keySet().removeIf(mule -> !BotStorageMuleManager.givingTo(mule, bot.getId()));
-        Map<Integer, Integer> bag = bagCounts(bot);
-        boolean got = entry.craftNeed.entrySet().stream().allMatch(e -> bag.getOrDefault(e.getKey(), 0) >= e.getValue());
-        if (!got && !entry.craftPickups.isEmpty() && now - entry.craftPickupSinceMs < PICKUP_WAIT_MS) {
-            return BotStorageMuleManager.collectPickup(entry, bot, entry.craftPickups.keySet(), runAiTick);
-        }
-        releasePickups(entry, bot.getId());
+    /** On to the NPC once the mules have dropped their share, replanning from the bag when a bin came up short. */
+    private static boolean afterPickup(BotEntry entry, Character bot, boolean got) {
         String goal = ItemInformationProvider.getInstance().getName(entry.craftGoalId);
         if (!got) {
             Step last = entry.craftSteps.peekLast();
-            Plan p = last == null ? null : plan(bot, last.recipe(), bag, 0);
+            Plan p = last == null ? null : plan(bot, last.recipe(), bagCounts(bot), 0);
             if (p == null) {
                 finish(entry, bot, "my storage guys didn't have everything for the " + goal + ", never mind");
                 return false;
@@ -653,15 +646,6 @@ final class BotCraftManager {
         }
         BotManager.getInstance().botReply(entry, "got the mats, off to craft the " + goal);
         return true;
-    }
-
-    private static void releasePickups(BotEntry entry, int farmerId) {
-        for (int mule : List.copyOf(entry.craftPickups.keySet())) {
-            BotStorageMuleManager.releasePickup(mule, farmerId);
-        }
-        entry.craftPickups.clear();
-        entry.craftNeed.clear();
-        entry.craftPickupSinceMs = 0L;
     }
 
     /**
@@ -702,8 +686,8 @@ final class BotCraftManager {
     }
 
     static void clear(BotEntry entry) {
-        if (entry.bot != null) {
-            releasePickups(entry, entry.bot.getId());
+        if (entry.bot != null && entry.craftErrandMapId != -1) {
+            BotStorageMuleManager.releasePickups(entry, entry.bot.getId());
         }
         if (entry.craftErrandMapId != -1) {
             BotTravelManager.clearMoveTargetPin(entry);
