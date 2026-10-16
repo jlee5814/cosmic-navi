@@ -192,6 +192,7 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/chat", BotWorldGraphWebServer::serveChat);
             s.createContext("/api/inventory", BotWorldGraphWebServer::serveInventory);
             s.createContext("/api/craftplan", BotWorldGraphWebServer::serveCraftPlan);
+            s.createContext("/api/craftdemand", BotWorldGraphWebServer::serveCraftDemand);
             s.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "bot-worldmap-web");
                 t.setDaemon(true);
@@ -380,6 +381,65 @@ public final class BotWorldGraphWebServer {
                 + ",\"meso\":" + bot.getMeso() + ",\"active\":" + BotCraftManager.active(e)
                 + ",\"bins\":" + BotStorageMuleManager.binStock(bot).size() + ",\"plan\":" + plan
                 + ",\"rejected\":{" + String.join(",", reasonJson) + "},\"near\":" + rawArr(nearJson) + "}";
+    }
+
+    /** GET /api/craftdemand: the raw materials the online bots lack for the upgrades they would craft
+     *  (BotCraftManager.wants), ranked by the upgrade value they would unlock on their own, then in all. */
+    private static void serveCraftDemand(HttpExchange ex) throws IOException {
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
+        final class Demand {
+            final java.util.Set<Integer> bots = new java.util.HashSet<>();
+            final Map<Integer, Double> outputs = new java.util.LinkedHashMap<>(); // output id to its best gain
+            int upgrades, alone, qty;
+            double gain, aloneGain;
+        }
+        Map<Integer, Demand> byItem = new HashMap<>();
+        int counted = 0;
+        for (BotEntry e : BotManager.getInstance().allEntries()) {
+            Character bot = e.bot;
+            if (bot == null || BotStorageMuleManager.onDuty(e)) {
+                continue;
+            }
+            List<BotCraftManager.Want> wants;
+            try {
+                wants = BotCraftManager.wants(e, bot);
+            } catch (RuntimeException err) { // a bag moved mid read; skip this bot this time
+                continue;
+            }
+            counted++;
+            for (BotCraftManager.Want w : wants) {
+                boolean alone = w.missing().size() == 1;
+                w.missing().forEach((item, q) -> {
+                    Demand d = byItem.computeIfAbsent(item, k -> new Demand());
+                    d.bots.add(bot.getId());
+                    d.upgrades++;
+                    d.qty += q;
+                    d.gain += w.gain();
+                    d.outputs.merge(w.recipe().outputId(), w.gain(), Math::max);
+                    if (alone) {
+                        d.alone++;
+                        d.aloneGain += w.gain();
+                    }
+                });
+            }
+        }
+        List<Map.Entry<Integer, Demand>> ranked = new ArrayList<>(byItem.entrySet());
+        ranked.sort((a, b) -> a.getValue().aloneGain != b.getValue().aloneGain
+                ? Double.compare(b.getValue().aloneGain, a.getValue().aloneGain)
+                : Double.compare(b.getValue().gain, a.getValue().gain));
+        List<String> rows = new ArrayList<>();
+        for (Map.Entry<Integer, Demand> en : ranked.subList(0, Math.min(25, ranked.size()))) {
+            Demand d = en.getValue();
+            List<String> outs = new ArrayList<>();
+            d.outputs.entrySet().stream().sorted((a, b) -> Double.compare(b.getValue(), a.getValue())).limit(3)
+                    .forEach(o -> outs.add(jsonStr(String.valueOf(ii.getName(o.getKey())))));
+            rows.add("{\"id\":" + en.getKey() + ",\"n\":" + jsonStr(String.valueOf(ii.getName(en.getKey())))
+                    + ",\"bots\":" + d.bots.size() + ",\"upgrades\":" + d.upgrades + ",\"qty\":" + d.qty
+                    + ",\"gain\":" + Math.round(d.gain * 10) / 10.0 + ",\"alone\":" + d.alone
+                    + ",\"aloneGain\":" + Math.round(d.aloneGain * 10) / 10.0 + ",\"for\":" + rawArr(outs) + "}");
+        }
+        String body = "{\"bots\":" + counted + ",\"materials\":" + rawArr(rows) + "}";
+        send(ex, 200, "application/json", body.getBytes(StandardCharsets.UTF_8));
     }
 
     /** POST /api/fleetops/act {"bot":id,"action":"rescue|hold_errands|sell_trash|park","arg":n,"reason":"..."}:

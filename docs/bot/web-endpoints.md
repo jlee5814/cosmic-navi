@@ -274,6 +274,15 @@ once scrolled). `rejected` counts the gear recipes that lost, by
 reason; `near` lists up to 10 that would be upgrades (`gain` > 0), biggest first, with `why` they lost. `404` when
 the bot isn't online; `503` when the bag changed mid read.
 
+### `/api/craftdemand`
+Fleet material demand for crafting (`BotCraftManager.wants` per online bot, mules on duty skipped): the raw
+materials (ores, monster drops, base gear) the bots lack beyond their bags and bins for upgrades that pass every
+other craft gate, one recipe per output. `{bots, materials:[{id, n, bots, upgrades, qty, gain, alone, aloneGain,
+for}]}`, top 25. `upgrades` and `gain` count every upgrade the item is missing for; `alone` and `aloneGain` only
+those it is the last missing item of, which is what farming it would unlock by itself; `qty` sums what each
+upgrade needs; `for` names up to three of the biggest. Ranked by `aloneGain`, then `gain`. Computed on request,
+a full plan search per bot.
+
 ## Write API
 
 ### `/api/chat` (GET, POST)
