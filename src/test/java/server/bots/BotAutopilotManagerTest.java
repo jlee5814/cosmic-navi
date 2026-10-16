@@ -93,7 +93,7 @@ class BotAutopilotManagerTest {
         private final BotAutopilotManager.BagFull previousBagFull = BotAutopilotManager.bagFull;
         private final java.util.function.IntPredicate previousEquipStatsExist = BotAutopilotManager.equipStatsExist;
         private final java.util.function.Predicate<Character> previousNeedsPreferredWeapon = BotShopManager.needsPreferredWeaponForCurrentJobSeam;
-        private final java.util.function.BiFunction<BotEntry, Character, Integer> previousWeaponUpgradeShopMap =
+        private final java.util.function.BiFunction<BotEntry, Character, Integer> previousGearTripShopMap =
                 BotShopManager.gearTripShopMapSeam;
 
         Seams(Recommendation recommendation) {
@@ -138,12 +138,12 @@ class BotAutopilotManagerTest {
             BotAutopilotManager.bagFull = previousBagFull;
             BotAutopilotManager.equipStatsExist = previousEquipStatsExist;
             BotShopManager.needsPreferredWeaponForCurrentJobSeam = previousNeedsPreferredWeapon;
-            BotShopManager.gearTripShopMapSeam = previousWeaponUpgradeShopMap;
+            BotShopManager.gearTripShopMapSeam = previousGearTripShopMap;
         }
     }
 
     @Test
-    void shouldDetourMidGrindForAWorthwhileWeaponUpgrade() {
+    void shouldDetourMidGrindForAGearTripThatPays() {
         // On site and grinding, but a reachable shop sells a much better weapon: run the errand now
         // instead of waiting for supplies to run low (bandits wore level 15 daggers at level 39).
         Fixture f = fixture(HUNTING_GROUND);
@@ -161,7 +161,7 @@ class BotAutopilotManagerTest {
             BotShopManager.gearTripShopMapSeam = (entry, bot) -> TOWN;
             BotAutopilotManager.tick(f.entry(), f.bot(), true);
             assertEquals(TOWN, f.entry().autopilotErrandMapId);
-            assertTrue(seams.replies.stream().anyMatch(r -> r.contains("going for a better")), seams.replies.toString());
+            assertTrue(seams.replies.stream().anyMatch(r -> r.contains("going for a gear upgrade")), seams.replies.toString());
         }
     }
 
