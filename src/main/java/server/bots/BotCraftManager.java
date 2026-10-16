@@ -171,6 +171,11 @@ final class BotCraftManager {
      * half its meso. An output that wins only once scrolled (a scroll base, like Work Gloves) needs a bot that
      * scrolls its own gear ({@code selfScroll}).
      */
+    /** Why a recipe didn't make the plan, for {@code /api/craftplan}: the recipe, the reason, its gain. */
+    interface Rejects {
+        void reject(Recipe recipe, String reason, double gain);
+    }
+
     static Plan bestPlan(Character bot, Map<Integer, Integer> have, long meso, boolean selfScroll, Rejects rejects) {
         Rejects why = rejects != null ? rejects : (r, reason, gain) -> {};
         Plan best = null;
