@@ -478,9 +478,47 @@ final class BotCraftManager {
         Map<Integer, Map<Integer, Integer>> pickups = plan == null ? Map.of()
                 : BotStorageMuleManager.assignPickups(stock, shortfall(plan.used(), bag));
         if (!pickups.isEmpty() && !canFetch(bot, pickups)) {
-            return new Choice(bestPlan(bot, bag, bot.getMeso(), selfScroll, null), Map.of()); // its bag, no trip
+            plan = bestPlan(bot, bag, bot.getMeso(), selfScroll, null); // its bag, no trip
+            pickups = Map.of();
+        }
+        if (plan != null && entry != null && !paysBack.test(entry, bot, plan, !pickups.isEmpty())) {
+            if (rejects != null) {
+                rejects.reject(plan.goal(), "doesn't pay back before it's replaced", plan.gain());
+            }
+            return new Choice(null, Map.of());
         }
         return new Choice(plan, pickups);
+    }
+
+    /** Test seam: whether the craft pays back before the piece is replaced ({@link #verdict}). */
+    interface PaysBack {
+        boolean test(BotEntry entry, Character bot, Plan plan, boolean pickup);
+    }
+
+    static PaysBack paysBack = (entry, bot, plan, pickup) -> verdict(entry, bot, plan, pickup).worth();
+
+    /**
+     * The gear detour verdict ({@link BotGearPayback#judge}) on a craft: the round trip to the goal's NPC (and to
+     * the Free Market first when the bins supply parts), plus the fees and the inputs' sale value as hours, against
+     * the grind planner's gain for the piece. No verdict without a grind plan.
+     */
+    static BotGearPayback.Verdict verdict(BotEntry entry, Character bot, Plan plan, boolean pickup) {
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
+        Equip clean = lookups.clean(plan.goal().outputId());
+        if (clean == null || entry.autopilotPlanPick == null) {
+            return BotGearPayback.NO_PLAN;
+        }
+        Map<Integer, Double> flood = BotTravelCost.floodSeconds(bot.getMapId(), BotAutopilotManager.MAX_TRAVEL_HOPS,
+                BotAutopilotManager.travelOptions(bot, false), ms -> ms);
+        double npcTrip = Double.POSITIVE_INFINITY;
+        for (int mapId : BotSpawnIndex.mapsWithNpc(plan.goal().npcId())) {
+            npcTrip = Math.min(npcTrip, BotGearPayback.tripHours(flood, mapId));
+        }
+        double trip = (Double.isFinite(npcTrip) ? npcTrip : BotGearPayback.tripHours(flood, -1))
+                + (pickup ? BotGearPayback.tripHours(flood, BotWorldGraph.FREE_MARKET) : 0.0);
+        double cost = new BotScrollManager.Acquisition("craft", plan.fees() + plan.inputValue()).hours();
+        double gain = BotGrindAdvisor.catalogAcquireGain(bot, ii, plan.goal().outputId(), new HashMap<>());
+        return BotGearPayback.judge(bot, ii, clean, gain, trip + cost, entry.autopilotPlanPick);
     }
 
     private static Map<Integer, Integer> holdings(Map<Integer, Integer> bag, Map<Integer, Map<Integer, Integer>> stock) {
