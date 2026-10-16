@@ -37,6 +37,8 @@ class BotScrollRoutingTest {
     @AfterEach
     void restore() {
         BotOfferManager.scrollRules = null;
+        BotStorageMuleManager.setDirectoryForTest(null);
+        BotScrollRouting.setSupplyForTest(null, null);
     }
 
     private static BotStorageMuleManager.Member member(int id, int job, Set<Integer> worn) {
@@ -87,5 +89,47 @@ class BotScrollRoutingTest {
         assertEquals(Map.of(GLOVE_ATT, 3, 2040805, 2),
                 BotScrollRouting.wanted(stock, Map.of(108, 5, 133, 0)));
         assertTrue(BotScrollRouting.wanted(stock, Map.of()).isEmpty());
+    }
+
+    @Test
+    void theFleetSupplyIsEachMembersOwnScrollsAndTheSpareOnes() {
+        int bwAtt = 2043200, swordAtt = 2043000, sword = 1302000, blunt = 1322005;
+        var mage = new BotStorageMuleManager.Member(1, 222, 60, Map.of(), Map.of(), Map.of(), "mage",
+                Set.of(WAND), Map.of(bwAtt, 44));
+        var fighter = new BotStorageMuleManager.Member(3, 110, 40, Map.of(), Map.of(), Map.of(), "fighter",
+                Set.of(sword), Map.of(swordAtt, 5));
+        var mule = new BotStorageMuleManager.Member(70, 0, 10, Map.of(), Map.of(), Map.of(), "mule",
+                Set.of(), Map.of(DAGGER_ATT, 9));
+        var dir = new BotStorageMuleManager.Directory(Map.of(1, 9, 3, 9, 70, 9),
+                Map.of(9, Map.of("thief weapons", 70)), Map.of(70, "thief weapons"),
+                Map.of(9, List.of(mage, fighter, mule)), System.currentTimeMillis());
+        BotStorageMuleManager.setDirectoryForTest(dir);
+        BotScrollRouting.setSupplyForTest(dir, BotOfferManager.scrollRules);
+
+        client.Character asFighter = mock(client.Character.class);
+        when(asFighter.getId()).thenReturn(3);
+        client.Character asMage = mock(client.Character.class);
+        when(asMage.getId()).thenReturn(1);
+        assertEquals(Map.of(bwAtt, 44), BotScrollRouting.supply(asFighter, 132));      // stranded with the mage
+        assertEquals(Map.of(DAGGER_ATT, 9), BotScrollRouting.supply(asFighter, 133));  // in a bin
+        assertEquals(Map.of(swordAtt, 5), BotScrollRouting.supply(asFighter, 130));    // its own
+        assertTrue(BotScrollRouting.supply(asMage, 130).isEmpty());                    // the fighter's to use
+
+        // A blunt weapon in the fighter's bag makes it a taker for the stranded scrolls.
+        var fighterWithBlunt = new BotStorageMuleManager.Member(3, 110, 40, Map.of(), Map.of(blunt, 1), Map.of(),
+                "fighter", Set.of(sword), Map.of());
+        var dir2 = new BotStorageMuleManager.Directory(Map.of(1, 9, 3, 9), Map.of(), Map.of(),
+                Map.of(9, List.of(mage, fighterWithBlunt)), System.currentTimeMillis());
+        assertEquals(List.of(fighterWithBlunt), BotOfferManager.scrollTakers(dir2, 1, bwAtt));
+        assertTrue(BotOfferManager.scrollTakers(dir, 1, bwAtt).isEmpty());
+    }
+
+    @Test
+    void heldScrollsFillTheFirstSlotsAtTheirWorthAndTheRestAtTheDiscountedCatalogBest() {
+        // Catalog best 6 per slot counts 3 (half); held scrolls worth 5, 4 and 1 fill the first slots, 1 floors at 3.
+        assertEquals(18.0, BotScrollManager.scrollHeadroom(5, 6.0, new double[] {5, 4, 1}), 1e-9);
+        assertEquals(15.0, BotScrollManager.scrollHeadroom(5, 6.0, new double[0]), 1e-9); // as before
+        assertEquals(9.0, BotScrollManager.scrollHeadroom(2, 0.0, new double[] {5, 4, 1}), 1e-9);
+        assertEquals(0.0, BotScrollManager.scrollHeadroom(0, 6.0, new double[] {5}), 1e-9);
     }
 }

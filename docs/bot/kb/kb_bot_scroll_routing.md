@@ -23,3 +23,11 @@ Built 2026-10-16 (`BotScrollRouting`, `BotOfferManager.fleetScrollMatches`); flo
 **First fleet read** (`/api/scrollmatch`, 2026-10-16): 1,619 scrolls sat with members who can't use them; 365
 had a taker. The rest have none: One-Handed Blunt Weapon attack scrolls (about 150; no member wields one),
 Two-Handed Sword accuracy, and pet equip speed scrolls (no job values speed). Owner call: those stay put.
+
+**Fleet held scrolls in the gear score** (2026-10-16, owner decision)
+- `potentialValue` counts slots the fleet's own scrolls can fill at full worth (see [[kb_bot_grind_gear_valuation]]),
+  so shop, craft and grind choices lean toward gear the fleet already has scrolls for.
+- The usefulness rule counts carried gear as well as worn (`BotOfferManager.gearIds`: snapshot `bagCopies`, live
+  equip bag): a blunt weapon a Page bought or crafted makes it a taker, so the holder routes those scrolls into
+  Warrior weapons. The taker's room (`roomByKind`) counts a bag piece only when it beats the worn one by the gear
+  score, so a junk spare pulls nothing.
