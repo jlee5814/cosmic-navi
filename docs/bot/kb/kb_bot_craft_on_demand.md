@@ -50,9 +50,10 @@ Built 2026-10-15 in `BotCraftManager` (phase A: the bot's own upgrade from its o
 **Debugging: `/api/craftplan?id=`** (2026-10-15)
 - Runs the errand's own `choose` live and returns the plan, pickups, rejected counts by reason and the 10
   nearest upgrades with why each lost (`bestPlan`'s `Rejects` collector).
-- First live read, SipsBuddy1 (64 IL) and SipsBuddy2 (77 Priest), 24 bins counted: no plan; every upgrade lost
-  on materials. Their level gloves and shoes need Dragon Skin (4000030) 50 to 70, Star Rock or Moon Rock, or a
-  base glove (gear isn't crafted as an input). Screws and plates are not the blocker; they refine from ore.
+- First live read (2026-10-15), SipsBuddy1 (64 IL) and SipsBuddy2 (77 Priest): every upgrade lost on materials,
+  most of them Dragon Skin. WRONG: until #118 `bestPlan` checked materials before wearability, so the list was
+  mostly gear they can't wear (thief and bowman shoes, warrior helmets). After #118, SipsBuddy1 (67) wants only
+  a Metal Gear base for one small upgrade: at its level, NPC crafting has little for a mage.
 
 **Fleet material demand: `/api/craftdemand`** (2026-10-16)
 - `BotCraftManager.wants`: the recipes `bestPlan` rejects as short on materials (every other gate passed), one
