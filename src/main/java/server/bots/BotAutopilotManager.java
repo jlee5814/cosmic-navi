@@ -92,9 +92,7 @@ final class BotAutopilotManager {
 
     static Advisor advisor = (entry, bot, fromMapId, maxHops, withFerry) -> {
         BotWorldGraph.RouteOptions options = travelOptions(bot, withFerry);
-        IntPredicate gate = routeBlockFor(bot);
-        Set<Integer> reachable = BotWorldGraph.reachableWithin(fromMapId, maxHops, options,
-                m -> isAvoided(entry, m) || gate.test(m));
+        Set<Integer> reachable = reachableForEntry(entry, bot, fromMapId, maxHops, options);
         return BotGrindAdvisor.recommend(entry, bot, reachable::contains,
                 travelWeight(bot, fromMapId, maxHops, options, entry.activeQuestMobIds, rollWanderlust(entry)),
                 BotOccupancy.extraCompetitors(bot, BotManager.cfg.CROWD_PENALTY_FACTOR));
@@ -108,9 +106,7 @@ final class BotAutopilotManager {
 
     static FarmAdvisor farmAdvisor = (entry, bot, itemId, fromMapId, maxHops, withFerry) -> {
         BotWorldGraph.RouteOptions options = travelOptions(bot, withFerry);
-        IntPredicate gate = routeBlockFor(bot);
-        Set<Integer> reachable = BotWorldGraph.reachableWithin(fromMapId, maxHops, options,
-                m -> isAvoided(entry, m) || gate.test(m));
+        Set<Integer> reachable = reachableForEntry(entry, bot, fromMapId, maxHops, options);
         return BotGrindAdvisor.recommendFarmItem(entry, bot, itemId, reachable::contains,
                 travelWeight(bot, fromMapId, maxHops, options, entry.activeQuestMobIds, rollWanderlust(entry)),
                 BotOccupancy.extraCompetitors(bot, BotManager.cfg.CROWD_PENALTY_FACTOR));
@@ -152,6 +148,14 @@ final class BotAutopilotManager {
      */
     static IntPredicate routeBlockFor(Character bot) {
         return m -> isDangerRegionBlocked(bot, m) || isDangerRegionBlocked(bot, BotWorldGraph.returnMapOf(m));
+    }
+
+    /** Maps a grind plan may send this bot to: {@link #reachableForBot}'s danger gate plus the maps it is avoiding
+     *  (a death loop, or a target travel found no way to). Solo, farm and party decisions all read this one set. */
+    static Set<Integer> reachableForEntry(BotEntry entry, Character bot, int fromMapId, int maxHops,
+                                          BotWorldGraph.RouteOptions options) {
+        IntPredicate gate = routeBlockFor(bot);
+        return BotWorldGraph.reachableWithin(fromMapId, maxHops, options, m -> isAvoided(entry, m) || gate.test(m));
     }
 
     /** Maps reachable for THIS bot — like {@link BotWorldGraph#reachableWithin} but always applies the
@@ -217,6 +221,31 @@ final class BotAutopilotManager {
                 || town == bot.getMapId()
                 || isDangerRegionBlocked(bot, town);
         return unusable ? MapId.HENESYS : town;
+    }
+
+    // How long a grind target travel found no way to stays off the plan: long enough that the bot doesn't walk
+    // back to the same dead end every decide, jittered so a fleet doesn't retry in lockstep.
+    static final long UNREACHABLE_AVOID_MIN_MS = 45 * 60_000L;
+    static final long UNREACHABLE_AVOID_MAX_MS = 90 * 60_000L;
+
+    /**
+     * The grind target can't be reached from where the bot stands (no route, or no portal its platform can walk
+     * to: {@link BotTravelManager#noWayFromHere}). A player who can't find the way up gives up on that spot and goes
+     * elsewhere: avoid the target for a while (the plan's reachable set skips it, {@link #reachableForEntry}),
+     * drop the pick and re-decide. The Main Chimney's Scarecrow room, reached only by spring pads bots can't use,
+     * froze SipsBuddy2 for 20 minutes at a time until the fleet rescue scrolled it out.
+     */
+    static void onUnreachableTarget(BotEntry entry, Character bot, long now) {
+        int target = entry.autopilotMapId;
+        long avoidMs = ThreadLocalRandom.current().nextLong(UNREACHABLE_AVOID_MIN_MS, UNREACHABLE_AVOID_MAX_MS + 1);
+        entry.autopilotAvoidMapUntilMs.put(target, now + avoidMs);
+        entry.autopilotMapId = -1;
+        entry.autopilotPlanPick = null;
+        entry.autopilotDestinationName = "";
+        entry.autopilotNextDecisionAtMs = 0L;
+        log.info("bot-autopilot: {} found no way to its grind map {} from {}; avoiding it for {} min",
+                bot.getName(), target, bot.getMapId(), avoidMs / 60_000L);
+        reply.accept(entry, "cant find a way there from here, gonna grind somewhere else");
     }
 
     /** Ferries need the owner's green light ("sail away") while the owner is around; with the
@@ -312,7 +341,7 @@ final class BotAutopilotManager {
         List<IntToDoubleFunction> weights = new ArrayList<>(members.size());
         for (BotEntry member : members) {
             BotWorldGraph.RouteOptions options = travelOptions(member.bot, ferryAllowed(member));
-            Set<Integer> reachable = reachableForBot(member.bot, member.bot.getMapId(), MAX_TRAVEL_HOPS, options);
+            Set<Integer> reachable = reachableForEntry(member, member.bot, member.bot.getMapId(), MAX_TRAVEL_HOPS, options);
             weights.add(travelWeight(member.bot, member.bot.getMapId(), MAX_TRAVEL_HOPS, options,
                     member.activeQuestMobIds));
             if (common == null) {
@@ -882,6 +911,9 @@ final class BotAutopilotManager {
                 long now = System.currentTimeMillis();
                 entry.nextBreakRollAtMs = Math.max(entry.nextBreakRollAtMs, now + 60_000L);
             }
+        } else if (destination == entry.autopilotMapId
+                && BotTravelManager.noWayFromHere(entry, destination, System.currentTimeMillis())) {
+            onUnreachableTarget(entry, bot, System.currentTimeMillis());
         }
         maybeRedecide(entry, bot);
         // Stranded off the destination map with no route: rather than anchor to the owner,

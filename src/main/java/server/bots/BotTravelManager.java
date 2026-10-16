@@ -359,6 +359,7 @@ final class BotTravelManager {
                             blocked); // SSOT danger gate: no <15 route through Sleepywood
                 }
                 if (route == null || route.isEmpty()) {
+                    noWay(entry, targetMapId, now);
                     return false; // too far or unreachable by walking — warp fallback
                 }
                 routePrewarm.prewarm(entry, bot, route);
@@ -374,7 +375,13 @@ final class BotTravelManager {
                     portal = adjacentOrScriptedPortal(map, nextHopMapId, bot.getPosition());
                 }
                 if (portal == null) {
-                    return tryConsumableHop(entry, bot, map, targetMapId, nextHopMapId, now, runAiTick);
+                    if (tryConsumableHop(entry, bot, map, targetMapId, nextHopMapId, now, runAiTick)) {
+                        return true;
+                    }
+                    if (useGroundReachability) {
+                        noWay(entry, targetMapId, now); // no portal this platform can walk to leads there
+                    }
+                    return false;
                 }
             }
             entry.followTravelTargetMapId = targetMapId;
@@ -850,6 +857,19 @@ final class BotTravelManager {
         } catch (RuntimeException e) {
             return "";
         }
+    }
+
+    /** Records that, from where the bot stands, no route or reachable portal leads to {@code targetMapId}. */
+    private static void noWay(BotEntry entry, int targetMapId, long now) {
+        entry.travelNoWayTargetMapId = targetMapId;
+        entry.travelNoWayAtMs = now;
+    }
+
+    /** True when this tick's travel toward {@code targetMapId} found no way there from the bot's platform: no
+     *  world route, or a route whose next hop no walkable portal, scripted entrance, scroll, taxi or ferry serves
+     *  (the canReach verdict on the loaded graph). A Main Chimney bot below the spring pads is the case. */
+    static boolean noWayFromHere(BotEntry entry, int targetMapId, long now) {
+        return entry.travelNoWayTargetMapId == targetMapId && now - entry.travelNoWayAtMs < 1_000L;
     }
 
     private static void giveUp(BotEntry entry, long now, String reason) {

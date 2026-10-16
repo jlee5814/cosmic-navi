@@ -369,6 +369,34 @@ class BotEquipOptimizerTest {
 
     // ------------------------------------------------------------------ helpers
 
+    @Test
+    void atEqualDamageTheSturdierPieceIsWorn() {
+        // SipsBuddy2 bought Red Whitebottom Boots (+13 WDEF, +3 speed) for its gear score and never wore them:
+        // the optimizer scored damage, then stat sum, so boots that add neither tied with its Blue Rubber Boots and
+        // the worn pair stayed. Defense breaks the tie now, as the gear score counts it.
+        Character bot = mockBowman();
+        Equip bow = weapon(W0_ID, 20, -11);
+        Equip rubber = armor(1072038, 0, 0, -7);
+        when(rubber.getWdef()).thenReturn((short) 2);
+        Equip whitebottom = armor(1072012, 0, 0, 3);
+        when(whitebottom.getWdef()).thenReturn((short) 13);
+        when(whitebottom.getSpeed()).thenReturn((short) 3);
+        Map<Short, List<Equip>> bySlot = new LinkedHashMap<>();
+        bySlot.put(S_SHOES, List.of(rubber, whitebottom));
+        Map<Short, Equip> current = new HashMap<>();
+        current.put((short) -11, bow);
+        current.put(S_SHOES, rubber);
+        BotEquipManager.StatSnapshot naked = new BotEquipManager.StatSnapshot(4, 30, 4, 4, 0, 0, 0, 50, 0, Job.BOWMAN);
+        BotEquipManager.MapDamageProfile mob = new BotEquipManager.MapDamageProfile(50, 30, 55);
+
+        BotEquipManager.DpResult result = BotEquipManager.solveForWeapon(bot, bowHooks(new HashMap<>()), naked, bow,
+                List.of(S_SHOES), current, bySlot, mob);
+
+        assertNotNull(result);
+        assertEquals(1072012, result.picks().get(S_SHOES).getItemId());
+        assertTrue(result.score().survival() > 0);
+    }
+
     private static Equip matkWeapon(int id, int matk, int pos) {
         Equip e = mock(Equip.class);
         when(e.getItemId()).thenReturn(id);

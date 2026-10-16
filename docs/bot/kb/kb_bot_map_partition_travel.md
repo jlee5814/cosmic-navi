@@ -90,3 +90,14 @@ the heavy lazy nav layer).
 - Tests: `BotMapPartitionTest` — 5-hop detour over hand-built partitions (re-entry via upper arrival,
   unreachable at maxHops=4, and pruned when the only via-map is danger-gated), serialize round-trip, and
   per-arrival derivation straight from `canReach`.
+- UPDATE (2026-10-16): the grind planner now hears travel's verdict. Plans read `BotWorldGraph` reachability, which
+  can't see split maps, so SipsBuddy2 kept picking Chimney Possessed by the Scarecrow (682010202, the best map on its
+  list at 586k exp/h). The only way in is portal `in01` high in Mansion's Main Chimney (682010200), and the climb
+  from the bottom platform R11 goes up spring pads (portal type 12, `pcj`, a vertical boost the client applies).
+  The nav graph models no springs, so R11 has no out edges and the bot froze for 20 minutes at a time until fleet
+  ops scrolled it out. `BotTravelManager.noWayFromHere` (no route, or no `canReach`-verified portal, scripted
+  entrance, scroll, taxi or ferry for the next hop) makes `BotAutopilotManager.onUnreachableTarget` avoid the
+  target for 45 to 90 minutes, drop the pick and re-decide. `reachableForEntry` is now the one reachable set for
+  solo, farm and party plans, so the party path honors avoided maps too (it ignored the death-loop blacklist
+  before). Open: spring pads themselves (36 maps use type 12, only 682010200 and 106020403 are fields); modeling
+  needs the client's boost value.
