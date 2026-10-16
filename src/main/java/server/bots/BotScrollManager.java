@@ -1126,13 +1126,76 @@ final class BotScrollManager {
     /** An equip's worth INCLUDING its remaining upgrade slots — what drop-vs-worn comparisons
      *  should use, so a maxed-out item can lose to a weaker one that still scrolls higher. */
     static double potentialValue(Character bot, ItemInformationProvider ii, Equip eq) {
-        return equipValue(bot, eq)
-                + scrollHeadroom(eq.getUpgradeSlots(), bestScrollEvPerSlot(bot, ii, eq.getItemId()));
+        return equipValue(bot, eq) + headroomFor(bot, ii, eq.getItemId()).applyAsDouble(eq.getUpgradeSlots());
+    }
+
+    /** Test seam: the equip scrolls this bot's fleet can hand it for one gear kind, by scroll id: its own useful
+     *  ones, the bins', and those stranded with members who can't use them ({@link BotScrollRouting#supply}).
+     *  Empty when there is no roster snapshot or no registered owner. */
+    interface FleetScrolls {
+        Map<Integer, Integer> of(Character bot, int kind);
+    }
+
+    static FleetScrolls fleetScrolls = BotScrollRouting::supply;
+
+    /**
+     * What open upgrade slots on this item are worth to the bot, by slot count. Slots the fleet's own scrolls can
+     * fill count at those scrolls' expected gain, best first; every other slot at {@link #SCROLL_HEADROOM_FRACTION}
+     * of the catalog's best, a scroll still to be had (and no held scroll counts for less than that). Computed once
+     * per item, so a caller scoring many rolls of it pays the lookups once.
+     */
+    static java.util.function.IntToDoubleFunction headroomFor(Character bot, ItemInformationProvider ii, int equipId) {
+        double catalog = bestScrollEvPerSlot(bot, ii, equipId);
+        double[] held = heldScrollEvs(bot, ii, equipId);
+        return slots -> scrollHeadroom(slots, catalog, held);
     }
 
     /** Pure headroom core: discounted value of open upgrade slots at a per-slot scroll EV. */
     static double scrollHeadroom(int upgradeSlots, double bestEvPerSlot) {
-        return SCROLL_HEADROOM_FRACTION * Math.max(0, upgradeSlots) * Math.max(0.0, bestEvPerSlot);
+        return scrollHeadroom(upgradeSlots, bestEvPerSlot, new double[0]);
+    }
+
+    /** Pure headroom core: the first slots at the held scrolls' expected gains ({@code heldDesc}, best first), the
+     *  rest at the discounted catalog EV, no slot below it. */
+    static double scrollHeadroom(int upgradeSlots, double catalogEvPerSlot, double[] heldDesc) {
+        double rest = SCROLL_HEADROOM_FRACTION * Math.max(0.0, catalogEvPerSlot);
+        double value = 0.0;
+        for (int i = 0; i < Math.max(0, upgradeSlots); i++) {
+            value += i < heldDesc.length ? Math.max(heldDesc[i], rest) : rest;
+        }
+        return value;
+    }
+
+    // An item never has more open slots than this; held copies past it don't change the headroom.
+    private static final int HELD_COPIES_CAP = 20;
+
+    /** Expected gain per use of each scroll copy the fleet can hand the bot for this item, best first: applicable,
+     *  routable (no meta scrolls), no boom risk, positive success, as the catalog EV filters them. */
+    private static double[] heldScrollEvs(Character bot, ItemInformationProvider ii, int equipId) {
+        Map<Integer, Integer> supply = fleetScrolls.of(bot, equipId / 10000);
+        if (supply == null || supply.isEmpty()) {
+            return new double[0];
+        }
+        List<Double> evs = new ArrayList<>();
+        supply.forEach((sid, qty) -> {
+            if (!applicable(ii, sid, equipId) || !BotOfferManager.isOfferableScroll(ii, sid)) {
+                return;
+            }
+            Map<String, Integer> st = ii.getEquipStats(sid);
+            if (st == null || st.getOrDefault("success", 0) <= 0 || st.getOrDefault("cursed", 0) > 0) {
+                return;
+            }
+            double ev = effectiveSuccessPct(st.getOrDefault("success", 0)) / 100.0 * offenseValueFromStats(bot, st);
+            for (int i = 0; ev > 0 && i < Math.min(qty, HELD_COPIES_CAP); i++) {
+                evs.add(ev);
+            }
+        });
+        evs.sort(java.util.Comparator.reverseOrder());
+        double[] out = new double[Math.min(evs.size(), HELD_COPIES_CAP)];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = evs.get(i);
+        }
+        return out;
     }
 
     // ---- Reproduction-cost valuation inputs (v1: shopitems prices + stubbed clean-base cost) ----

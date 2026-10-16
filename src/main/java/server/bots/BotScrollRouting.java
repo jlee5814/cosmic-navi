@@ -79,6 +79,73 @@ final class BotScrollRouting {
         return count.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null);
     }
 
+    // ---- fleet supply: the scrolls the fleet can hand a member (the gear scorer counts them) --------------------
+
+    /** Per snapshot: each owner's spare scrolls (every bin's, and those stranded with members who can't use them)
+     *  and each member's own useful scrolls, by gear kind then scroll id. */
+    record Supply(BotStorageMuleManager.Directory dir,
+                          Map<Integer, Map<Integer, Map<Integer, Integer>>> spareByOwner,
+                          Map<Integer, Map<Integer, Map<Integer, Integer>>> ownByMember) {}
+
+    private static volatile Supply supply;
+
+    /** The scrolls of one gear kind the bot's fleet can hand it, by scroll id; empty without a snapshot or owner.
+     *  Its own useful ones and the fleet's spare ones: what {@link #handoffScrolls} and the pickup would bring. */
+    static Map<Integer, Integer> supply(Character bot, int kind) {
+        BotStorageMuleManager.Directory dir = BotStorageMuleManager.directory(System.currentTimeMillis());
+        Integer owner = dir == null || bot == null ? null : dir.ownerOf().get(bot.getId());
+        if (owner == null) {
+            return Map.of();
+        }
+        Supply s = supplyFor(dir);
+        Map<Integer, Integer> spare = s.spareByOwner().getOrDefault(owner, Map.of()).getOrDefault(kind, Map.of());
+        Map<Integer, Integer> own = s.ownByMember().getOrDefault(bot.getId(), Map.of()).getOrDefault(kind, Map.of());
+        if (own.isEmpty()) {
+            return spare;
+        }
+        Map<Integer, Integer> all = new HashMap<>(spare);
+        own.forEach((sid, q) -> all.merge(sid, q, Integer::sum));
+        return all;
+    }
+
+    private static Supply supplyFor(BotStorageMuleManager.Directory dir) {
+        Supply s = supply;
+        if (s != null && s.dir() == dir) {
+            return s;
+        }
+        synchronized (BotScrollRouting.class) {
+            if (supply == null || supply.dir() != dir) {
+                supply = buildSupply(dir, BotOfferManager.rules());
+            }
+            return supply;
+        }
+    }
+
+    static Supply buildSupply(BotStorageMuleManager.Directory dir, BotOfferManager.ScrollRules rules) {
+        Map<Integer, Map<Integer, Map<Integer, Integer>>> spare = new HashMap<>();
+        Map<Integer, Map<Integer, Map<Integer, Integer>>> own = new HashMap<>();
+        dir.membersByOwner().forEach((owner, fleet) -> {
+            for (BotStorageMuleManager.Member m : fleet) {
+                boolean bin = dir.roleOfMule().containsKey(m.charId());
+                m.scrollsHeld().forEach((sid, q) -> {
+                    if (!rules.offerable(sid)) {
+                        return;
+                    }
+                    boolean useful = !bin && BotOfferManager.scrollUsefulTo(rules, m, sid);
+                    Map<Integer, Map<Integer, Map<Integer, Integer>>> into = useful ? own : spare;
+                    into.computeIfAbsent(useful ? m.charId() : owner, k -> new HashMap<>())
+                            .computeIfAbsent(kindOf(sid), k -> new HashMap<>()).merge(sid, q, Integer::sum);
+                });
+            }
+        });
+        return new Supply(dir, spare, own);
+    }
+
+    /** Test hook: the supply for this snapshot, built with these item rules. */
+    static void setSupplyForTest(BotStorageMuleManager.Directory dir, BotOfferManager.ScrollRules rules) {
+        supply = dir == null ? null : buildSupply(dir, rules);
+    }
+
     // ---- taker side: the pickup errand ------------------------------------------------------------------------
 
     /** A scroll the bins hold that is useful to this bot: its gear kind, how many, and its expected offense gain
@@ -102,12 +169,21 @@ final class BotScrollRouting {
         return out;
     }
 
-    /** Open upgrade slots on the gear it wears, by kind, less the useful scrolls already in its bag. */
+    /** Open upgrade slots, by kind, on the gear it wears and on bag pieces that already beat what it wears in their
+     *  slot by the gear score (a base it means to scroll up), less the useful scrolls already in its bag. */
     static Map<Integer, Integer> roomByKind(Character bot) {
         BotOfferManager.ScrollRules rules = BotOfferManager.rules();
         Map<Integer, Integer> room = new HashMap<>();
         for (Item it : bot.getInventory(InventoryType.EQUIPPED).list()) {
             if (it instanceof Equip e && !rules.isCash(e.getItemId()) && e.getUpgradeSlots() > 0) {
+                room.merge(e.getItemId() / 10000, (int) e.getUpgradeSlots(), Integer::sum);
+            }
+        }
+        server.ItemInformationProvider ii = server.ItemInformationProvider.getInstance();
+        Inventory bag = bot.getInventory(InventoryType.EQUIP);
+        for (Item it : bag == null ? List.<Item>of() : bag.list()) {
+            if (it instanceof Equip e && !rules.isCash(e.getItemId()) && e.getUpgradeSlots() > 0
+                    && BotScrollManager.wearable(bot, ii, e) && beatsWorn(bot, ii, e)) {
                 room.merge(e.getItemId() / 10000, (int) e.getUpgradeSlots(), Integer::sum);
             }
         }
@@ -119,6 +195,13 @@ final class BotScrollRouting {
             }
         }
         return room;
+    }
+
+    private static boolean beatsWorn(Character bot, server.ItemInformationProvider ii, Equip e) {
+        Short slot = BotScrollManager.primarySlot(ii, e.getItemId());
+        Equip worn = slot == null ? null : BotScrollManager.wornInSlot(bot, ii, slot);
+        return slot != null && (worn == null || BotScrollManager.potentialValue(bot, ii, e)
+                > BotScrollManager.potentialValue(bot, ii, worn));
     }
 
     private static final long CHECK_EVERY_MS = 20 * 60_000L;
