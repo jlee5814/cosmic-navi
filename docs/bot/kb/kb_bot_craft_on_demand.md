@@ -53,3 +53,10 @@ Built 2026-10-15 in `BotCraftManager` (phase A: the bot's own upgrade from its o
 - First live read, SipsBuddy1 (64 IL) and SipsBuddy2 (77 Priest), 24 bins counted: no plan; every upgrade lost
   on materials. Their level gloves and shoes need Dragon Skin (4000030) 50 to 70, Star Rock or Moon Rock, or a
   base glove (gear isn't crafted as an input). Screws and plates are not the blocker; they refine from ore.
+
+**Fleet material demand: `/api/craftdemand`** (2026-10-16)
+- `BotCraftManager.wants`: the recipes `bestPlan` rejects as short on materials (every other gate passed), one
+  per output, each replanned as if every raw input (`RAW`: inputs no refining recipe makes, so ores, drops,
+  base gear) were at hand; the shortfall against bag plus bins is what it lacks.
+- The endpoint sums those across online bots and ranks by `aloneGain`, the gain of upgrades the item is the
+  last missing piece of (what farming it alone unlocks), then by total gain.
