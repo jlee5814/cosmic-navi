@@ -783,7 +783,7 @@ final class BotStorageMuleManager {
 
     // ---- the pickup itself, shared by the craft errand and the scroll pickup ------------------------------------
 
-    private static final long PICKUP_WAIT_MS = 5 * 60_000L;
+    private static final long PICKUP_TIMEOUT_MS = 5 * 60_000L; // at the market, how long the mules get
 
     static boolean pickupActive(BotEntry entry) {
         return !entry.pickups.isEmpty();
@@ -823,7 +823,7 @@ final class BotStorageMuleManager {
         entry.pickups.keySet().removeIf(mule -> !givingTo(mule, bot.getId()));
         boolean got = entry.pickupNeed.entrySet().stream()
                 .allMatch(e -> bot.getItemQuantity(e.getKey(), false) >= e.getValue());
-        if (!got && !entry.pickups.isEmpty() && now - entry.pickupSinceMs < PICKUP_WAIT_MS) {
+        if (!got && !entry.pickups.isEmpty() && now - entry.pickupSinceMs < PICKUP_TIMEOUT_MS) {
             collectPickup(entry, bot, entry.pickups.keySet(), runAiTick);
             return PickupStatus.COLLECTING;
         }
