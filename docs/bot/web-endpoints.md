@@ -283,6 +283,14 @@ those it is the last missing item of, which is what farming it would unlock by i
 upgrade needs; `for` names up to three of the biggest. Ranked by `aloneGain`, then `gain`. Computed on request,
 a full plan search per bot.
 
+### `/api/scrollmatch`
+Equip scrolls fleet members hold but can't use, and who in the same owner's fleet could, from the roster snapshot
+(offline members included; up to 30 minutes old): `{snapshotAgeS, strandedWithTaker, strandedNoTaker, matches:[{holder,
+holderId, id, n, q, takers:[{id, n, level}]}]}`, biggest stacks first. A scroll counts when it is routable
+(`BotOfferManager.isOfferableScroll`: no clean slate, chaos, modifier or white scroll) and useless to its holder by
+`BotOfferManager.scrollUsefulTo` (a stat the job values, applying to a worn non cash piece); `takers` are the members
+it is useful to by the same rule. The two totals count scrolls with and without a taker. `503` while the snapshot loads.
+
 ## Write API
 
 ### `/api/chat` (GET, POST)
