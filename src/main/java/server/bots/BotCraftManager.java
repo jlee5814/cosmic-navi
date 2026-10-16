@@ -92,6 +92,11 @@ final class BotCraftManager {
         return m;
     }
 
+    /** True when some NPC recipe makes this item. */
+    static boolean craftable(int itemId) {
+        return BY_OUTPUT.containsKey(itemId);
+    }
+
     /** The ETC items gear recipes consume besides maker materials, with the most one recipe needs of each. */
     static Map<Integer, Integer> craftingPartsMaxPerRecipe() {
         Map<Integer, Integer> parts = new HashMap<>();

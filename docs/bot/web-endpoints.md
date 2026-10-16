@@ -291,6 +291,14 @@ holderId, id, n, q, takers:[{id, n, level}]}]}`, biggest stacks first. A scroll 
 `BotOfferManager.scrollUsefulTo` (a stat the job values, applying to a worn non cash piece); `takers` are the members
 it is useful to by the same rule. The two totals count scrolls with and without a taker. `503` while the snapshot loads.
 
+### `/api/gearmeta?from=10&to=120&step=5&watch=<id,id>`
+Which gear the bots' gear score ranks best (`BotGearMetaReport`, `BotScrollManager.potentialValue` per job with
+catalog scroll headroom only), per class (one job each: 110, 210, 310, 410, 510), armor and accessory kind, and level:
+`{from, to, step, classes:[{class, job, kinds:[{kind, reigns:[{id, n, from, to, levels, score, src}]}]}], watch:[{id, n,
+reqLevel, src, bestLevels:{class: levels}}]}`. A reign is a run of sampled levels one item ranks best; `src` is `drop`,
+`shop` or `craft` (unobtainable items are left out). `watch` defaults to the meta pieces (Zakum Helmet, Pink Adventurer
+Cape, Red and Purple Snowshoes, Work Gloves). Clean catalog stats, stat requirements ignored. Scans every equip.
+
 ## Write API
 
 ### `/api/chat` (GET, POST)
