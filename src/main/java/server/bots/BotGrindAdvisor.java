@@ -441,6 +441,7 @@ final class BotGrindAdvisor {
         // Per pass: an item's gain is mob-independent (depends only on bot gear/asp/acc), but the same
         // item drops from many mobs — value it once. Covers both scroll and equip gains.
         Map<Integer, Double> gainByItem = new HashMap<>();
+        Map<Integer, int[]> wearByScroll = new HashMap<>(); // per pass, like gainByItem
         Map<Integer, MobProfile> profiles = new HashMap<>();
 
         long tBuild = BotPerformanceMonitor.start();
@@ -478,7 +479,7 @@ final class BotGrindAdvisor {
                 }
                 long tGear = BotPerformanceMonitor.start();
                 List<GearProspect> gear = gearByMob.computeIfAbsent(e.getKey(), id ->
-                        gearProspects(bot, ii, id, wornScoreBySlot, rollScoreCache, gainByItem,
+                        gearProspects(bot, ii, id, wornScoreBySlot, rollScoreCache, gainByItem, wearByScroll,
                                 totalWornOffense, asp, baseHit, botAcc));
                 BotPerformanceMonitor.recordSince("grind.gear", tGear);
                 pointsByMob.put(new MobProfile(p.mobId(), p.mobName(), p.level(), p.avoid(), p.exp(),
@@ -730,11 +731,8 @@ final class BotGrindAdvisor {
             exp += share * p.exp();
             touchDanger += share * p.touchDanger(); // spawn-weighted mean: the chip you eat on this map
             for (GearProspect g : p.prospects()) {
-                GearProspect diluted = new GearProspect(g.itemId(), g.itemName(),
-                        g.chancePerKill() * share, g.scoreGain(), g.dpsGainFraction());
-                gearByItem.merge(g.itemId(), diluted, (a, b) -> new GearProspect(a.itemId(),
-                        a.itemName(), a.chancePerKill() + b.chancePerKill(), a.scoreGain(),
-                        a.dpsGainFraction()));
+                GearProspect diluted = g.withChance(g.chancePerKill() * share);
+                gearByItem.merge(g.itemId(), diluted, (a, b) -> a.withChance(a.chancePerKill() + b.chancePerKill()));
             }
             if (e.getValue() > facePoints
                     || (e.getValue() == facePoints && p.exp() > face.exp())) {
@@ -912,6 +910,7 @@ final class BotGrindAdvisor {
                                                     Map<Short, Double> wornScoreBySlot,
                                                     Map<Integer, double[]> rollScoreCache,
                                                     Map<Integer, Double> gainByItem,
+                                                    Map<Integer, int[]> wearByScroll,
                                                     double totalWornOffense,
                                                     MobProfile asp, double baseHit, int botAcc) {
         List<int[]> drops = gearDropsByMob().get(mobId);
@@ -933,8 +932,17 @@ final class BotGrindAdvisor {
             }
             double chancePerKill = Math.min(1.0,
                     drop[1] * (double) bot.getDropRate() / DROP_CHANCE_DENOMINATOR);
-            out.add(new GearProspect(itemId, itemName(ii, itemId), chancePerKill,
-                    gain, gain / Math.max(1.0, totalWornOffense)));
+            if (itemId / 10000 != BotScrollManager.SCROLL_ITEM_PREFIX) {
+                out.add(new GearProspect(itemId, itemName(ii, itemId), chancePerKill,
+                        gain, gain / Math.max(1.0, totalWornOffense)));
+                continue;
+            }
+            int[] wear = wearByScroll.computeIfAbsent(itemId, id -> scrollWear.wear(bot, id)); // {until, open slots}
+            if (wear[1] <= 0) {
+                continue; // the fleet already holds scrolls for every open slot it fits: a drop adds nothing
+            }
+            out.add(new GearProspect(itemId, itemName(ii, itemId), chancePerKill, gain,
+                    gain / Math.max(1.0, totalWornOffense), bot.getLevel(), wear[0], wear[1]));
         }
         return out;
     }
@@ -1145,6 +1153,33 @@ final class BotGrindAdvisor {
     }
 
     static ScrollGainLookup scrollGains = BotGrindAdvisor::scrollGain;
+
+    /** Where a looted scroll would go: {@code {untilLevel, openSlots}} for the worn piece it applies to with the
+     *  most slots the fleet's own scrolls won't fill (bins, stranded copies, the bot's bag:
+     *  {@link BotScrollManager#heldScrollEvs}), {@code untilLevel} from {@link BotGearPayback#wornUntilLevel};
+     *  {@code {0, 0}} when every such slot is spoken for. Test seam, as above. */
+    @FunctionalInterface
+    interface ScrollWearLookup {
+        int[] wear(Character bot, int scrollId);
+    }
+
+    static ScrollWearLookup scrollWear = BotGrindAdvisor::scrollWear;
+
+    private static int[] scrollWear(Character bot, int scrollId) {
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
+        int[] best = {0, 0};
+        for (Item it : bot.getInventory(InventoryType.EQUIPPED).list()) {
+            if (!(it instanceof Equip eq) || eq.getUpgradeSlots() < 1 || ii.isCash(eq.getItemId())
+                    || !BotScrollManager.applicable(ii, scrollId, eq.getItemId())) {
+                continue;
+            }
+            int open = eq.getUpgradeSlots() - BotScrollManager.heldScrollEvs(bot, ii, eq.getItemId()).length;
+            if (open > best[1]) {
+                best = new int[]{BotGearPayback.wornUntilLevel(bot, ii, eq), open};
+            }
+        }
+        return best;
+    }
 
     /** Wires {@link #scrollExpectedGain} to the live catalog: skips meta scrolls (clean slate /
      *  modifier / white) and boom-risk ones (self-scrolling only uses those with fallback gear

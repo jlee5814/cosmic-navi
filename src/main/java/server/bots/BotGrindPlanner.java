@@ -68,7 +68,24 @@ final class BotGrindPlanner {
      *                        i.e. E[score of the rolled drop] - score(worn); &gt; 0.
      * @param dpsGainFraction scoreGain relative to the bot's total worn offense score. */
     record GearProspect(int itemId, String itemName, double chancePerKill,
-                        double scoreGain, double dpsGainFraction) {}
+                        double scoreGain, double dpsGainFraction, int fromLevel, int untilLevel, int openSlots) {
+        /** A prospect valued by the gear lens (an equip, or a scroll in a test). */
+        GearProspect(int itemId, String itemName, double chancePerKill, double scoreGain, double dpsGainFraction) {
+            this(itemId, itemName, chancePerKill, scoreGain, dpsGainFraction, 0, 0, 0);
+        }
+
+        /** A scroll priced in exp: its gain lasts from the bot's level while the scrolled piece is worn, to
+         *  {@code untilLevel} ({@link BotGearPayback#wornUntilLevel}), and only {@code openSlots} more scrolls fit
+         *  on it after the ones the fleet already holds for it. */
+        boolean pricedInExp() {
+            return fromLevel > 0;
+        }
+
+        /** The same prospect at another per kill chance (a map blend dilutes it by spawn share). */
+        GearProspect withChance(double chance) {
+            return new GearProspect(itemId, itemName, chance, scoreGain, dpsGainFraction, fromLevel, untilLevel, openSlots);
+        }
+    }
 
     /** One map's grind option (mob mix blended by the advisor). killSeconds is the bot-specific
      *  time to kill one mob; mapAreaPx is the playable field size (0 = unknown, density falls
@@ -138,15 +155,24 @@ final class BotGrindPlanner {
     }
 
     private static Lenses computeLenses(List<MobCandidate> candidates, IntToDoubleFunction mapScoreWeight) {
-        // Dynamic need: the best attainable upgrade anywhere sets how gear-hungry the bot is.
+        // Dynamic need: the best attainable upgrade anywhere sets how gear-hungry the bot is. Scrolls priced in exp
+        // don't count: they are weighed in exp below.
         double bestDesire = 0.0;
-        for (MobCandidate c : candidates) {
+        int ref = 0;
+        for (int i = 0; i < candidates.size(); i++) {
+            MobCandidate c = candidates.get(i);
             double kph = killsPerHour(c);
             for (GearProspect g : c.gearDrops()) {
-                bestDesire = Math.max(bestDesire, desirability(g, kph));
+                if (!g.pricedInExp()) {
+                    bestDesire = Math.max(bestDesire, desirability(g, kph));
+                }
+            }
+            if (c.exp() * kph > candidates.get(ref).exp() * killsPerHour(candidates.get(ref))) {
+                ref = i;
             }
         }
         double needGear = Math.min(1.0, bestDesire / GEAR_DOMINANT_DPS_GAIN);
+        MobCandidate best = candidates.isEmpty() ? null : candidates.get(ref);
 
         double[] expPerHour = new double[candidates.size()];
         double[] weightedExp = new double[candidates.size()];
@@ -156,14 +182,41 @@ final class BotGrindPlanner {
             double kph = killsPerHour(c);
             double weight = mapScoreWeight.applyAsDouble(c.mapId());
             expPerHour[i] = c.exp() * kph;
-            weightedExp[i] = expPerHour[i] * weight;
             double gear = 0.0;
+            double scrollExp = 0.0;
             for (GearProspect g : c.gearDrops()) {
-                gear += desirability(g, kph) * kph * g.chancePerKill();
+                if (g.pricedInExp()) {
+                    // Only the open slots count, spread over the plan window: past them a scroll is worth nothing.
+                    double usable = Math.min(g.chancePerKill() * kph, g.openSlots() / SCROLL_PLAN_WINDOW_HOURS);
+                    scrollExp += usable * scrollExpValue(g, best);
+                } else {
+                    gear += desirability(g, kph) * kph * g.chancePerKill();
+                }
             }
+            weightedExp[i] = (expPerHour[i] + scrollExp) * weight;
             weightedGear[i] = gear * weight;
         }
         return new Lenses(expPerHour, weightedExp, weightedGear, bestDesire, needGear);
+    }
+
+    /**
+     * One looted scroll in exp, by the gear detour rule ({@link BotGearPayback}): the exp per hour its damage gain
+     * adds on the bot's best exp map ({@link BotGrindAdvisor#expPerHourWithDpsGain}) times the hours the scrolled
+     * piece stays worn at that rate. A map's scroll drops then add their exp worth per hour to its exp, so a map
+     * picked for scrolls must out earn the best exp map in exp: farming a 10% helmet scroll pays only when the drops
+     * repay the exp given up before the helmet is replaced, and only for the slots the fleet's own scrolls won't fill.
+     */
+    /** A plan lasts until the next re-decide ({@link BotAutopilotManager#DECISION_INTERVAL_MS}): the window a map's
+     *  scroll drops have to fill the open slots in. */
+    static final double SCROLL_PLAN_WINDOW_HOURS = BotAutopilotManager.DECISION_INTERVAL_MS / 3_600_000.0;
+
+    static double scrollExpValue(GearProspect g, MobCandidate best) {
+        if (best == null || !g.pricedInExp()) {
+            return 0.0;
+        }
+        double base = best.exp() * killsPerHour(best);
+        double perHour = BotGrindAdvisor.expPerHourWithDpsGain(best, g.dpsGainFraction()) - base;
+        return Math.max(0.0, perHour) * BotGearPayback.hoursToLevel(g.fromLevel(), g.untilLevel(), base);
     }
 
     /** Weighted-random index among entries scoring within NEAR_BEST_FRACTION of the best. */
@@ -221,7 +274,7 @@ final class BotGrindPlanner {
         GearProspect wanted = null;
         double wantedDesire = 0.0;
         for (GearProspect g : pick.gearDrops()) {
-            double d = desirability(g, kph);
+            double d = g.pricedInExp() ? 0.0 : desirability(g, kph); // a scroll is weighed in exp, not hunted
             if (d > wantedDesire) {
                 wantedDesire = d;
                 wanted = g;
