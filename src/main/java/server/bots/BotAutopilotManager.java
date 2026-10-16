@@ -424,6 +424,7 @@ final class BotAutopilotManager {
             BotStorageMuleManager.finishVisit(entry, entry.bot, null); // ...and any mule visit (sends the mules home)
         }
         BotCraftManager.clear(entry); // ...and any craft errand
+        BotScrollRouting.clear(entry); // ...and any scroll pickup
         BotTravelManager.resetForModeChange(entry); // drop the in-flight hop AND the give-up cooldown,
         // so a re-command (follow/grind/move) isn't silently gated by a stale travel give-up window.
         // autopilotNextErrandAtMs deliberately survives: it rate-limits errands, not the mode.
@@ -700,6 +701,15 @@ final class BotAutopilotManager {
                 @Override public boolean tick(BotEntry entry, Character bot, boolean runAiTick) {
                     return BotCraftManager.tick(entry, bot, runAiTick);
                 }
+            },
+            new DetourErrand() { // scroll pickup: fetch scrolls a storage bin holds for gear it wears
+                @Override public void maybeStart(BotEntry entry, Character bot) {
+                    BotScrollRouting.maybeStart(entry, bot);
+                }
+                @Override public boolean active(BotEntry entry) { return BotScrollRouting.active(entry); }
+                @Override public boolean tick(BotEntry entry, Character bot, boolean runAiTick) {
+                    return BotScrollRouting.tick(entry, bot, runAiTick);
+                }
             });
 
     /**
@@ -728,7 +738,7 @@ final class BotAutopilotManager {
         if (entry.autopilotWaitAnchor != null
                 && (entry.questErrandMapId != -1 || entry.gachaErrandMapId != -1
                     || entry.autopilotErrandMapId != -1 || entry.jobErrandMapId != -1
-                    || entry.muleVisitMapId != -1 || entry.craftErrandMapId != -1)) {
+                    || entry.muleVisitMapId != -1 || entry.craftErrandMapId != -1 || entry.scrollPickupActive)) {
             clearWaitAnchor(entry);
         }
         // A live operator command (RTS MOVE, or a companion `goto <map>`) pins the destination and
@@ -1176,7 +1186,12 @@ final class BotAutopilotManager {
                     ? "im at the free market, dropping mats off with my storage guy"
                     : "im at " + currentMap + ", heading to the free market to unload mats";
         }
-        if (entry.craftErrandMapId != -1 && !entry.craftPickups.isEmpty()) {
+        if (entry.scrollPickupActive) {
+            return bot.getMapId() == BotWorldGraph.FREE_MARKET
+                    ? "im at the free market, grabbing scrolls from my storage guys"
+                    : "im at " + currentMap + ", heading to the free market for some scrolls";
+        }
+        if (entry.craftErrandMapId != -1 && !entry.pickups.isEmpty()) {
             return bot.getMapId() == entry.craftErrandMapId
                     ? "im at the free market, grabbing crafting mats from my storage guys"
                     : "im at " + currentMap + ", heading to the free market to grab crafting mats";
@@ -1813,7 +1828,8 @@ final class BotAutopilotManager {
     private static boolean detachedFromPartyCohesion(BotEntry entry) {
         return entry.autopilotErrandMapId != -1 || entry.restErrand
                 || entry.questErrandMapId != -1 || entry.gachaErrandMapId != -1
-                || entry.jobErrandMapId != -1 || entry.muleVisitMapId != -1 || entry.craftErrandMapId != -1;
+                || entry.jobErrandMapId != -1 || entry.muleVisitMapId != -1 || entry.craftErrandMapId != -1
+                || entry.scrollPickupActive;
     }
 
     /**

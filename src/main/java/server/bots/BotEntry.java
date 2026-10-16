@@ -515,11 +515,16 @@ public class BotEntry {
     final BotTravelManager.ErrandProgress craftProgress = new BotTravelManager.ErrandProgress();
     long craftNextCheckAtMs = 0L;
     volatile boolean craftPlanInFlight = false; // a plan search is running on the decision pool
-    // Pickup before the craft: mule char id to the ETC items it brings to the Free Market (read by the mules'
-    // ticks), and the bag counts that mean the farmer has them all.
-    final java.util.concurrent.ConcurrentHashMap<Integer, Map<Integer, Integer>> craftPickups = new java.util.concurrent.ConcurrentHashMap<>();
-    final Map<Integer, Integer> craftNeed = new java.util.HashMap<>();
-    long craftPickupSinceMs = 0L;
+    // A pickup from the storage bins (BotStorageMuleManager.startPickup), for a craft or for scrolls: mule char id
+    // to the items it brings to the Free Market (read by the mules' ticks), and the bag counts that mean the
+    // farmer has them all.
+    final java.util.concurrent.ConcurrentHashMap<Integer, Map<Integer, Integer>> pickups = new java.util.concurrent.ConcurrentHashMap<>();
+    final Map<Integer, Integer> pickupNeed = new java.util.HashMap<>();
+    long pickupSinceMs = 0L;
+    // Scroll pickup errand (BotScrollRouting): fetch scrolls a bin holds for gear this bot wears.
+    boolean scrollPickupActive = false;
+    final BotTravelManager.ErrandProgress scrollPickupProgress = new BotTravelManager.ErrandProgress();
+    long scrollPickupCheckAtMs = 0L;
     Point muleStandSpot = null;
 
     // Supervised-mode quest AUTO-SUGGEST (Feature A): when the owner is online and the bot is at
