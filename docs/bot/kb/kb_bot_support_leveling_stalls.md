@@ -25,6 +25,10 @@ Avoids are in memory, so a restart costs one more trip. Springs remain open (see
 Boots (+13 WDEF); the optimizer scored damage then stat sum with no defense term, so they tied with the worn pair.
 Defense now breaks damage ties ([[kb_bot_equip_optimizer]]).
 
+**Live after the fixes (13:49 to 13:59 local).** First plan after login: Ghost Ship 2. Measured on site, 102,144 exp
+in 4 minutes (about 1.5M exp/h with the server's exp rate), against about 54k exp/h on Murupa and 0 while frozen in
+the chimney. Red Whitebottom Boots worn; no gear trip repeats.
+
 **Not a cause.** LUK 7 locks all mage armor (every robe, hat, glove and shoe needs LUK 33 to 68, from WZ), so
 SipsBuddy2 wears an Undershirt. But INT feeds total magic 1:1 and armor gives a few INT, so a lukless mage does
 more damage; the AP build parks LUK at the floor on purpose. The priest SP build puts Holy Symbol before Shining
