@@ -231,21 +231,23 @@ final class BotAutopilotManager {
     /**
      * The grind target can't be reached from where the bot stands (no route, or no portal its platform can walk
      * to: {@link BotTravelManager#noWayFromHere}). A player who can't find the way up gives up on that spot and goes
-     * elsewhere: avoid the target for a while (the plan's reachable set skips it, {@link #reachableForEntry}),
-     * drop the pick and re-decide. The Main Chimney's Scarecrow room, reached only by spring pads bots can't use,
-     * froze SipsBuddy2 for 20 minutes at a time until the fleet rescue scrolled it out.
+     * elsewhere: avoid the target for a while (the plan's reachable set skips it, {@link #reachableForEntry}) and
+     * re-decide now; the caller's {@link #maybeRedecide} runs this same tick. The plan stays installed until the new
+     * one lands: clearing it would leave a grinding bot with no plan, which the inert recovery never revisits (it
+     * only runs for idle bots), and SipsBuddy2 stood in the Haunted House for an hour that way. The Main Chimney's
+     * Scarecrow room, reached only by spring pads bots can't use, is the case.
      */
     static void onUnreachableTarget(BotEntry entry, Character bot, long now) {
         int target = entry.autopilotMapId;
-        long avoidMs = ThreadLocalRandom.current().nextLong(UNREACHABLE_AVOID_MIN_MS, UNREACHABLE_AVOID_MAX_MS + 1);
-        entry.autopilotAvoidMapUntilMs.put(target, now + avoidMs);
-        entry.autopilotMapId = -1;
-        entry.autopilotPlanPick = null;
-        entry.autopilotDestinationName = "";
+        if (!isAvoided(entry, target)) {
+            long avoidMs = ThreadLocalRandom.current().nextLong(UNREACHABLE_AVOID_MIN_MS, UNREACHABLE_AVOID_MAX_MS + 1);
+            entry.autopilotAvoidMapUntilMs.put(target, now + avoidMs);
+            log.info("bot-autopilot: {} found no way to its grind map {} from {}; avoiding it for {} min",
+                    bot.getName(), target, bot.getMapId(), avoidMs / 60_000L);
+            reply.accept(entry, "cant find a way there from here, gonna grind somewhere else");
+        }
+        // Also when already avoided: a decision computed before the avoid can reinstall the target, so ask again.
         entry.autopilotNextDecisionAtMs = 0L;
-        log.info("bot-autopilot: {} found no way to its grind map {} from {}; avoiding it for {} min",
-                bot.getName(), target, bot.getMapId(), avoidMs / 60_000L);
-        reply.accept(entry, "cant find a way there from here, gonna grind somewhere else");
     }
 
     /** Ferries need the owner's green light ("sail away") while the owner is around; with the

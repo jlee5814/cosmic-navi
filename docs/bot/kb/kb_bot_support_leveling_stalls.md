@@ -18,7 +18,10 @@ from portal `in01` high in Mansion's Main Chimney (682010200); the climb from th
 type 12, pcj), which the nav graph doesn't model. Travel's `canReach` correctly found no portal, the planner kept
 picking the map, and the bot froze 20 minutes at a time until fleet ops scrolled it out. Now
 `BotTravelManager.noWayFromHere` makes `onUnreachableTarget` avoid the map for 45 to 90 minutes and re-decide.
-Avoids are in memory, so a restart costs one more trip. Springs remain open (see
+Avoids are in memory, so a restart costs one more trip. FIX (#143): the first version cleared the plan, which
+left a grinding bot with no plan; inert recovery (`BotManager.maybeRecoverInertAutopilot`) only runs from
+`tickIdleEntry`, which skips grinding bots, so SipsBuddy2 stood in the Haunted House for an hour. Now the plan stays
+and the re-decide is due at once. Springs remain open (see
 [[kb_bot_map_partition_travel]]).
 
 **3. Boots bought, never worn (#139).** The gear trip (`equipValue`, survival included) wanted Red Whitebottom

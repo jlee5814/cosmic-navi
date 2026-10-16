@@ -1390,16 +1390,24 @@ class BotAutopilotManagerTest {
         Fixture f = fixture(682010200);
         when(f.bot().getName()).thenReturn("SipsBuddy2");
         f.entry().autopilotMapId = 682010202;
-        f.entry().autopilotDestinationName = "Chimney Possessed by the Scarecrow";
+        f.entry().autopilotNextDecisionAtMs = Long.MAX_VALUE;
         try (Seams seams = new Seams(null)) {
             long now = System.currentTimeMillis();
             BotAutopilotManager.onUnreachableTarget(f.entry(), f.bot(), now);
-            assertEquals(-1, f.entry().autopilotMapId);
-            assertEquals("", f.entry().autopilotDestinationName);
+            // The plan stays until the new one lands (a grinding bot with no plan is never recovered), and the
+            // re-decide is due now.
+            assertEquals(682010202, f.entry().autopilotMapId);
+            assertEquals(0L, f.entry().autopilotNextDecisionAtMs);
             assertTrue(BotAutopilotManager.isAvoided(f.entry(), 682010202));
             long until = f.entry().autopilotAvoidMapUntilMs.get(682010202);
             assertTrue(until - now >= BotAutopilotManager.UNREACHABLE_AVOID_MIN_MS
                     && until - now <= BotAutopilotManager.UNREACHABLE_AVOID_MAX_MS);
+            assertEquals(1, seams.replies.size());
+            // Again while avoided (a stale decision reinstalled it): no second line or new window, just re-decide.
+            f.entry().autopilotNextDecisionAtMs = Long.MAX_VALUE;
+            BotAutopilotManager.onUnreachableTarget(f.entry(), f.bot(), now + 1000);
+            assertEquals(until, f.entry().autopilotAvoidMapUntilMs.get(682010202));
+            assertEquals(0L, f.entry().autopilotNextDecisionAtMs);
             assertEquals(1, seams.replies.size());
         }
     }
