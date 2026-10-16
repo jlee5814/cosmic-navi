@@ -1430,7 +1430,28 @@ final class BotScrollManager {
         return dropper != null ? dropper[1] : 0;
     }
 
-    /** Lazily-loaded best (highest drop chance) dropper mob per item id, from {@code drop_data}. */
+    /**
+     * A mob a bot can farm: it spawns on some field that is neither a town nor instanced or event space (the grind
+     * advisor's {@link BotGrindAdvisor#INSTANCED_MAPID_FLOOR}). Summoned bosses (Zakum, Pink Bean) and event mobs
+     * spawn on no such field, so what only they drop has no farming route. True when the spawn index can't be read
+     * (unit tests), as before.
+     */
+    static boolean farmableDropper(int mobId) {
+        try {
+            BotSpawnIndex.Index index = BotSpawnIndex.get();
+            for (BotSpawnIndex.SpawnSite site : BotSpawnIndex.spawnSites(mobId)) {
+                BotSpawnIndex.MapSpawns map = index.byMap().get(site.mapId());
+                if (site.mapId() < BotGrindAdvisor.INSTANCED_MAPID_FLOOR && (map == null || !map.town())) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (RuntimeException e) {
+            return true;
+        }
+    }
+
+    /** Lazily-loaded best (highest drop chance) farmable dropper mob per item id, from {@code drop_data}. */
     private static Map<Integer, int[]> bestDropperByItem() {
         Map<Integer, int[]> cached = bestDropperByItem;
         if (cached != null) {
@@ -1441,12 +1462,14 @@ final class BotScrollManager {
              PreparedStatement ps = con.prepareStatement(
                      "SELECT itemid, dropperid, chance FROM drop_data WHERE chance > 0");
              ResultSet rs = ps.executeQuery()) {
+            Map<Integer, Boolean> farmable = new HashMap<>();
             while (rs.next()) {
                 int item = rs.getInt("itemid");
                 int chance = rs.getInt("chance");
+                int mob = rs.getInt("dropperid");
                 int[] cur = m.get(item);
-                if (cur == null || chance > cur[1]) {
-                    m.put(item, new int[]{rs.getInt("dropperid"), chance});
+                if ((cur == null || chance > cur[1]) && farmable.computeIfAbsent(mob, BotScrollManager::farmableDropper)) {
+                    m.put(item, new int[]{mob, chance});
                 }
             }
         } catch (SQLException e) {
