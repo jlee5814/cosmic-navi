@@ -30,15 +30,15 @@ class BotBossPlanReportTest {
 
     @Test
     void aMemberFightsOnlyWhenItReachesHurtsAndLivesThroughTwoHardestTouches() {
-        BotBossPlanReport.Fighter ready = new BotBossPlanReport.Fighter(1, "a", 900, 1200, 2500, 0.3);
+        BotBossPlanReport.Fighter ready = new BotBossPlanReport.Fighter(1, "a", 900, 1200, 2500, 0.3, 0);
         assertTrue(ready.fights());
         assertEquals("ready", ready.need());
-        BotBossPlanReport.Fighter frail = new BotBossPlanReport.Fighter(2, "b", 900, 1200, 2000, 0.3);
+        BotBossPlanReport.Fighter frail = new BotBossPlanReport.Fighter(2, "b", 900, 1200, 2000, 0.3, 0);
         assertFalse(frail.fights());
         assertEquals(2401, frail.needHp());
         assertEquals("2401 HP (has 2000)", frail.need());
-        assertEquals("can't hurt it", new BotBossPlanReport.Fighter(3, "c", 0, 10, 5000, 0.3).need());
-        assertEquals("can't reach", new BotBossPlanReport.Fighter(4, "d", 900, 10, 5000, Double.POSITIVE_INFINITY).need());
+        assertEquals("can't hurt it", new BotBossPlanReport.Fighter(3, "c", 0, 10, 5000, 0.3, 0).need());
+        assertEquals("can't reach", new BotBossPlanReport.Fighter(4, "d", 900, 10, 5000, Double.POSITIVE_INFINITY, 0).need());
     }
 
     @Test

@@ -46,12 +46,17 @@ final class BotBossPlanReport {
     // The top of the touch damage range (rolls are drawn in [0, 1)).
     private static final double TOP_ROLL = 0.999;
 
+    /** Touches a bot in contact can take a minute: one per hit cooldown. */
+    private static double touchesPerMinute() {
+        return 60_000.0 / Math.max(1, BotCombatManager.cfg.MOB_HIT_COOLDOWN_MS);
+    }
+
     /** Where a boss lives and how long it takes to come back: Map.wz life ({@code mobTime}, seconds from a kill) or an
      *  area boss event script (the period it rechecks and respawns on). */
     record Site(int mobId, int mapId, double respawnHours, String source) {}
 
     /** One member against one boss. {@code tripHours} is infinite when the member can't get there. */
-    record Fighter(int botId, String name, double dps, int maxHit, int hp, double tripHours) {
+    record Fighter(int botId, String name, double dps, int maxHit, int hp, double tripHours, double hpLossPerMinute) {
         boolean reaches() {
             return Double.isFinite(tripHours);
         }
@@ -243,7 +248,10 @@ final class BotBossPlanReport {
                 runs.add(run(party, ii, s, mob));
             }
         }
-        runs.sort(Comparator.comparing(Run::worth).reversed().thenComparing(Comparator.comparingDouble(Run::expRatio).reversed()));
+        runs.sort(Comparator.comparing(Run::worth).reversed().thenComparing(Comparator.comparingDouble(Run::expRatio).reversed())
+                .thenComparingDouble(Run::runHours));
+        Set<Integer> listed = new java.util.HashSet<>();
+        runs.removeIf(r -> !listed.add(r.site().mobId())); // a boss on several fields: its best site
         return runs;
     }
 
@@ -259,7 +267,9 @@ final class BotBossPlanReport {
             Fighter f = new Fighter(m.bot().getId(), m.bot().getName(), kp == null || kp[0] <= 0 ? 0 : hp / kp[0],
                     defense.physicalTouchDamageAt(m.bot(), mob.getPADamage(), mob.getLevel(), TOP_ROLL),
                     BotDefenseDataProvider.effectiveMaxHp(m.bot()),
-                    oneWay == null ? Double.POSITIVE_INFINITY : oneWay * 2.0 / 3600.0);
+                    oneWay == null ? Double.POSITIVE_INFINITY : oneWay * 2.0 / 3600.0,
+                    defense.expectedTouchHpLossFraction(m.bot(), mob) * BotDefenseDataProvider.effectiveMaxHp(m.bot())
+                            * touchesPerMinute());
             fighters.add(f);
             if (f.fights()) {
                 dpsSum += f.dps();
@@ -363,7 +373,9 @@ final class BotBossPlanReport {
         List<String> fs = new ArrayList<>();
         for (Fighter f : r.fighters()) {
             fs.add("{\"id\":" + f.botId() + ",\"n\":" + str(f.name()) + ",\"dps\":" + Math.round(f.dps()) + ",\"maxHit\":"
-                    + f.maxHit() + ",\"hp\":" + f.hp() + ",\"trip\":" + hours(f.tripHours()) + ",\"need\":" + str(f.need()) + "}");
+                    + f.maxHit() + ",\"hp\":" + f.hp() + ",\"trip\":" + hours(f.tripHours()) + ",\"hpPerMin\":" + Math.round(f.hpLossPerMinute()) + ",\"fightHp\":"
+                    + (f.fights() && r.killable() ? Math.round(f.hpLossPerMinute() * r.killSeconds() / 60.0) : 0)
+                    + ",\"need\":" + str(f.need()) + "}");
         }
         List<String> ds = new ArrayList<>();
         r.drops().stream().limit(3).forEach(d -> ds.add("{\"id\":" + d.itemId() + ",\"n\":" + str(ii.getName(d.itemId()))
