@@ -53,16 +53,12 @@ final class BotGearPlanReport {
         Map<Short, Double> bar = new java.util.HashMap<>();
         for (Pair<Integer, String> p : ii.getAllItems()) {
             int id = p.getLeft();
-            if (id < 1000000 || id >= 2000000 || ii.isCash(id)) {
+            Equip clean = wearableNow(bot, ii, id);
+            if (clean == null) {
                 continue;
             }
             Integer req = ii.getEquipLevelReq(id);
             Short slot = BotScrollManager.primarySlot(ii, id);
-            if (slot == null || (req != null && req > bot.getLevel()) || !(ii.getEquipById(id) instanceof Equip clean)
-                    || !ii.canWearEquipment(bot, clean, slot)
-                    || (ItemConstants.isWeapon(id) && !BotEquipManager.isPreferredWeapon(bot, ii.getWeaponType(id), clean))) {
-                continue;
-            }
             double gain = BotGrindAdvisor.catalogAcquireGain(bot, ii, id, bar);
             if (gain <= 0) {
                 continue;
@@ -75,6 +71,22 @@ final class BotGearPlanReport {
         }
         bySlot.values().forEach(l -> l.sort(BEST_FIRST));
         return bySlot;
+    }
+
+    /** The catalog copy of {@code id} when the bot can wear it today (level, job, stats, preferred weapon type),
+     *  else null. Cash items and non-equips are null. */
+    static Equip wearableNow(Character bot, ItemInformationProvider ii, int id) {
+        if (id < 1000000 || id >= 2000000 || ii.isCash(id)) {
+            return null;
+        }
+        Integer req = ii.getEquipLevelReq(id);
+        Short slot = BotScrollManager.primarySlot(ii, id);
+        if (slot == null || (req != null && req > bot.getLevel()) || !(ii.getEquipById(id) instanceof Equip clean)
+                || !ii.canWearEquipment(bot, clean, slot)
+                || (ItemConstants.isWeapon(id) && !BotEquipManager.isPreferredWeapon(bot, ii.getWeaponType(id), clean))) {
+            return null;
+        }
+        return clean;
     }
 
     static String json(BotEntry entry, Character bot) {

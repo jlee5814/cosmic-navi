@@ -74,7 +74,7 @@ final class BotGrindAdvisor {
 
     /** Same producer anchors as the scroll farming-cost model. */
     private static final double ATTACK_CYCLE_SECONDS = 0.72;
-    private static final double DROP_CHANCE_DENOMINATOR = 1_000_000.0;
+    static final double DROP_CHANCE_DENOMINATOR = 1_000_000.0;
     private static final int MIN_SPAWN_POINTS = 3;
     static final int INSTANCED_MAPID_FLOOR = 900000000;
     /** Ignore "upgrades" below this offense-score gain — rounding noise, not progression. */
@@ -880,7 +880,7 @@ final class BotGrindAdvisor {
      *  hits on and exp/hr honest. Raw drops the hit discount, so the aspirational pick sees the map the
      *  bot WOULD grind if accuracy were free. Magic attackers use magic accuracy (INT/LUK), so a mage
      *  isn't penalized on its low DEX. */
-    private static double[] killProfile(BotEntry entry, Character bot, Monster mob) {
+    static double[] killProfile(BotEntry entry, Character bot, Monster mob) {
         boolean magic = bot.getJobStyle() == client.Job.MAGICIAN;
         double hitChance = server.combat.CombatFormulaProvider.getInstance().calculateMobHitChance(bot, mob, magic);
         double hp = Math.max(1, mob.getMaxHp());
@@ -1483,7 +1483,7 @@ final class BotGrindAdvisor {
     private static final java.util.concurrent.ConcurrentHashMap<Integer, String> mapNameCache =
             new java.util.concurrent.ConcurrentHashMap<>();
 
-    private static String mapName(int mapId) {
+    static String mapName(int mapId) {
         String cached = mapNameCache.get(mapId);
         if (cached != null) {
             return cached;
@@ -1504,6 +1504,11 @@ final class BotGrindAdvisor {
     private static String itemName(ItemInformationProvider ii, int itemId) {
         String name = ii.getName(itemId);
         return name != null ? name : ("item " + itemId);
+    }
+
+    /** One mob's equip and equip scroll drops as {@code {itemId, chance}}; empty when it drops none. */
+    static List<int[]> gearDrops(int mobId) {
+        return gearDropsByMob().getOrDefault(mobId, List.of());
     }
 
     /** Equip + equip-scroll drops per mob from {@code drop_data} (populate-once, same pattern

@@ -316,6 +316,24 @@ payback, `best` the top 10, each slot its top 3. A shop route here is its price 
 to the shop (the Bathrobe is sold only in Zipangu). `grind` is null in a town with no grind map. `404` when the bot isn't
 online.
 
+### `/api/bossplan?ids=<botCharId>,<botCharId>`
+Which boss runs pay back for a party of online bots, and what each member needs first to survive one
+(`BotBossPlanReport`). Bosses come from Map.wz life (boss flagged, respawning, `respawnHours` from `mobTime`) and the
+area boss event scripts (`scripts/event/*.js` naming one map and one monster; `respawnHours` is the recheck period),
+on fields some member can travel to. Per member: `dps` on the boss (the grind planner's kill model), `maxHit` (its
+hardest landed touch, the damage bots take), `hp` (Magic Guard counted when up), `trip` (round trip hours) and `need`:
+`ready`, `can't reach`, `can't hurt it`, or the HP to live through two hardest touches. Ready members fight: `killMinutes`
+is the boss HP over their summed damage, `runHours` the longest trip plus the kill, `partyExp` the boss experience split
+by damage, `forgoneExp` what the fighters would have ground in that time, and `expWorth` whether the run beats grinding
+on experience alone. `drops` (top 3) are gear drops a fighter can wear now, each judged for the fighter who gains most
+by `BotGearPayback.judge` over `runs` expected kills (net of the experience they earn), with `days` the calendar time
+those runs span at the respawn and `wearLeft` the wear time once the waiting is spent leveling. `worth` is `expWorth`
+or the best drop's payback beating its `wearLeft`. `{party:[{id, n, level, job, hp, grind:{n, mob, expPerHour}}],
+offline:[id], bosses:[{mob, n, level, hp, map, mapName, respawnHours, source, killMinutes, runHours, partyExp,
+forgoneExp, expWorth, worth, fighters:[{id, n, dps, maxHit, hp, trip, need}], drops:[{id, n, taker, chance, runs, days,
+payback, wearLeft, worth}]}]}`, worth first, then by experience return. Boss skills and magic attacks are not modeled
+(bots take touch damage only), nor channel hopping for more spawns. `404` when no listed bot is online.
+
 ## Write API
 
 ### `/api/chat` (GET, POST)
