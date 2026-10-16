@@ -219,14 +219,18 @@ final class BotCraftManager {
                 why.reject(r, "a bigger upgrade won", gain);
                 continue;
             }
+            // What the item is to this bot first (a want is only a want if it could use it), then the materials.
             boolean scrollBase = lookups.value(bot, cand) <= (worn == null ? 0 : lookups.value(bot, worn));
-            Plan p = plan(bot, r, have, gain);
-            String no = p == null ? SHORT
-                    : p.fees() * 2 > meso ? "fees over half its meso"
-                    : p.fees() + p.inputValue() >= lookups.obtainCost(bot, r.outputId()) ? "cheaper to buy or farm"
-                    : ItemConstants.isWeapon(r.outputId()) && !lookups.preferredWeapon(bot, cand) ? "not its weapon type"
+            String no = ItemConstants.isWeapon(r.outputId()) && !lookups.preferredWeapon(bot, cand) ? "not its weapon type"
                     : !lookups.wearable(bot, cand) ? "can't wear it yet"
                     : scrollBase && !selfScroll ? "needs scrolling, and it doesn't scroll its gear" : null;
+            Plan p = no != null ? null : plan(bot, r, have, gain);
+            if (no == null) {
+                no = p == null ? SHORT
+                        : p.fees() * 2 > meso ? "fees over half its meso"
+                        : p.fees() + p.inputValue() >= lookups.obtainCost(bot, r.outputId()) ? "cheaper to buy or farm"
+                        : null;
+            }
             if (no != null) {
                 why.reject(r, no, gain);
                 continue;
