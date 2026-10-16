@@ -730,11 +730,8 @@ final class BotGrindAdvisor {
             exp += share * p.exp();
             touchDanger += share * p.touchDanger(); // spawn-weighted mean: the chip you eat on this map
             for (GearProspect g : p.prospects()) {
-                GearProspect diluted = new GearProspect(g.itemId(), g.itemName(),
-                        g.chancePerKill() * share, g.scoreGain(), g.dpsGainFraction());
-                gearByItem.merge(g.itemId(), diluted, (a, b) -> new GearProspect(a.itemId(),
-                        a.itemName(), a.chancePerKill() + b.chancePerKill(), a.scoreGain(),
-                        a.dpsGainFraction()));
+                GearProspect diluted = g.withChance(g.chancePerKill() * share);
+                gearByItem.merge(g.itemId(), diluted, (a, b) -> a.withChance(a.chancePerKill() + b.chancePerKill()));
             }
             if (e.getValue() > facePoints
                     || (e.getValue() == facePoints && p.exp() > face.exp())) {
@@ -933,8 +930,10 @@ final class BotGrindAdvisor {
             }
             double chancePerKill = Math.min(1.0,
                     drop[1] * (double) bot.getDropRate() / DROP_CHANCE_DENOMINATOR);
+            boolean scroll = itemId / 10000 == BotScrollManager.SCROLL_ITEM_PREFIX;
             out.add(new GearProspect(itemId, itemName(ii, itemId), chancePerKill,
-                    gain, gain / Math.max(1.0, totalWornOffense)));
+                    gain, gain / Math.max(1.0, totalWornOffense), scroll ? bot.getLevel() : 0,
+                    scroll ? scrollWear.untilLevel(bot, itemId) : 0));
         }
         return out;
     }
@@ -1145,6 +1144,27 @@ final class BotGrindAdvisor {
     }
 
     static ScrollGainLookup scrollGains = BotGrindAdvisor::scrollGain;
+
+    /** The level a looted scroll's gain lasts to: the longest a worn piece it applies to stays worn
+     *  ({@link BotGearPayback#wornUntilLevel}); 0 when nothing worn takes it. Test seam, as above. */
+    @FunctionalInterface
+    interface ScrollWearLookup {
+        int untilLevel(Character bot, int scrollId);
+    }
+
+    static ScrollWearLookup scrollWear = BotGrindAdvisor::scrollWearUntil;
+
+    private static int scrollWearUntil(Character bot, int scrollId) {
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
+        int until = 0;
+        for (Item it : bot.getInventory(InventoryType.EQUIPPED).list()) {
+            if (it instanceof Equip eq && eq.getUpgradeSlots() >= 1 && !ii.isCash(eq.getItemId())
+                    && BotScrollManager.applicable(ii, scrollId, eq.getItemId())) {
+                until = Math.max(until, BotGearPayback.wornUntilLevel(bot, ii, eq));
+            }
+        }
+        return until;
+    }
 
     /** Wires {@link #scrollExpectedGain} to the live catalog: skips meta scrolls (clean slate /
      *  modifier / white) and boom-risk ones (self-scrolling only uses those with fallback gear

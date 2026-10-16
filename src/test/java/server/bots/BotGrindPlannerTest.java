@@ -362,4 +362,34 @@ class BotGrindPlannerTest {
             assertEquals(20, rec.pick().mapId(), "marginal gear must not beat 2x exp (seed " + seed + ")");
         }
     }
+
+    // ---- scrolls priced in exp (the gear detour rule) ----
+
+    @Test
+    void aFarmerTakesTheExpMapOverAScrollThatDoesntRepayIt() {
+        // SipsBuddy1 sat on Line 1 Area 4 (446k exp/h) for a 10% INT helmet scroll over Ghost Ship 2 (629k).
+        // Priced in exp, a scroll worn for a level adds too little to cover the gap.
+        GearProspect helmetScroll = new GearProspect(2040016, "Scroll for Helmet for INT 10%", 0.01, 0.6, 0.005, 70, 71);
+        MobCandidate ship = mob(1, 600, 1.0, 10, 20, List.of());
+        MobCandidate subway = mob(2, 450, 1.0, 20, 20, List.of(helmetScroll));
+        for (long seed = 0; seed < 20; seed++) {
+            Recommendation rec = BotGrindPlanner.planBest(List.of(ship, subway), m -> 1.0, new java.util.Random(seed));
+            assertEquals(10, rec.pick().mapId());
+            assertFalse(rec.gearFocused());
+        }
+        assertTrue(BotGrindPlanner.scrollExpValue(helmetScroll, ship) > 0);
+    }
+
+    @Test
+    void aScrollThatRepaysTheExpGivenUpStillWinsTheMap() {
+        // A big damage scroll that drops often and is worn for thirty levels is worth more than the exp gap.
+        GearProspect attackScroll = new GearProspect(2043701, "Scroll for Wand for Magic Att.", 0.2, 6.0, 0.05, 70, 100);
+        MobCandidate ship = mob(1, 600, 1.0, 10, 20, List.of());
+        MobCandidate subway = mob(2, 450, 1.0, 20, 20, List.of(attackScroll));
+        for (long seed = 0; seed < 20; seed++) {
+            Recommendation rec = BotGrindPlanner.planBest(List.of(ship, subway), m -> 1.0, new java.util.Random(seed));
+            assertEquals(20, rec.pick().mapId());
+            assertFalse(rec.gearFocused()); // picked on exp, not hunted as gear
+        }
+    }
 }
