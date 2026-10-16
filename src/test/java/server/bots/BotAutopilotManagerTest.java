@@ -189,6 +189,24 @@ class BotAutopilotManagerTest {
     }
 
     @Test
+    void theFirstPlanIsPricedWithTheBotsAttackSkillsNotABasicSwing() {
+        // The skill cache was first built on the first AI tick, after a login decision had already priced every
+        // mob by a basic swing (SipsBuddy2, a level 77 Priest, sent to level 3 Murupa). start() warms it first.
+        Fixture f = fixture(TOWN);
+        when(f.bot().getLevel()).thenReturn(77);
+        int[] levelSeenByAdvisor = {Integer.MIN_VALUE};
+        try (Seams seams = new Seams(expRec(HUNTING_GROUND, "Henesys Hunting Ground I"))) {
+            BotAutopilotManager.advisor = (entry, bot, fromMapId, maxHops, withFerry) -> {
+                levelSeenByAdvisor[0] = entry.cachedSkillLevel;
+                return expRec(HUNTING_GROUND, "Henesys Hunting Ground I");
+            };
+            assertEquals(-1, f.entry().cachedSkillLevel);
+            BotAutopilotManager.start(f.entry(), f.bot());
+            assertEquals(77, levelSeenByAdvisor[0]);
+        }
+    }
+
+    @Test
     void shouldAnnounceGearObjectiveAsItemFromMobWithoutNumbers() {
         Fixture f = fixture(TOWN);
 
