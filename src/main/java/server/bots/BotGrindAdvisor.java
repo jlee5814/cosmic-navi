@@ -76,7 +76,7 @@ final class BotGrindAdvisor {
     private static final double ATTACK_CYCLE_SECONDS = 0.72;
     private static final double DROP_CHANCE_DENOMINATOR = 1_000_000.0;
     private static final int MIN_SPAWN_POINTS = 3;
-    private static final int INSTANCED_MAPID_FLOOR = 900000000;
+    static final int INSTANCED_MAPID_FLOOR = 900000000;
     /** Ignore "upgrades" below this offense-score gain — rounding noise, not progression. */
     private static final double MIN_GEAR_GAIN_SCORE = 0.5;
     /** Level-gated gear (drop or bagged) still counts this many levels ahead, decayed per
