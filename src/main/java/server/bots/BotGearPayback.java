@@ -89,17 +89,12 @@ final class BotGearPayback {
         double worn = Math.max(1.0, BotGrindAdvisor.totalWornValue(bot, ii));
         double exp0 = grind.exp() * BotGrindPlanner.killsPerHour(grind);
         double exp1 = BotGrindAdvisor.expPerHourWithDpsGain(grind, gain / worn);
-        return new Verdict(detourHours, exp0, exp1, BotGrindAdvisor.paybackHours(detourHours, exp0, exp1),
-                hoursToLevel(bot.getLevel(), wornUntilLevel(bot, ii, clean), exp0));
-    }
-
-    /** The level {@code piece} stays worn to for this bot: where a better obtainable piece of its kind can be worn,
-     *  else the fleet's outgrown line past its requirement. Shared by gear detours and scroll pricing. */
-    static int wornUntilLevel(Character bot, ItemInformationProvider ii, Equip piece) {
         int jobId = bot.getJob() == null ? 0 : bot.getJob().getId();
-        Integer req = ii.getEquipLevelReq(piece.getItemId());
-        return wornUntil(replacedAt(table(ii, jobId, piece.getItemId() / 10000),
-                BotScrollManager.potentialValue(jobId, ii, piece), bot.getLevel()), req == null ? 0 : req);
+        Integer req = ii.getEquipLevelReq(clean.getItemId());
+        int until = wornUntil(replacedAt(table(ii, jobId, clean.getItemId() / 10000),
+                BotScrollManager.potentialValue(jobId, ii, clean), bot.getLevel()), req == null ? 0 : req);
+        return new Verdict(detourHours, exp0, exp1, BotGrindAdvisor.paybackHours(detourHours, exp0, exp1),
+                hoursToLevel(bot.getLevel(), until, exp0));
     }
 
     /** Round trip travel hours from where the bot stands to {@code mapId}, from one flood of the world graph. */
