@@ -972,8 +972,13 @@ final class BotScrollManager {
     // ---- Transparent job-weighted offense value (v1 stand-in for the equip optimizer) ----
 
     static double offenseValue(Character bot, Equip eq) {
+        return offenseValue(jobId(bot), eq);
+    }
+
+    /** The same by job id alone: the weights depend only on the job. */
+    static double offenseValue(int jobId, Equip eq) {
         boolean[] mage = new boolean[1];
-        char[] ms = mainSecondary(jobId(bot), mage);
+        char[] ms = mainSecondary(jobId, mage);
         double att = mage[0] ? MATK_WEIGHT * eq.getMatk() : ATT_WEIGHT * eq.getWatk();
         return att
                 + MAIN_STAT_WEIGHT * statOfEquip(eq, ms[0])
@@ -981,8 +986,12 @@ final class BotScrollManager {
     }
 
     static double offenseValueFromStats(Character bot, Map<String, Integer> st) {
+        return offenseValueFromStats(jobId(bot), st);
+    }
+
+    static double offenseValueFromStats(int jobId, Map<String, Integer> st) {
         boolean[] mage = new boolean[1];
-        char[] ms = mainSecondary(jobId(bot), mage);
+        char[] ms = mainSecondary(jobId, mage);
         double att = mage[0] ? MATK_WEIGHT * st.getOrDefault("MAD", 0)
                 : ATT_WEIGHT * st.getOrDefault("PAD", 0);
         return att
@@ -1022,7 +1031,11 @@ final class BotScrollManager {
      *  piece" in keep/sell/drop-vs-worn/quest-reward decisions (offense alone undervalued capes,
      *  shields, accessories). {@link #offenseValue} stays the pure-DPS sub-metric for scroll EV. */
     static double equipValue(Character bot, Equip eq) {
-        return offenseValue(bot, eq) + survivalValue(eq);
+        return equipValue(jobId(bot), eq);
+    }
+
+    static double equipValue(int jobId, Equip eq) {
+        return offenseValue(jobId, eq) + survivalValue(eq);
     }
 
     static double equipValueFromStats(Character bot, Map<String, Integer> st) {
@@ -1091,6 +1104,10 @@ final class BotScrollManager {
      *  boom/meta skipped). Equip-type based by construction: glove slots price att scrolls,
      *  most other pieces only stat scrolls; 0 when no usable scroll exists for the type. */
     static double bestScrollEvPerSlot(Character bot, ItemInformationProvider ii, int equipId) {
+        return bestScrollEvPerSlot(jobId(bot), ii, equipId);
+    }
+
+    static double bestScrollEvPerSlot(int jobId, ItemInformationProvider ii, int equipId) {
         double best = 0.0;
         for (int sid : scrollsByCategory(ii).getOrDefault((equipId / 10000) % 100, List.of())) {
             if (!applicable(ii, sid, equipId)) {
@@ -1101,7 +1118,7 @@ final class BotScrollManager {
                 continue;
             }
             double ev = effectiveSuccessPct(st.getOrDefault("success", 0)) / 100.0
-                    * offenseValueFromStats(bot, st);
+                    * offenseValueFromStats(jobId, st);
             best = Math.max(best, ev);
         }
         return best;
@@ -1127,6 +1144,13 @@ final class BotScrollManager {
      *  should use, so a maxed-out item can lose to a weaker one that still scrolls higher. */
     static double potentialValue(Character bot, ItemInformationProvider ii, Equip eq) {
         return equipValue(bot, eq) + headroomFor(bot, ii, eq.getItemId()).applyAsDouble(eq.getUpgradeSlots());
+    }
+
+    /** The same score for a job with no fleet scrolls in hand (catalog headroom only): what a piece is worth to that
+     *  job by its stats and open slots alone. The gear meta report ({@code /api/gearmeta}) ranks items with it. */
+    static double potentialValue(int jobId, ItemInformationProvider ii, Equip eq) {
+        return equipValue(jobId, eq)
+                + scrollHeadroom(eq.getUpgradeSlots(), bestScrollEvPerSlot(jobId, ii, eq.getItemId()));
     }
 
     /** Test seam: the equip scrolls this bot's fleet can hand it for one gear kind, by scroll id: its own useful
