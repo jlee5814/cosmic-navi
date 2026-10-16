@@ -1280,25 +1280,63 @@ final class BotScrollManager {
     /**
      * Meso cost to acquire a clean base = the MIN over all sources (cheapest source wins; pricier
      * sources are irrelevant): the NPC shop price if shop-sold, and the drop-farm cost (rarity→meso)
-     * if any mob drops it. A rare drop an NPC sells cheaply is therefore priced at the NPC price. If
-     * neither source exists (not shop-sold, not dropped), falls back to the reqLevel-scaled placeholder.
+     * if any mob drops it, and an NPC craft from its inputs' own cheapest costs ({@link #cheapestAcquisition}). A rare
+     * drop an NPC sells cheaply is therefore priced at the NPC price. If no source exists, falls back to the
+     * reqLevel-scaled placeholder.
      */
     private static double cleanBaseCostMeso(ProducerCombat pc, ItemInformationProvider ii, int itemId) {
-        double best = Double.POSITIVE_INFINITY;
-        Integer npcPrice = shopPrices().get(itemId);
-        if (npcPrice != null) {
-            best = npcPrice;
-        }
-        double farm = farmingCostMeso(pc, itemId);
-        if (farm < best) {
-            best = farm;
-        }
+        double best = cheapest(pc, itemId, 0).meso();
         if (Double.isInfinite(best)) {
             Map<String, Integer> st = ii.getEquipStats(itemId);
             int reqLevel = st == null ? 0 : st.getOrDefault("reqLevel", 0);
             best = Math.max(CLEAN_BASE_COST_FLOOR, reqLevel * CLEAN_BASE_COST_PER_LEVEL);
         }
         return best;
+    }
+
+    /** How a bot gets a clean copy of an item most cheaply: the route ({@code shop}, {@code farm}, {@code craft}) and
+     *  its cost in meso, where effort counts at {@link #FARM_MESO_PER_SECOND}, so time and money compare. */
+    record Acquisition(String route, double meso) {
+        static final Acquisition NONE = new Acquisition("none", Double.POSITIVE_INFINITY);
+
+        /** The cost as hours of farming effort. */
+        double hours() {
+            return meso / (FARM_MESO_PER_SECOND * 3600.0);
+        }
+    }
+
+    private static final int CRAFT_COST_DEPTH = 3; // gear <- screws <- plates <- ores
+
+    /** The cheapest of an NPC shop's price, this bot's farming effort on the item's best dropper, and an NPC
+     *  craft (its fee plus each input at that input's own cheapest cost). {@link Acquisition#NONE} when none. */
+    static Acquisition cheapestAcquisition(Character bot, int itemId) {
+        BotEntry entry = bot == null ? null : BotManager.getInstance().getEntryByBotCharId(bot.getId());
+        return cheapest(resolveProducerCombat(entry, bot), itemId, 0);
+    }
+
+    private static Acquisition cheapest(ProducerCombat pc, int itemId, int depth) {
+        Acquisition best = Acquisition.NONE;
+        Integer npcPrice = shopPrices().get(itemId);
+        if (npcPrice != null) {
+            best = new Acquisition("shop", npcPrice);
+        }
+        double farm = farmingCostMeso(pc, itemId);
+        if (farm < best.meso()) {
+            best = new Acquisition("farm", farm);
+        }
+        if (depth < CRAFT_COST_DEPTH) {
+            double craft = BotCraftManager.craftCostMeso(itemId, mat -> cheapest(pc, mat, depth + 1).meso());
+            if (craft < best.meso()) {
+                best = new Acquisition("craft", craft);
+            }
+        }
+        return best;
+    }
+
+    /** The mob with the best drop chance for an item, or 0 when nothing drops it. */
+    static int bestDropperMob(int itemId) {
+        int[] dropper = bestDropperByItem().get(itemId);
+        return dropper != null ? dropper[0] : 0;
     }
 
     /**

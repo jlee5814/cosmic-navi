@@ -195,6 +195,7 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/craftdemand", BotWorldGraphWebServer::serveCraftDemand);
             s.createContext("/api/scrollmatch", BotWorldGraphWebServer::serveScrollMatch);
             s.createContext("/api/gearmeta", BotWorldGraphWebServer::serveGearMeta);
+            s.createContext("/api/gearplan", BotWorldGraphWebServer::serveGearPlan);
             s.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "bot-worldmap-web");
                 t.setDaemon(true);
@@ -498,6 +499,32 @@ public final class BotWorldGraphWebServer {
             return;
         }
         send(ex, 200, "application/json", BotGearMetaReport.json(from, to, step, watch).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** GET /api/gearplan?id=botCharId: the best gear an online bot can get per hour of effort now
+     *  (BotGearPlanReport). Read only; scans every equip. */
+    private static void serveGearPlan(HttpExchange ex) throws IOException {
+        int id;
+        try {
+            id = Integer.parseInt(queryParams(ex.getRequestURI().getRawQuery()).getOrDefault("id", "").trim());
+        } catch (NumberFormatException e) {
+            send(ex, 400, "application/json", "{\"error\":\"id required\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        BotEntry e = lookupBotEntry(id);
+        Character bot = e == null ? null : e.bot;
+        if (bot == null) {
+            send(ex, 404, "application/json", "{\"error\":\"bot not online\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        String body;
+        try {
+            body = BotGearPlanReport.json(bot);
+        } catch (RuntimeException err) { // the game thread can move gear mid read; poll again
+            send(ex, 503, "application/json", "{\"error\":\"gear changed, retry\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        send(ex, 200, "application/json", body.getBytes(StandardCharsets.UTF_8));
     }
 
     /** POST /api/fleetops/act {"bot":id,"action":"rescue|hold_errands|sell_trash|park","arg":n,"reason":"..."}:

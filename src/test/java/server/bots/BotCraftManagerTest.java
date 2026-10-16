@@ -92,6 +92,17 @@ class BotCraftManagerTest {
     }
 
     @Test
+    void craftCostIsTheFeePlusTheInputsOverTheYield() {
+        // Work Gloves: 1,000 meso and 15 Leather. Screws: two plates for 15.
+        assertEquals(1000 + 15 * 10.0, BotCraftManager.craftCostMeso(1082002, id -> id == LEATHER ? 10.0 : 1e9));
+        double screw = BotCraftManager.craftCostMeso(SCREW, id -> 15.0);
+        assertTrue(screw > 0 && screw <= 2.0, String.valueOf(screw));
+        assertTrue(Double.isInfinite(BotCraftManager.craftCostMeso(LEATHER, id -> 1.0))); // a drop, not a craft
+        assertTrue(Double.isInfinite(BotCraftManager.craftCostMeso(1082002, id -> Double.POSITIVE_INFINITY)));
+        assertEquals(1.0, new BotScrollManager.Acquisition("shop", 3_600_000).hours(), 1e-9); // effort anchor
+    }
+
+    @Test
     void craftingPartsAreTheNonMakerEtcInputsOfGear() {
         Map<Integer, Integer> parts = BotCraftManager.craftingPartsMaxPerRecipe();
         assertEquals(100, parts.get(LEATHER));
