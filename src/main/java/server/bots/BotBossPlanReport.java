@@ -46,17 +46,14 @@ final class BotBossPlanReport {
     // The top of the touch damage range (rolls are drawn in [0, 1)).
     private static final double TOP_ROLL = 0.999;
 
-    /** Touches a bot in contact can take a minute: one per hit cooldown. */
-    private static double touchesPerMinute() {
-        return 60_000.0 / Math.max(1, BotCombatManager.cfg.MOB_HIT_COOLDOWN_MS);
-    }
 
     /** Where a boss lives and how long it takes to come back: Map.wz life ({@code mobTime}, seconds from a kill) or an
      *  area boss event script (the period it rechecks and respawns on). */
     record Site(int mobId, int mapId, double respawnHours, String source) {}
 
-    /** One member against one boss. {@code tripHours} is infinite when the member can't get there. */
-    record Fighter(int botId, String name, double dps, int maxHit, int hp, double tripHours, double hpLossPerMinute) {
+    /** One member against one boss. {@code tripHours} is infinite when the member can't get there; {@code touchLoss} is
+     *  the share of its HP one touch attempt takes on average (the grind planner's danger primitive). */
+    record Fighter(int botId, String name, double dps, int maxHit, int hp, double tripHours, double touchLoss) {
         boolean reaches() {
             return Double.isFinite(tripHours);
         }
@@ -268,8 +265,7 @@ final class BotBossPlanReport {
                     defense.physicalTouchDamageAt(m.bot(), mob.getPADamage(), mob.getLevel(), TOP_ROLL),
                     BotDefenseDataProvider.effectiveMaxHp(m.bot()),
                     oneWay == null ? Double.POSITIVE_INFINITY : oneWay * 2.0 / 3600.0,
-                    defense.expectedTouchHpLossFraction(m.bot(), mob) * BotDefenseDataProvider.effectiveMaxHp(m.bot())
-                            * touchesPerMinute());
+                    defense.expectedTouchHpLossFraction(m.bot(), mob));
             fighters.add(f);
             if (f.fights()) {
                 dpsSum += f.dps();
@@ -373,8 +369,7 @@ final class BotBossPlanReport {
         List<String> fs = new ArrayList<>();
         for (Fighter f : r.fighters()) {
             fs.add("{\"id\":" + f.botId() + ",\"n\":" + str(f.name()) + ",\"dps\":" + Math.round(f.dps()) + ",\"maxHit\":"
-                    + f.maxHit() + ",\"hp\":" + f.hp() + ",\"trip\":" + hours(f.tripHours()) + ",\"hpPerMin\":" + Math.round(f.hpLossPerMinute()) + ",\"fightHp\":"
-                    + (f.fights() && r.killable() ? Math.round(f.hpLossPerMinute() * r.killSeconds() / 60.0) : 0)
+                    + f.maxHit() + ",\"hp\":" + f.hp() + ",\"trip\":" + hours(f.tripHours()) + ",\"touchLoss\":" + Math.round(f.touchLoss() * 1000) / 1000.0
                     + ",\"need\":" + str(f.need()) + "}");
         }
         List<String> ds = new ArrayList<>();
