@@ -86,7 +86,9 @@ Read-only plain text: the bot's full autopilot grind decision report (reachable 
 gear value, travel and quest weights, the pick), the same report the in game `autopilot why` command and
 the ops console `grind` verb write to `logs/bot-grind/ap-debug-<name>.txt`. Scores candidates without
 applying a plan. `maps=` appends the raw candidate inputs for those maps (mob, kill time, spawns,
-kills and exp per hour, travel weight), which the top 15 list hides. Runs on the decide pool, so it can
+kills and exp per hour, travel weight), which the top 15 list hides. For a bot that decides solo, section g samples
+the solo advisor it actually runs (wanderlust travel weight, danger weight, crowd surcharge, the exp and gear blend)
+five times: map, mob, exp/h, needGear, gearFocused, wanted gear, score. Runs on the decide pool, so it can
 take a few seconds.
 
 ### `/api/botdebug[?id=<botCharId>]`
