@@ -94,7 +94,7 @@ class BotAutopilotManagerTest {
         private final java.util.function.IntPredicate previousEquipStatsExist = BotAutopilotManager.equipStatsExist;
         private final java.util.function.Predicate<Character> previousNeedsPreferredWeapon = BotShopManager.needsPreferredWeaponForCurrentJobSeam;
         private final java.util.function.BiFunction<BotEntry, Character, Integer> previousWeaponUpgradeShopMap =
-                BotShopManager.weaponUpgradeShopMapSeam;
+                BotShopManager.gearTripShopMapSeam;
 
         Seams(Recommendation recommendation) {
             this(recommendation, recommendation);
@@ -122,7 +122,7 @@ class BotAutopilotManagerTest {
             // calls needsPreferredWeaponForCurrentJob -> ItemInformationProvider in tests.
             BotShopManager.needsPreferredWeaponForCurrentJobSeam = bot -> false;
             // Default: no weapon upgrade in reach, so the upgrade errand gates skip the real shop search.
-            BotShopManager.weaponUpgradeShopMapSeam = (entry, bot) -> null;
+            BotShopManager.gearTripShopMapSeam = (entry, bot) -> null;
         }
 
         @Override
@@ -138,7 +138,7 @@ class BotAutopilotManagerTest {
             BotAutopilotManager.bagFull = previousBagFull;
             BotAutopilotManager.equipStatsExist = previousEquipStatsExist;
             BotShopManager.needsPreferredWeaponForCurrentJobSeam = previousNeedsPreferredWeapon;
-            BotShopManager.weaponUpgradeShopMapSeam = previousWeaponUpgradeShopMap;
+            BotShopManager.gearTripShopMapSeam = previousWeaponUpgradeShopMap;
         }
     }
 
@@ -158,7 +158,7 @@ class BotAutopilotManagerTest {
             assertFalse(BotAutopilotManager.tick(f.entry(), f.bot(), true));
             assertEquals(-1, f.entry().autopilotErrandMapId, "no upgrade in reach: keep grinding");
 
-            BotShopManager.weaponUpgradeShopMapSeam = (entry, bot) -> TOWN;
+            BotShopManager.gearTripShopMapSeam = (entry, bot) -> TOWN;
             BotAutopilotManager.tick(f.entry(), f.bot(), true);
             assertEquals(TOWN, f.entry().autopilotErrandMapId);
             assertTrue(seams.replies.stream().anyMatch(r -> r.contains("going for a better")), seams.replies.toString());

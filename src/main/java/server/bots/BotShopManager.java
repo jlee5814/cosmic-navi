@@ -136,9 +136,9 @@ final class BotShopManager {
 
         boolean wantsSellTrash = shouldAutoSellTrash(entry, bot);
         // A map can hold several shop NPCs, and the purchase runs at one of them: visit the one selling
-        // the weapon upgrade, else the first that has anything needed. (SipsBuddy32 walked to New Leaf
+        // the gear trip's piece, else the first that has anything needed. (SipsBuddy32 walked to New Leaf
         // City for a better spear and bought pants from the first NPC that matched.)
-        NpcShopMatch match = findBestShop(bot.getMap(), shop -> findWeaponUpgradeItem(bot, shop) != null);
+        NpcShopMatch match = findBestShop(bot.getMap(), shop -> findGearTripItem(entry, bot, shop) != null);
         WeaponType wt = BotAttackExecutionProvider.getEquippedWeaponType(bot);
         if (match == null && wantsAmmoStackShop(bot, wt)) {
             match = findBestShop(bot.getMap(), shop -> findAmmoItem(shop, wt) != null);
@@ -157,7 +157,7 @@ final class BotShopManager {
         boolean needsHpPots = pots[0] < potTrigger && findPotionItem(match.shop, bot, true) != null;
         boolean needsMpPots = pots[1] < potTrigger && findPotionItem(match.shop, bot, false) != null;
         boolean needsPreferredWeapon = findNeededPreferredWeaponItem(bot, match.shop) != null
-                || findWeaponUpgradeItem(bot, match.shop) != null;
+                || findGearTripItem(entry, bot, match.shop) != null;
         // Low on return scrolls is a reason to stop on its own: the scroll run's errand lands here.
         boolean needsReturnScrolls = countReturnScrolls(bot) < RETURN_SCROLL_LOW_QTY
                 && findReturnScrollItem(match.shop) != null;
@@ -433,12 +433,12 @@ final class BotShopManager {
         if (needsPreferredWeapon) {
             return findNearestUncachedShopMap(bot, shop -> shopHasAnythingNeeded(entry, bot, shop));
         }
-        // A worthwhile weapon upgrade outranks a routine restock: the bot still has pots and ammo to
+        // A gear trip that pays (BotGearPayback) outranks a routine restock: the bot still has pots and ammo to
         // grind on and restocks on the next errand. Only an urgent shortage goes to a supply shop first.
         // (A potion shop rarely sells weapons, so a supply first rule meant the weapon never came:
         // SipsBuddy34 announced a better spear, then bought pots in Ludibrium and flew back to Victoria.)
         if (entry != null && !suppliesUrgent(bot)) {
-            Integer upgradeMap = weaponUpgradeShopMap(entry, bot);
+            Integer upgradeMap = gearTripShopMap(entry, bot);
             if (upgradeMap != null) {
                 return upgradeMap;
             }
@@ -618,7 +618,7 @@ final class BotShopManager {
      *  recharge/buy, or a potion type it's low on that the shop sells)? Bag-state-aware, unlike the
      *  potion-only errand-destination filter. */
     private static boolean shopHasAnythingNeeded(BotEntry entry, Character bot, Shop shop) {
-        if (findNeededPreferredWeaponItem(bot, shop) != null || findWeaponUpgradeItem(bot, shop) != null) {
+        if (findNeededPreferredWeaponItem(bot, shop) != null || findGearTripItem(entry, bot, shop) != null) {
             return true;
         }
         WeaponType wt = BotAttackExecutionProvider.getEquippedWeaponType(bot);
@@ -1311,7 +1311,7 @@ final class BotShopManager {
         if (afterPreferredWeapon != sequence) {
             return afterPreferredWeapon;
         }
-        PurchaseSequence afterWeaponUpgrade = evaluateAndBuyWeaponUpgrade(sequence, shop);
+        PurchaseSequence afterWeaponUpgrade = evaluateAndBuyGearTrip(sequence, shop);
         if (afterWeaponUpgrade != sequence) {
             return afterWeaponUpgrade;
         }
@@ -1458,89 +1458,114 @@ final class BotShopManager {
         return best;
     }
 
-    /** Minimum value gain, as a fraction of the worn weapon's {@link BotScrollManager#potentialValue},
-     *  that justifies a dedicated shop trip for a weapon. Smaller gains still get the generic equip buy
-     *  when the bot happens to visit a shop that sells them. */
-    static final double WEAPON_UPGRADE_MIN_GAIN = 0.15;
-    /** How often a bot reruns its weapon upgrade shop search, which scans maps across several hops. */
-    static final long WEAPON_UPGRADE_RECHECK_MS = 10 * 60_000L;
+    /** How often a bot reruns its gear trip search, which scores every shop's gear across the world. */
+    static final long GEAR_TRIP_RECHECK_MS = 10 * 60_000L;
 
-    static boolean isWorthwhileWeaponUpgrade(double wornValue, double candidateValue) {
-        return candidateValue > wornValue && candidateValue >= wornValue * (1.0 + WEAPON_UPGRADE_MIN_GAIN);
-    }
-
-    /** Best weapon this shop sells that the bot can wear now, of its preferred type, within the weapon
-     *  budget, and worth a trip over the worn weapon ({@link #isWorthwhileWeaponUpgrade}). Null when the
-     *  bot has no weapon (the preferred weapon path owns that case) or nothing qualifies. Valued with the
-     *  same {@link BotScrollManager#potentialValue} SSOT as every other gear decision. */
-    private static ShopSlotItem findWeaponUpgradeItem(Character bot, Shop shop) {
-        if (bot == null || shop == null) {
+    /** The gear trip's piece, when this shop sells it within the budget; null otherwise (and with no trip). The
+     *  search ({@link #searchGearTrip}, off the tick) decided it pays; the shop just finds and buys it. */
+    private static ShopSlotItem findGearTripItem(BotEntry entry, Character bot, Shop shop) {
+        if (entry == null || bot == null || shop == null || entry.gearTripItemId == 0) {
             return null;
         }
         long budget = preferredWeaponBudget(bot);
-        if (budget <= 0) {
-            return null;
-        }
-        ItemInformationProvider ii = ItemInformationProvider.getInstance();
-        Equip worn = BotScrollManager.wornInSlot(bot, ii, (short) -11);
-        if (worn == null) {
-            return null;
-        }
-        double wornValue = BotScrollManager.potentialValue(bot, ii, worn);
-        ShopSlotItem best = null;
-        double bestValue = Double.NEGATIVE_INFINITY;
         List<ShopItem> items = shop.getItems();
         for (int i = 0; i < items.size(); i++) {
             ShopItem si = items.get(i);
-            int id = si.getItemId();
-            int price = si.getPrice();
-            if (price <= 0 || price > budget || !ItemConstants.isEquipment(id) || ii.isCash(id)) {
-                continue;
-            }
-            Short slot = BotScrollManager.primarySlot(ii, id);
-            if (slot == null || slot != (short) -11) {
-                continue;
-            }
-            if (!(ii.getEquipById(id) instanceof Equip cand)
-                    || !BotEquipManager.isPreferredWeapon(bot, ii.getWeaponType(id), cand)
-                    || !ii.canWearEquipment(bot, cand, slot)) {
-                continue;
-            }
-            double value = BotScrollManager.potentialValue(bot, ii, cand);
-            if (isWorthwhileWeaponUpgrade(wornValue, value)
-                    && (best == null || value > bestValue || (value == bestValue && price < best.shopItem.getPrice()))) {
-                best = new ShopSlotItem((short) i, si);
-                bestValue = value;
+            if (si.getItemId() == entry.gearTripItemId && si.getPrice() > 0 && si.getPrice() <= budget) {
+                return new ShopSlotItem((short) i, si);
             }
         }
-        return best;
+        return null;
     }
 
-    private static PurchaseSequence evaluateAndBuyWeaponUpgrade(PurchaseSequence sequence, Shop shop) {
+    private static PurchaseSequence evaluateAndBuyGearTrip(PurchaseSequence sequence, Shop shop) {
         Character bot = sequence.bot();
-        ShopSlotItem upgrade = findWeaponUpgradeItem(bot, shop);
+        ShopSlotItem upgrade = findGearTripItem(sequence.entry(), bot, shop);
         if (upgrade == null) {
             return sequence;
         }
         if (shop.buyDirect(bot, upgrade.slot(), upgrade.shopItem.getItemId(), (short) 1) == Shop.TransactionResult.SUCCESS) {
-            sequence.bought().add(resolveItemName(upgrade.shopItem.getItemId(), "weapon"));
+            sequence.bought().add(resolveItemName(upgrade.shopItem.getItemId(), "gear"));
             BotEquipManager.autoEquip(bot, sequence.entry().owner, null, true);
-            sequence.entry().weaponUpgradeCheckAtMs = 0L; // search again from the new weapon
-            sequence.entry().weaponUpgradeShopMapId = -1; // this trip is done: see weaponTripFailedHere
+            sequence.entry().gearTripCheckAtMs = 0L; // search again from the new gear
+            sequence.entry().gearTripShopMapId = -1; // this trip is done: see gearTripFailedHere
+            sequence.entry().gearTripItemId = 0;
             return sequence;
         }
         return sequence.withFirstShortfall(new BuyReport(upgrade.shopItem.getItemId(), 0, 1, ShortfallReason.NO_MESO));
     }
 
-    /** Seam over the weapon upgrade shop search, which loads maps and reads ItemInformationProvider. */
-    static java.util.function.BiFunction<BotEntry, Character, Integer> weaponUpgradeShopMapSeam =
-            BotShopManager::computeWeaponUpgradeShopMap;
+    /** A gear trip: the shop map and the piece, and the verdict that sent the bot. */
+    record GearTrip(int mapId, int itemId, BotGearPayback.Verdict verdict) {}
 
-    /** Nearest reachable map (by ship too), other than the current one, whose shop sells a worthwhile weapon upgrade;
-     *  null when none. Each bot runs the search at most once per {@link #WEAPON_UPGRADE_RECHECK_MS} and
-     *  reuses the answer in between; a purchase resets the clock. */
-    static Integer weaponUpgradeShopMap(BotEntry entry, Character bot) {
-        return weaponUpgradeShopMapSeam.apply(entry, bot);
+    /**
+     * The shop trip for gear that pays best, or null: every reachable shop's equips the bot can wear now (weapons
+     * of its preferred type) within the budget, each judged by {@link BotGearPayback#judge} with the round trip
+     * travel to that shop plus its price as the detour, and the grind planner's gain over the best the bot owns.
+     * The fastest payback that beats the piece's wear time wins. Heavy (every shop, every equip): run off the tick.
+     */
+    static GearTrip searchGearTrip(BotEntry entry, Character bot) {
+        BotGrindPlanner.MobCandidate grind = entry == null ? null : entry.autopilotPlanPick;
+        long budget = preferredWeaponBudget(bot);
+        if (grind == null || budget <= 0 || bot.getMap() == null) {
+            return null;
+        }
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
+        Map<Integer, Double> flood = BotTravelCost.floodSeconds(bot.getMapId(), GEAR_TRIP_MAX_HOPS,
+                BotAutopilotManager.travelOptions(bot, true), ms -> ms);
+        Map<Short, Double> bar = new java.util.HashMap<>();
+        Map<Integer, double[]> gainAndPrice = new java.util.HashMap<>(); // per item: its gain, scored once
+        long now = System.currentTimeMillis();
+        GearTrip best = null;
+        for (int npc : shopNpcIds()) {
+            Shop shop = ShopFactory.getInstance().getShopForNPC(npc);
+            if (shop == null) {
+                continue;
+            }
+            for (int mapId : BotSpawnIndex.mapsWithNpc(npc)) {
+                if (!flood.containsKey(mapId) || entry.unreachableShopUntilMs.getOrDefault(mapId, 0L) > now) {
+                    continue;
+                }
+                double trip = mapId == bot.getMapId() ? 0.0 : BotGearPayback.tripHours(flood, mapId);
+                for (ShopItem si : shop.getItems()) {
+                    int id = si.getItemId();
+                    if (si.getPrice() <= 0 || si.getPrice() > budget || !ItemConstants.isEquipment(id) || ii.isCash(id)) {
+                        continue;
+                    }
+                    double[] gp = gainAndPrice.computeIfAbsent(id, k -> new double[]{gearTripGain(bot, ii, k, bar)});
+                    if (gp[0] <= 0 || !(ii.getEquipById(id) instanceof Equip cand)) {
+                        continue;
+                    }
+                    double detour = trip + new BotScrollManager.Acquisition("shop", si.getPrice()).hours();
+                    BotGearPayback.Verdict v = BotGearPayback.judge(bot, ii, cand, gp[0], detour, grind);
+                    if (v.worth() && (best == null || v.paybackHours() < best.verdict().paybackHours())) {
+                        best = new GearTrip(mapId, id, v);
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    /** The grind planner's gain for a shop piece the bot can wear now (weapons of its preferred type); 0 otherwise. */
+    private static double gearTripGain(Character bot, ItemInformationProvider ii, int id, Map<Short, Double> bar) {
+        Short slot = BotScrollManager.primarySlot(ii, id);
+        if (slot == null || !(ii.getEquipById(id) instanceof Equip cand) || !ii.canWearEquipment(bot, cand, slot)
+                || (slot == (short) -11 && !BotEquipManager.isPreferredWeapon(bot, ii.getWeaponType(id), cand))) {
+            return 0.0;
+        }
+        return BotGrindAdvisor.catalogAcquireGain(bot, ii, id, bar);
+    }
+
+    /** Seam over the gear trip shop search, which loads maps and reads ItemInformationProvider. */
+    static java.util.function.BiFunction<BotEntry, Character, Integer> gearTripShopMapSeam =
+            BotShopManager::computeGearTripShopMap;
+
+    /** The map of the gear trip ({@link #searchGearTrip}), other than the current one; null when none. Each bot runs
+     *  the search at most once per {@link #GEAR_TRIP_RECHECK_MS}, off the tick, and reuses the answer in between;
+     *  a purchase resets the clock. */
+    static Integer gearTripShopMap(BotEntry entry, Character bot) {
+        return gearTripShopMapSeam.apply(entry, bot);
     }
 
     /** Out of usable ammo, or below the pot count where grinding stops: restock before anything else. */
@@ -1553,8 +1578,8 @@ final class BotShopManager {
         }
     }
 
-    /** Route hops a weapon trip may take; the travel layer's own cap, ships and taxis included. */
-    static final int WEAPON_TRIP_MAX_HOPS = BotAutopilotManager.MAX_TRAVEL_HOPS;
+    /** Route hops a gear trip may take; the travel layer's own cap, ships and taxis included. */
+    static final int GEAR_TRIP_MAX_HOPS = BotAutopilotManager.MAX_TRAVEL_HOPS;
     private static volatile List<Integer> shopNpcIds;
 
     /** Every NPC that runs a shop, read once from the shops table. */
@@ -1571,7 +1596,7 @@ final class BotShopManager {
                 loaded.add(rs.getInt(1));
             }
         } catch (java.sql.SQLException | RuntimeException e) {
-            log.warn("bot-shop: could not list shop NPCs; weapon trips fall back to the nearby map scan", e);
+            log.warn("bot-shop: could not list shop NPCs; gear trips find no shop", e);
             return List.of();
         }
         shopNpcIds = List.copyOf(loaded);
@@ -1597,43 +1622,7 @@ final class BotShopManager {
         return equips;
     }
 
-    /** The map with the shortest route (portals, ships and taxis, danger gated) whose shop NPC passes
-     *  {@code accept}. Uses the shop catalog and the NPC placement index instead of loading maps, so it
-     *  can look across continents: the nearby scan stopped at six portals and never reached the Orbis or
-     *  El Nath stores that stock level 30 to 40 spears. Falls back to that scan if the catalog is empty. */
-    private static Integer nearestShopMapSelling(BotEntry entry, Character bot, Predicate<Shop> accept) {
-        List<Integer> npcs = shopNpcIds();
-        long now = System.currentTimeMillis();
-        if (npcs.isEmpty()) {
-            return findNearestUncachedShopMap(bot, accept);
-        }
-        int from = bot.getMapId();
-        BotWorldGraph.RouteOptions options = BotAutopilotManager.travelOptions(bot, true);
-        Integer best = null;
-        int bestHops = Integer.MAX_VALUE;
-        for (int npc : npcs) {
-            Shop shop = ShopFactory.getInstance().getShopForNPC(npc);
-            if (shop == null || !accept.test(shop)) {
-                continue;
-            }
-            for (int mapId : BotSpawnIndex.mapsWithNpc(npc)) {
-                if (entry != null && entry.unreachableShopUntilMs.getOrDefault(mapId, 0L) > now) {
-                    continue; // an errand there just failed; try the next nearest shop
-                }
-                if (mapId == from) {
-                    return mapId;
-                }
-                List<Integer> route = BotAutopilotManager.routeForBot(bot, from, mapId, WEAPON_TRIP_MAX_HOPS, options);
-                if (route != null && route.size() < bestHops) {
-                    best = mapId;
-                    bestHops = route.size();
-                }
-            }
-        }
-        return best;
-    }
-
-    /** How long the weapon upgrade search skips a shop map an errand could not reach. */
+    /** How long the gear trip search skips a shop map an errand could not reach. */
     static final long UNREACHABLE_SHOP_RETRY_MS = 2 * 60 * 60_000L;
 
     /** An errand to this map was dropped as unreachable. A route can exist on the world graph while the
@@ -1642,41 +1631,55 @@ final class BotShopManager {
      *  and search again now, so the next errand goes to the next nearest shop. */
     static void markShopMapUnreachable(BotEntry entry, int mapId, long nowMs) {
         entry.unreachableShopUntilMs.put(mapId, nowMs + UNREACHABLE_SHOP_RETRY_MS);
-        if (entry.weaponUpgradeShopMapId == mapId) {
-            entry.weaponUpgradeShopMapId = -1;
-            entry.weaponUpgradeCheckAtMs = 0L;
+        if (entry.gearTripShopMapId == mapId) {
+            entry.gearTripShopMapId = -1;
+            entry.gearTripItemId = 0;
+            entry.gearTripCheckAtMs = 0L;
         }
     }
 
-    /** A weapon trip reached its shop map and is heading home without the weapon: the shopkeeper was out of
+    /** A gear trip reached its shop map and is heading home without the piece: the shopkeeper was out of
      *  reach or the visit timed out. SipsBuddy26 and 36 rode to New Leaf City every ten minutes all night and
      *  never got to the spear seller. A purchase clears the target, so a target still pointing here means
      *  nothing was bought. */
-    static boolean weaponTripFailedHere(BotEntry entry, Character bot) {
-        return entry.weaponUpgradeShopMapId != -1 && entry.weaponUpgradeShopMapId == bot.getMapId();
+    static boolean gearTripFailedHere(BotEntry entry, Character bot) {
+        return entry.gearTripShopMapId != -1 && entry.gearTripShopMapId == bot.getMapId();
     }
 
-    /** True when {@link #weaponUpgradeShopMap} has somewhere to go: the errand gates ask this. */
-    static boolean wantsWeaponUpgrade(BotEntry entry, Character bot) {
-        return weaponUpgradeShopMap(entry, bot) != null;
+    /** True when {@link #gearTripShopMap} has somewhere to go: the errand gates ask this. */
+    static boolean wantsGearTrip(BotEntry entry, Character bot) {
+        return gearTripShopMap(entry, bot) != null;
     }
 
-    private static Integer computeWeaponUpgradeShopMap(BotEntry entry, Character bot) {
+    private static Integer computeGearTripShopMap(BotEntry entry, Character bot) {
         if (entry == null || bot == null || bot.getMap() == null || bot.getClient() == null) {
             return null;
         }
         long now = System.currentTimeMillis();
-        // The search reads every shop and its weapons; until the boot warm has loaded them it would pay that on
-        // this tick. Wait for the warm instead: the check stays due and runs on a later tick.
-        if (now >= entry.weaponUpgradeCheckAtMs && BotGrindAdvisor.isWarm()) {
-            entry.weaponUpgradeCheckAtMs = now + WEAPON_UPGRADE_RECHECK_MS;
-            long t0 = BotPerformanceMonitor.start();
-            Integer found = preferredWeaponBudget(bot) <= 0 ? null
-                    : nearestShopMapSelling(entry, bot, shop -> findWeaponUpgradeItem(bot, shop) != null);
-            BotPerformanceMonitor.recordSince("shop-weapon-search", t0);
-            entry.weaponUpgradeShopMapId = found == null ? -1 : found;
+        // The search scores every shop's gear; until the boot warm has loaded the shops it would pay that cold.
+        // Due checks stay due until the warm is done, and the search itself runs on the decision pool.
+        if (now >= entry.gearTripCheckAtMs && BotGrindAdvisor.isWarm() && !entry.gearTripSearchInFlight) {
+            entry.gearTripCheckAtMs = now + GEAR_TRIP_RECHECK_MS;
+            entry.gearTripSearchInFlight = true;
+            BotGrindAdvisor.DECIDE_POOL.execute(() -> {
+                GearTrip trip = null;
+                long t0 = BotPerformanceMonitor.start();
+                try {
+                    trip = searchGearTrip(entry, bot);
+                } catch (RuntimeException e) {
+                    log.debug("bot-shop: gear trip search failed for {}", bot.getName(), e); // retried next check
+                } finally {
+                    BotPerformanceMonitor.recordSince("shop-gear-search", t0);
+                }
+                GearTrip found = trip;
+                BotManager.after(0, () -> {
+                    entry.gearTripSearchInFlight = false;
+                    entry.gearTripShopMapId = found == null ? -1 : found.mapId();
+                    entry.gearTripItemId = found == null ? 0 : found.itemId();
+                });
+            });
         }
-        int cached = entry.weaponUpgradeShopMapId;
+        int cached = entry.gearTripShopMapId;
         return cached == -1 || cached == bot.getMapId() ? null : cached;
     }
 
