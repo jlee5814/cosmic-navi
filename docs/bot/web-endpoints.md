@@ -307,8 +307,10 @@ priced by its cheapest route (`BotScrollManager.cheapestAcquisition`: a shop's p
 on the best dropper, or an NPC craft) in hours at the effort anchor (1,000 meso a second). `expPerHour` is what it
 adds on the bot's grind map (`expPerHourWithDpsGain`: kill time shrinks by the damage gain down to one attack cycle,
 capped by respawn) and `payback` the hours of grinding with it that repay the detour (`paybackHours`; null when it
-levels no faster). `{id, name, level, job, grind:{id, n, mob, expPerHour, killSeconds}, best:[pick], slots:[{slot,
-worn:{id, n, score}, picks:[pick]}]}` with `pick` = `{id, n, req, gain, via, hours, expPerHour, payback}`; ranked by
+levels no faster), `wear` the hours until a better obtainable piece can be worn, and `worth` whether payback beats
+wear (`BotGearPayback.judge`, the rule the gear trip and the craft errand use). `{id, name, level, job, grind:{id, n,
+mob, expPerHour, killSeconds}, best:[pick], slots:[{slot, worn:{id, n, score}, picks:[pick]}]}` with `pick` = `{id, n,
+req, gain, via, hours, expPerHour, payback, wear, worth}`; ranked by
 payback, `best` the top 10, each slot its top 3. `grind` is null in a town with no grind map. `404` when the bot isn't
 online.
 

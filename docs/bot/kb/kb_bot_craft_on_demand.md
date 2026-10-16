@@ -61,3 +61,5 @@ Built 2026-10-15 in `BotCraftManager` (phase A: the bot's own upgrade from its o
   base gear) were at hand; the shortfall against bag plus bins is what it lacks.
 - The endpoint sums those across online bots and ranks by `aloneGain`, the gain of upgrades the item is the
   last missing piece of (what farming it alone unlocks), then by total gain.
+
+**Payback gate** (2026-10-16): `choose` drops a plan whose `verdict` (`BotGearPayback.judge` with the trip to the goal's NPC, the Free Market leg when bins supply parts, and fees plus inputs as hours) doesn't repay before the piece is replaced; `/api/craftplan` shows it as rejected with that reason. Seam: `paysBack`.

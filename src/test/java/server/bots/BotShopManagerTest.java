@@ -479,43 +479,31 @@ class BotShopManagerTest {
         when(bot.getMapId()).thenReturn(600000000);
         BotEntry entry = new BotEntry(bot, null, null);
 
-        entry.weaponUpgradeShopMapId = 600000000; // came to New Leaf City for a spear, bought nothing
-        assertTrue(BotShopManager.weaponTripFailedHere(entry, bot));
-        entry.weaponUpgradeShopMapId = 211000100; // the target shop is elsewhere: a pot stop, not this trip
-        assertFalse(BotShopManager.weaponTripFailedHere(entry, bot));
-        entry.weaponUpgradeShopMapId = -1; // a purchase clears the target
-        assertFalse(BotShopManager.weaponTripFailedHere(entry, bot));
+        entry.gearTripShopMapId = 600000000; // came to New Leaf City for a spear, bought nothing
+        assertTrue(BotShopManager.gearTripFailedHere(entry, bot));
+        entry.gearTripShopMapId = 211000100; // the target shop is elsewhere: a pot stop, not this trip
+        assertFalse(BotShopManager.gearTripFailedHere(entry, bot));
+        entry.gearTripShopMapId = -1; // a purchase clears the target
+        assertFalse(BotShopManager.gearTripFailedHere(entry, bot));
     }
 
     @Test
     void anUnreachableWeaponShopIsSkippedAndTheSearchRerunsNow() {
         BotEntry entry = new BotEntry(mock(Character.class), null, null);
-        entry.weaponUpgradeShopMapId = 540000000;
-        entry.weaponUpgradeCheckAtMs = 9_999_999L;
+        entry.gearTripShopMapId = 540000000;
+        entry.gearTripCheckAtMs = 9_999_999L;
 
         BotShopManager.markShopMapUnreachable(entry, 540000000, 1_000L);
 
         assertEquals(1_000L + BotShopManager.UNREACHABLE_SHOP_RETRY_MS, (long) entry.unreachableShopUntilMs.get(540000000));
-        assertEquals(-1, entry.weaponUpgradeShopMapId);
-        assertEquals(0L, entry.weaponUpgradeCheckAtMs);
+        assertEquals(-1, entry.gearTripShopMapId);
+        assertEquals(0L, entry.gearTripCheckAtMs);
         // A pot errand that failed elsewhere leaves the weapon search alone.
-        entry.weaponUpgradeShopMapId = 211000100;
-        entry.weaponUpgradeCheckAtMs = 5L;
+        entry.gearTripShopMapId = 211000100;
+        entry.gearTripCheckAtMs = 5L;
         BotShopManager.markShopMapUnreachable(entry, 104000000, 1_000L);
-        assertEquals(211000100, entry.weaponUpgradeShopMapId);
-        assertEquals(5L, entry.weaponUpgradeCheckAtMs);
-    }
-
-    @Test
-    void weaponUpgradeNeedsAClearGainOverTheWornWeapon() {
-        // Field Dagger to Cass is a big step; a sliver of gain is not worth a shop trip.
-        assertTrue(BotShopManager.isWorthwhileWeaponUpgrade(30.0, 45.0));
-        assertTrue(BotShopManager.isWorthwhileWeaponUpgrade(30.0, 30.0 * (1.0 + BotShopManager.WEAPON_UPGRADE_MIN_GAIN)));
-        assertFalse(BotShopManager.isWorthwhileWeaponUpgrade(30.0, 32.0));
-        assertFalse(BotShopManager.isWorthwhileWeaponUpgrade(30.0, 30.0));
-        assertFalse(BotShopManager.isWorthwhileWeaponUpgrade(45.0, 30.0));
-        // A worthless worn weapon: any real value is an upgrade.
-        assertTrue(BotShopManager.isWorthwhileWeaponUpgrade(0.0, 5.0));
+        assertEquals(211000100, entry.gearTripShopMapId);
+        assertEquals(5L, entry.gearTripCheckAtMs);
     }
 
     // Stub the ItemInformationProvider-backed seam: star 2070018 is the strongest, all stacks

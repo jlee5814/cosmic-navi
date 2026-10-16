@@ -290,6 +290,7 @@ public class BotEntry {
     // Autopilot (BotAutopilotManager): owner-ordered independent play. -1 = off.
     // Deliberately NOT cleared on death: the bot revives in town and walks back.
     int autopilotMapId = -1;            // chosen grind map; travel destination while != current map
+    volatile BotGrindPlanner.MobCandidate autopilotPlanPick = null; // the plan's map candidate (kill time, exp): gear payback reads it
     long autopilotNextDecisionAtMs = 0L; // when to re-run the grind advisor
     // Post-mortem for "idle in town overnight": the LAST decision the advisor resolved and when, so
     // @botstatus can self-diagnose a stranding after the fact (the live decision stream is no use for
@@ -338,10 +339,12 @@ public class BotEntry {
     boolean restErrand = false;
     long autopilotNextErrandAtMs = 0L;
     long capIdleSinceMs = 0L;         // when a roster bot started idling at its training cap; 0 = not idling
-    long weaponUpgradeCheckAtMs = 0L; // next time BotShopManager.weaponUpgradeShopMap reruns its shop search
+    long gearTripCheckAtMs = 0L; // next time BotShopManager.gearTripShopMap reruns its gear trip search
     // Shop maps an errand could not reach, with when to try each again; the weapon upgrade search skips them.
     final Map<Integer, Long> unreachableShopUntilMs = new ConcurrentHashMap<>();
-    int weaponUpgradeShopMapId = -1;  // cached nearest map selling a worthwhile weapon upgrade; -1 none
+    int gearTripShopMapId = -1;  // the gear trip's shop map (BotShopManager.searchGearTrip); -1 none
+    int gearTripItemId = 0;           // the piece the gear trip is for; 0 none
+    volatile boolean gearTripSearchInFlight = false; // the trip search runs on the decision pool
     long autopilotLastErrandLogAtMs = 0L; // throttle for the "couldn't start errand" diagnostic log
     long sellBlockLogAtMs = 0L; // throttle for the cramped-bag "why isn't it selling" diagnostic log
     long autopilotOwnerSupplyGraceUntilMs = 0L;
