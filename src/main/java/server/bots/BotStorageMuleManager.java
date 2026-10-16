@@ -121,26 +121,40 @@ final class BotStorageMuleManager {
         if (ItemConstants.isThrowingStar(itemId)) {
             return "Thief weapons";
         }
-        if (ItemConstants.isWeapon(itemId)) {
-            return byClass(itemId, " weapons");
-        }
-        return switch (itemId / 10000) {
+        return kindRole(itemId / 10000, () -> classOf(reqJob.applyAsInt(itemId)));
+    }
+
+    /** The bin for an equip kind ({@code itemId / 10000}): weapons and armor by class ({@code className}, null for
+     *  any class), gloves, shoes, capes and accessories by kind. Shared by Maple gear and routed scrolls. */
+    static String kindRole(int kind, java.util.function.Supplier<String> className) {
+        String byKind = switch (kind) {
             case 107 -> "Shoes";
             case 108 -> "Gloves";
             case 110 -> "Capes";
             case 101, 102, 103, 111, 112, 113, 114 -> "Accessories"; // face, eye, earrings, ring, pendant, belt, medal
-            default -> byClass(itemId, " armor"); // hats, tops, overalls, pants, shields
+            default -> null; // weapons; hats, tops, overalls, pants, shields go by class
         };
+        if (byKind != null) {
+            return byKind;
+        }
+        String cls = className.get();
+        return cls == null ? RARE_EQUIPMENT : cls + (kind >= 130 && kind < 150 ? " weapons" : " armor");
     }
 
-    private static String byClass(int itemId, String suffix) {
-        int mask = reqJob.applyAsInt(itemId);
+    /** The first class a reqJob mask allows (bits 1..16: warrior, mage, bowman, thief, pirate), or null. */
+    private static String classOf(int reqJobMask) {
         for (int i = 0; i < CLASSES.length; i++) {
-            if (mask > 0 && (mask & (1 << i)) != 0) {
-                return CLASSES[i] + suffix;
+            if (reqJobMask > 0 && (reqJobMask & (1 << i)) != 0) {
+                return CLASSES[i];
             }
         }
-        return RARE_EQUIPMENT;
+        return null;
+    }
+
+    /** A job's class name (100s warrior .. 500s pirate, Cygnus alike), or null for a beginner. */
+    static String classOfJob(int jobId) {
+        int branch = (jobId / 100) % 10;
+        return branch >= 1 && branch <= CLASSES.length ? CLASSES[branch - 1] : null;
     }
 
     /** The bin an item goes to: Maple gear by its kind, a maker material by its family, else null. */
@@ -149,8 +163,8 @@ final class BotStorageMuleManager {
     }
 
     /** What a farmer hands over: its ETC shelf, plus the Maple gear it isn't wearing next or holding for a
-     *  teammate (equips the sell rules mark BIN), plus Maple Throwing-Stars it doesn't throw itself, all that
-     *  survive being dropped. */
+     *  teammate (equips the sell rules mark BIN), plus Maple Throwing-Stars it doesn't throw itself, plus scrolls it
+     *  can't use that a fleet member can ({@link BotScrollRouting#handoffScrolls}), all that survive being dropped. */
     static List<Item> handoffItems(BotEntry entry, Character bot) {
         List<Item> out = new ArrayList<>(BotInventoryManager.etcShelf(bot));
         BotInventoryManager.classifyBagEquips(entry, bot).forEach((item, c) -> {
@@ -166,6 +180,7 @@ final class BotStorageMuleManager {
                 out.add(item);
             }
         }
+        out.addAll(BotScrollRouting.handoffScrolls(bot, directory(System.currentTimeMillis())));
         return out;
     }
 
@@ -501,7 +516,7 @@ final class BotStorageMuleManager {
         long now = System.currentTimeMillis();
         BotEntry partner = BotManager.getInstance().getEntryByBotCharId(duty.partnerId());
         boolean wanted = partner != null && partner.bot != null && (duty.pickup()
-                ? partner.craftPickups.containsKey(bot.getId())
+                ? partner.pickups.containsKey(bot.getId())
                 : partner.muleVisitMapId != -1 && partner.muleVisitBins.contains(bot.getId()));
         if (now - duty.sinceMs() > DUTY_MAX_MS || !wanted) {
             endDuty(bot.getId());
@@ -550,7 +565,7 @@ final class BotStorageMuleManager {
     }
 
     /**
-     * A pickup: the mule walks up to its partner and drops what it was asked for from its ETC tab, a stack at a
+     * A pickup: the mule walks up to its partner and drops what it was asked for (ETC parts, scrolls), a stack at a
      * time, the way the farmer hands a batch over; the partner's passive loot takes it. The partner ends the
      * duty once it holds what it needs.
      */
@@ -570,10 +585,11 @@ final class BotStorageMuleManager {
         if (now < entry.muleNextGiveAtMs) {
             return true;
         }
-        Inventory etc = bot.getInventory(InventoryType.ETC);
         for (Map.Entry<Integer, Integer> want : duty.give().entrySet()) {
+            InventoryType tab = ItemConstants.getInventoryType(want.getKey());
+            Inventory inv = bot.getInventory(tab);
             Item stack = null;
-            for (Item it : etc == null ? List.<Item>of() : etc.list()) {
+            for (Item it : inv == null ? List.<Item>of() : inv.list()) {
                 if (it.getItemId() == want.getKey() && it.getQuantity() > 0 && BotInventoryManager.isSafeToDrop(it)) {
                     stack = it;
                     break;
@@ -584,7 +600,7 @@ final class BotStorageMuleManager {
                 return true;
             }
             int n = Math.min(want.getValue(), stack.getQuantity());
-            InventoryManipulator.drop(bot.getClient(), InventoryType.ETC, stack.getPosition(), (short) n);
+            InventoryManipulator.drop(bot.getClient(), tab, stack.getPosition(), (short) n);
             if (n >= want.getValue()) {
                 duty.give().remove(want.getKey());
             } else {
@@ -632,7 +648,8 @@ final class BotStorageMuleManager {
         }
         Map<Integer, Integer> partsPlanned = new HashMap<>();
         for (Item item : shelf) {
-            String role = roleFor(item.getItemId());
+            String role = ItemConstants.isEquipScroll(item.getItemId())
+                    ? BotScrollRouting.binRole(dir, farmerId, item.getItemId()) : roleFor(item.getItemId());
             Integer mule = role == null ? null : dir.muleFor(farmerId, role);
             if (mule == null || mule == farmerId) {
                 continue;
@@ -671,7 +688,7 @@ final class BotStorageMuleManager {
     }
 
     /** No visit or pickup holds this mule, and no player has it logged in. */
-    private static boolean muleFree(int mule) {
+    static boolean muleFree(int mule) {
         if (DUTIES.containsKey(mule)) {
             return false;
         }
@@ -689,6 +706,12 @@ final class BotStorageMuleManager {
     }
 
     static Map<Integer, Map<Integer, Integer>> binStock(Directory dir, int farmerId, IntPredicate free) {
+        return binHoldings(dir, farmerId, free, Member::etcHeld);
+    }
+
+    /** What this farmer's free bins hold of one kind: their ETC tabs, or their equip scrolls. */
+    static Map<Integer, Map<Integer, Integer>> binHoldings(Directory dir, int farmerId, IntPredicate free,
+                                                           java.util.function.Function<Member, Map<Integer, Integer>> held) {
         Integer owner = dir.ownerOf().get(farmerId);
         Map<Integer, String> mules = new HashMap<>();
         Map<String, Integer> byRole = owner == null ? null : dir.mulesByOwner().get(owner);
@@ -698,8 +721,8 @@ final class BotStorageMuleManager {
         }
         byRole.forEach((role, mule) -> mules.put(mule, role));
         for (Member m : dir.membersByOwner().getOrDefault(owner, List.of())) {
-            if (mules.containsKey(m.charId()) && m.charId() != farmerId && !m.etcHeld().isEmpty() && free.test(m.charId())) {
-                stock.put(m.charId(), m.etcHeld());
+            if (mules.containsKey(m.charId()) && m.charId() != farmerId && !held.apply(m).isEmpty() && free.test(m.charId())) {
+                stock.put(m.charId(), held.apply(m));
             }
         }
         return stock;
@@ -751,11 +774,71 @@ final class BotStorageMuleManager {
     }
 
     /** Ends a pickup duty this farmer holds; the mule logs out. */
-    static void releasePickup(int muleId, int farmerId) {
+    private static void releasePickup(int muleId, int farmerId) {
         Duty d = DUTIES.get(muleId);
         if (d != null && d.partnerId() == farmerId) {
             endDuty(muleId);
         }
+    }
+
+    // ---- the pickup itself, shared by the craft errand and the scroll pickup ------------------------------------
+
+    private static final long PICKUP_TIMEOUT_MS = 5 * 60_000L; // at the market, how long the mules get
+
+    static boolean pickupActive(BotEntry entry) {
+        return !entry.pickups.isEmpty();
+    }
+
+    /** Records the pickup and claims its mules; false (nothing kept) when one is no longer free. {@code need}:
+     *  the bag counts that mean the farmer holds everything. */
+    static boolean startPickup(BotEntry entry, int farmerId, Map<Integer, Map<Integer, Integer>> pickups,
+                               Map<Integer, Integer> need) {
+        entry.pickupSinceMs = 0L;
+        entry.pickupNeed.clear();
+        entry.pickupNeed.putAll(need);
+        entry.pickups.putAll(pickups); // before the claim, so a mule's first tick sees it is wanted
+        if (!claimPickups(farmerId, pickups)) {
+            releasePickups(entry, farmerId);
+            return false;
+        }
+        return true;
+    }
+
+    enum PickupStatus { TRAVELING, TRAVEL_YIELDED, COLLECTING, GOT_ALL, SHORT }
+
+    /** One tick of a pickup: travel to the market, then collect what the mules drop. Ends (duties released) with
+     *  GOT_ALL when the bag holds {@code pickupNeed}, or SHORT when the mules dropped out or 5 minutes passed. */
+    static PickupStatus tickPickup(BotEntry entry, Character bot, BotTravelManager.ErrandProgress progress, long now,
+                                   boolean runAiTick) {
+        if (bot.getMapId() != BotWorldGraph.FREE_MARKET) {
+            boolean moved = BotTravelManager.tickTravel(entry, bot, BotWorldGraph.FREE_MARKET,
+                    BotAutopilotManager.MAX_TRAVEL_HOPS, runAiTick, false);
+            progress.record(bot, moved, now);
+            return moved ? PickupStatus.TRAVELING : PickupStatus.TRAVEL_YIELDED;
+        }
+        progress.touch(now);
+        if (entry.pickupSinceMs == 0L) {
+            entry.pickupSinceMs = now;
+        }
+        entry.pickups.keySet().removeIf(mule -> !givingTo(mule, bot.getId()));
+        boolean got = entry.pickupNeed.entrySet().stream()
+                .allMatch(e -> bot.getItemQuantity(e.getKey(), false) >= e.getValue());
+        if (!got && !entry.pickups.isEmpty() && now - entry.pickupSinceMs < PICKUP_TIMEOUT_MS) {
+            collectPickup(entry, bot, entry.pickups.keySet(), runAiTick);
+            return PickupStatus.COLLECTING;
+        }
+        releasePickups(entry, bot.getId());
+        return got ? PickupStatus.GOT_ALL : PickupStatus.SHORT;
+    }
+
+    /** Ends every pickup duty the farmer holds (the mules log out) and forgets the pickup. */
+    static void releasePickups(BotEntry entry, int farmerId) {
+        for (int mule : List.copyOf(entry.pickups.keySet())) {
+            releasePickup(mule, farmerId);
+        }
+        entry.pickups.clear();
+        entry.pickupNeed.clear();
+        entry.pickupSinceMs = 0L;
     }
 
     /** The farmer at the market during a pickup: walk onto the newest drop one of its mules left, else wait by
@@ -801,7 +884,7 @@ final class BotStorageMuleManager {
         }
         entry.muleVisitCheckAtMs = now + VISIT_CHECK_EVERY_MS;
         if (onDuty(entry) || entry.following || entry.shopVisitPending || entry.autopilotErrandMapId != -1
-                || BotCraftManager.active(entry)) {
+                || BotCraftManager.active(entry) || BotScrollRouting.active(entry)) {
             return;
         }
         Directory dir = directory(now);

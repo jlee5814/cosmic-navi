@@ -222,6 +222,41 @@ final class BotOfferManager {
 
     static ScrollRules scrollRules = null; // null: the live item data
 
+    static ScrollRules rules() {
+        return scrollRules != null ? scrollRules : ScrollRules.of(ItemInformationProvider.getInstance());
+    }
+
+    /** The live rule for a character: by its job and what it wears now. */
+    static boolean scrollUsefulTo(Character c, int sid) {
+        List<Integer> worn = new ArrayList<>();
+        for (Item it : c.getInventory(InventoryType.EQUIPPED).list()) {
+            worn.add(it.getItemId());
+        }
+        return scrollUsefulTo(rules(), c.getJob(), worn, sid);
+    }
+
+    /** The members of the holder's fleet (same owner, beginners left out) a scroll is useful to. */
+    static List<BotStorageMuleManager.Member> scrollTakers(BotStorageMuleManager.Directory dir, int holderId, int sid) {
+        Integer owner = dir == null ? null : dir.ownerOf().get(holderId);
+        if (owner == null) {
+            return List.of();
+        }
+        return takers(rules(), dir.membersByOwner().getOrDefault(owner, List.of()), holderId, sid);
+    }
+
+    private static List<BotStorageMuleManager.Member> takers(ScrollRules rules, List<BotStorageMuleManager.Member> fleet,
+                                                            int holderId, int sid) {
+        List<BotStorageMuleManager.Member> out = new ArrayList<>();
+        for (BotStorageMuleManager.Member m : fleet) {
+            // Beginners (every storage mule) count every stat and scroll nothing: never a taker.
+            if (m.charId() != holderId && m.jobId() != 0
+                    && scrollUsefulTo(rules, client.Job.getById(m.jobId()), m.wornIds(), sid)) {
+                out.add(m);
+            }
+        }
+        return List.copyOf(out);
+    }
+
     /** A scroll its holder can't use, and the fleet members (same owner) who could. */
     record ScrollMatch(BotStorageMuleManager.Member holder, int scrollId, int qty,
                        List<BotStorageMuleManager.Member> takers) {}
@@ -232,7 +267,7 @@ final class BotOfferManager {
      * other members of the same owner's fleet it is useful to (beginners left out).
      */
     static List<ScrollMatch> fleetScrollMatches(BotStorageMuleManager.Directory dir) {
-        ScrollRules rules = scrollRules != null ? scrollRules : ScrollRules.of(ItemInformationProvider.getInstance());
+        ScrollRules rules = rules();
         List<ScrollMatch> out = new ArrayList<>();
         if (dir == null) {
             return out;
@@ -244,15 +279,7 @@ final class BotOfferManager {
                     if (!rules.offerable(sid) || scrollUsefulTo(rules, job, holder.wornIds(), sid)) {
                         return;
                     }
-                    List<BotStorageMuleManager.Member> takers = new ArrayList<>();
-                    for (BotStorageMuleManager.Member m : fleet) {
-                        // Beginners (every storage mule) count every stat and scroll nothing: never a taker.
-                        if (m != holder && m.jobId() != 0
-                                && scrollUsefulTo(rules, client.Job.getById(m.jobId()), m.wornIds(), sid)) {
-                            takers.add(m);
-                        }
-                    }
-                    out.add(new ScrollMatch(holder, sid, qty, List.copyOf(takers)));
+                    out.add(new ScrollMatch(holder, sid, qty, takers(rules, fleet, holder.charId(), sid)));
                 });
             }
         }
