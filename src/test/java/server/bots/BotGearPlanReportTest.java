@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BotGearPlanReportTest {
     private static BotGearPlanReport.Pick pick(int id, double gain, double hours, double payback) {
         return new BotGearPlanReport.Pick(id, 10, gain, new BotScrollManager.Acquisition("farm", hours * 3_600_000.0),
-                0, payback);
+                new BotGearPayback.Verdict(hours, 0, 0, payback, 100));
     }
 
     @Test

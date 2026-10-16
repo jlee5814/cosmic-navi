@@ -204,6 +204,7 @@ final class BotAutopilotManager {
             entry.autopilotAvoidMapUntilMs.put(entry.autopilotMapId, until);
         }
         entry.autopilotMapId = -1;            // drop the pick; BotManager.maybeRecoverInertAutopilot re-decides
+        entry.autopilotPlanPick = null;
         entry.autopilotDestinationName = "";
         entry.autopilotErrandMapId = -1;
         entry.autopilotDeathStreak = 0;       // gave it an escape; count fresh from here
@@ -399,6 +400,7 @@ final class BotAutopilotManager {
             }
         }
         entry.autopilotMapId = -1;
+        entry.autopilotPlanPick = null;
         entry.autopilotNextDecisionAtMs = 0L;
         entry.autopilotDestinationName = "";
         entry.autopilotObjectiveSummary = "";
@@ -803,8 +805,8 @@ final class BotAutopilotManager {
                 }
                 // The auto shop visit (triggered by the map change) is over or never fired —
                 // errand done either way, head back to the grind map.
-                if (BotShopManager.weaponTripFailedHere(entry, bot)) {
-                    // Came for a weapon, leaving without it: try the next nearest shop next time.
+                if (BotShopManager.gearTripFailedHere(entry, bot)) {
+                    // Came for a gear piece, leaving without it: try the next nearest shop next time.
                     BotShopManager.markShopMapUnreachable(entry, bot.getMapId(), System.currentTimeMillis());
                 }
                 entry.autopilotErrandMapId = -1;
@@ -816,9 +818,9 @@ final class BotAutopilotManager {
                 entry.autopilotReturningFromErrand = false;
                 reply.accept(entry, BotManager.randomReply(BACK_REPLIES));
             }
-            // A worthwhile weapon upgrade sits in a reachable shop: detour for it mid grind, as the
-            // reactive pot errand does. The shop search is cached per bot, so the check is cheap.
-            if (!operatorPinned && BotShopManager.wantsWeaponUpgrade(entry, bot)) {
+            // A gear piece that pays back its trip (BotGearPayback) sits in a reachable shop: detour for it mid
+            // grind, as the reactive pot errand does. The search runs off the tick and is cached per bot.
+            if (!operatorPinned && BotShopManager.wantsGearTrip(entry, bot)) {
                 requestResupplyErrand(entry, bot);
             }
             announceArrival(entry);
@@ -846,7 +848,7 @@ final class BotAutopilotManager {
         boolean needsPreferredWeapon = BotShopManager.needsPreferredWeaponForCurrentJob(bot);
         if (!operatorPinned && entry.autopilotErrandMapId == -1 && !entry.autopilotReturningFromErrand
                 && (lowAndCanBuy || ammoStranded || needsPreferredWeapon || bagFull.bagFull(entry, bot)
-                    || BotShopManager.wantsWeaponUpgrade(entry, bot))) {
+                    || BotShopManager.wantsGearTrip(entry, bot))) {
             requestResupplyErrand(entry, bot);
             if (entry.autopilotErrandMapId != -1) {
                 destination = entry.autopilotErrandMapId; // head to town this tick, not the grind map
@@ -1058,9 +1060,10 @@ final class BotAutopilotManager {
         try {
             if (BotShopManager.needsPreferredWeaponForCurrentJob(bot)) {
                 reasons.add("need a " + BotShopManager.preferredWeaponName(bot));
-            } else if (BotShopManager.wantsWeaponUpgrade(entry, bot)) {
-                String weapon = BotShopManager.preferredWeaponName(bot);
-                reasons.add("going for a better " + ("preferred weapon".equals(weapon) ? "weapon" : weapon));
+            } else if (BotShopManager.wantsGearTrip(entry, bot)) {
+                String piece = entry.gearTripItemId == 0 ? null
+                        : server.ItemInformationProvider.getInstance().getName(entry.gearTripItemId);
+                reasons.add("going for a " + (piece == null ? "gear upgrade" : piece));
             }
         } catch (RuntimeException ignored) {
             // Gear-readiness text is diagnostic only; keep the errand alive.
@@ -2167,6 +2170,7 @@ final class BotAutopilotManager {
     private static void installPlan(BotEntry entry, Recommendation rec, int fromMapId) {
         MobCandidate pick = rec.pick();
         entry.autopilotMapId = pick.mapId();
+        entry.autopilotPlanPick = pick;
         entry.autopilotDestinationName = destinationName(pick);
         entry.autopilotObjectiveSummary = objectiveSummary(entry, rec);
         entry.autopilotObjectiveReason = objectiveReason(entry, rec);

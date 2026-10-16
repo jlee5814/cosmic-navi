@@ -19,9 +19,9 @@ import java.util.TreeMap;
  * wear today: its gain over the best it owns for the slot (the grind planner's {@link
  * BotGrindAdvisor#catalogAcquireGain}, an overall against top plus pants), the cheapest way to get one ({@link
  * BotScrollManager#cheapestAcquisition}: a shop's price, its own farming effort on the best dropper, or an NPC
- * craft, in hours at the effort anchor), the experience per hour it adds on the bot's grind map ({@link
- * BotGrindAdvisor#expPerHourWithDpsGain}), and the hours of grinding with it that win back the detour ({@link
- * BotGrindAdvisor#paybackHours}). Ranked by payback. A boss drop is priced by this bot's solo kill time, so it pays
+ * craft, in hours at the effort anchor), and the gear detour verdict ({@link BotGearPayback#judge}): the
+ * experience per hour it adds on the bot's grind map, the hours of grinding with it that win back the detour,
+ * and the hours it will be worn before a better piece can be. Ranked by payback. A boss drop is priced by this bot's solo kill time, so it pays
  * back sooner as the bot grows. Read only; served at {@code /api/gearplan}.
  */
 final class BotGearPlanReport {
@@ -29,10 +29,9 @@ final class BotGearPlanReport {
 
     /** A piece the bot could go get: how much it gains, what it costs, the experience per hour it adds on the
      *  grind map and the hours of grinding with it that repay the detour (infinite when it adds none). */
-    record Pick(int itemId, int reqLevel, double gain, BotScrollManager.Acquisition how, double expGainPerHour,
-                double paybackHours) {
-        double perHour() {
-            return how.hours() <= 0 ? Double.POSITIVE_INFINITY : gain / how.hours();
+    record Pick(int itemId, int reqLevel, double gain, BotScrollManager.Acquisition how, BotGearPayback.Verdict verdict) {
+        double paybackHours() {
+            return verdict.paybackHours();
         }
     }
 
@@ -52,8 +51,6 @@ final class BotGearPlanReport {
                                               BotGrindPlanner.MobCandidate grind) {
         Map<Short, List<Pick>> bySlot = new TreeMap<>();
         Map<Short, Double> bar = new java.util.HashMap<>();
-        double worn = Math.max(1.0, BotGrindAdvisor.totalWornValue(bot, ii));
-        double exp0 = grind == null ? 0 : grind.exp() * BotGrindPlanner.killsPerHour(grind);
         for (Pair<Integer, String> p : ii.getAllItems()) {
             int id = p.getLeft();
             if (id < 1000000 || id >= 2000000 || ii.isCash(id)) {
@@ -72,10 +69,8 @@ final class BotGearPlanReport {
             }
             BotScrollManager.Acquisition how = BotScrollManager.cheapestAcquisition(bot, id);
             if (Double.isFinite(how.meso())) {
-                double exp1 = grind == null ? 0 : BotGrindAdvisor.expPerHourWithDpsGain(grind, gain / worn);
                 bySlot.computeIfAbsent(slot, s -> new ArrayList<>()).add(new Pick(id, req == null ? 0 : req, gain, how,
-                        exp1 - exp0, grind == null ? Double.POSITIVE_INFINITY
-                                : BotGrindAdvisor.paybackHours(how.hours(), exp0, exp1)));
+                        BotGearPayback.judge(bot, ii, clean, gain, how.hours(), grind)));
             }
         }
         bySlot.values().forEach(l -> l.sort(BEST_FIRST));
@@ -119,8 +114,13 @@ final class BotGearPlanReport {
         }
         return "{\"id\":" + p.itemId() + ",\"n\":" + str(ii.getName(p.itemId())) + ",\"req\":" + p.reqLevel()
                 + ",\"gain\":" + round(p.gain()) + ",\"via\":" + str(via) + ",\"hours\":" + Math.round(p.how().hours() * 100) / 100.0
-                + ",\"expPerHour\":" + Math.round(p.expGainPerHour())
-                + ",\"payback\":" + (Double.isFinite(p.paybackHours()) ? Math.round(p.paybackHours() * 100) / 100.0 : "null") + "}";
+                + ",\"expPerHour\":" + Math.round(p.verdict().expPerHourWith() - p.verdict().expPerHour())
+                + ",\"payback\":" + hours(p.paybackHours()) + ",\"wear\":" + hours(p.verdict().wearHours())
+                + ",\"worth\":" + p.verdict().worth() + "}";
+    }
+
+    private static String hours(double h) {
+        return Double.isFinite(h) ? String.valueOf(Math.round(h * 100) / 100.0) : "null";
     }
 
     private static double round(double v) {
