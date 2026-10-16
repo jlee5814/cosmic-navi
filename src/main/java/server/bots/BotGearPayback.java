@@ -57,6 +57,13 @@ final class BotGearPayback {
         return LAST_LEVEL;
     }
 
+    /** The level a piece is worn to: where a better obtainable one can be worn, or, when the table has none, the
+     *  fleet's outgrown line ({@link BotStorageMuleManager#DEMAND_OUTGROWN_LEVELS} past its requirement), so a
+     *  piece nothing listed replaces isn't counted as worn to the level cap. */
+    static int wornUntil(int replacedAt, int reqLevel) {
+        return replacedAt < LAST_LEVEL ? replacedAt : reqLevel + BotStorageMuleManager.DEMAND_OUTGROWN_LEVELS;
+    }
+
     /** Hours to go from {@code fromLevel} to {@code toLevel} at {@code expPerHour}. */
     static double hoursToLevel(int fromLevel, int toLevel, double expPerHour) {
         if (expPerHour <= 0) {
@@ -83,8 +90,9 @@ final class BotGearPayback {
         double exp0 = grind.exp() * BotGrindPlanner.killsPerHour(grind);
         double exp1 = BotGrindAdvisor.expPerHourWithDpsGain(grind, gain / worn);
         int jobId = bot.getJob() == null ? 0 : bot.getJob().getId();
-        int until = replacedAt(table(ii, jobId, clean.getItemId() / 10000),
-                BotScrollManager.potentialValue(jobId, ii, clean), bot.getLevel());
+        Integer req = ii.getEquipLevelReq(clean.getItemId());
+        int until = wornUntil(replacedAt(table(ii, jobId, clean.getItemId() / 10000),
+                BotScrollManager.potentialValue(jobId, ii, clean), bot.getLevel()), req == null ? 0 : req);
         return new Verdict(detourHours, exp0, exp1, BotGrindAdvisor.paybackHours(detourHours, exp0, exp1),
                 hoursToLevel(bot.getLevel(), until, exp0));
     }

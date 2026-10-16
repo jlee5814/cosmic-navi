@@ -24,6 +24,13 @@ class BotGearPaybackTest {
     }
 
     @Test
+    void aPieceNothingReplacesIsWornToTheFleetsOutgrownLineNotTheLevelCap() {
+        assertEquals(80, BotGearPayback.wornUntil(80, 50)); // the table decides when it can
+        assertEquals(26 + BotStorageMuleManager.DEMAND_OUTGROWN_LEVELS, BotGearPayback.wornUntil(200, 26));
+        assertEquals(0.0, BotGearPayback.hoursToLevel(67, BotGearPayback.wornUntil(200, 26), 500_000), 1e-9);
+    }
+
+    @Test
     void hoursToLevelSumsTheExpTableAtTheRate() {
         double one = constants.game.ExpTable.getExpNeededForLevel(67);
         assertEquals(1.0, BotGearPayback.hoursToLevel(67, 68, one), 1e-9);
