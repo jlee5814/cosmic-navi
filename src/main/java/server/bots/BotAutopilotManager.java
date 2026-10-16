@@ -463,6 +463,19 @@ final class BotAutopilotManager {
         // not a combat-mode destination.
     }
 
+    /**
+     * The grind plan prices every mob by the bot's attack skills ({@link BotCombatManager#estimateBestSkillHitDamage}
+     * reads the entry's skill cache), and that cache is first built on the bot's first AI tick. A bot that starts
+     * autopilot as it logs in decided before then, priced every mob by a basic wand swing, and went to the maps a
+     * swing clears: SipsBuddy2, a level 77 Priest, to Murupa (level 3, about 22k exp an hour) and Nefarious Hill
+     * (about 48k) instead of Line 2 (about 463k). Build the cache, as the tick would, before the plan is computed.
+     */
+    private static void warmAttackSkills(BotEntry entry, Character bot) {
+        if (entry != null && bot != null && bot.getJob() != null) {
+            BotCombatManager.rebuildSkillCacheIfNeeded(entry, bot);
+        }
+    }
+
     /** Owner ordered independent play: decide (off-thread), announce, head out. */
     static void start(BotEntry entry, Character bot) {
         if (entry == null || bot == null || bot.getMap() == null) {
@@ -474,6 +487,7 @@ final class BotAutopilotManager {
         }
         int epoch = entry.activityEpoch;
         boolean ferryApprovedBefore = entry.autopilotFerryApproved;
+        warmAttackSkills(entry, bot);
         decisionRunner.run(() -> decide(entry, bot), result -> {
             Decision decision = (Decision) result;
             Recommendation rec = decision != null ? decision.rec() : null;
@@ -521,6 +535,7 @@ final class BotAutopilotManager {
             return;
         }
         int[] epochs = members.stream().mapToInt(m -> m.activityEpoch).toArray();
+        members.forEach(m -> warmAttackSkills(m, m.bot));
         decisionRunner.run(() -> decideParty(members), result -> {
             PartyPlan plan = (PartyPlan) result;
             for (int i = 0; i < members.size(); i++) {
