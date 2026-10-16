@@ -1269,6 +1269,26 @@ final class BotGrindAdvisor {
         return sum / sampleScores.length;
     }
 
+    /**
+     * Experience per hour on this map candidate if the bot dealt {@code dpsGainFraction} more damage (the same
+     * fraction a gear prospect carries, gain over {@link #totalWornValue}): kill time shrinks by that factor down to
+     * one attack cycle, and the map's respawn still caps the kill rate ({@link BotGrindPlanner#killsPerHour}). So
+     * damage past a one hit kill, or on a map the bot already clears faster than it refills, adds nothing.
+     */
+    static double expPerHourWithDpsGain(BotGrindPlanner.MobCandidate c, double dpsGainFraction) {
+        double kill = Math.max(ATTACK_CYCLE_SECONDS, c.killSeconds() / (1.0 + Math.max(0.0, dpsGainFraction)));
+        BotGrindPlanner.MobCandidate faster = new BotGrindPlanner.MobCandidate(c.mobId(), c.mobName(), c.mobLevel(),
+                c.exp(), kill, c.mapId(), c.mapName(), c.spawnPoints(), c.mapAreaPx(), c.touchDanger(), c.gearDrops());
+        return c.exp() * BotGrindPlanner.killsPerHour(faster);
+    }
+
+    /** Hours of grinding with an upgrade it takes to win back the experience the detour to get it cost:
+     *  {@code detourHours} at {@code expPerHour}, repaid at the gain. Infinite when it doesn't level faster. */
+    static double paybackHours(double detourHours, double expPerHour, double expPerHourWith) {
+        double gain = expPerHourWith - expPerHour;
+        return gain <= 0 ? Double.POSITIVE_INFINITY : detourHours * expPerHour / gain;
+    }
+
     static double totalWornValue(Character bot, ItemInformationProvider ii) {
         double total = 0.0;
         for (Item it : bot.getInventory(InventoryType.EQUIPPED).list()) {
