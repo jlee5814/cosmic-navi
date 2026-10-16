@@ -248,6 +248,33 @@ final class BotSpawnIndex {
         return 0;
     }
 
+    /** The longest {@code mobTime} (seconds from a kill to the respawn, {@code SpawnPoint}) among the mob's spawn
+     *  points on the map, following {@code info/link} as {@link #readMap} does; 0 when it respawns at once or isn't
+     *  placed there. Reads one map file: off the tick. */
+    static int mobTimeSeconds(DataProvider mapSource, int mapId, int mobId) {
+        Data mapData = mapSource.getData(mapImgPath(mapId / 100000000, mapId));
+        String link = mapData == null ? "" : DataTool.getString("info/link", mapData, "");
+        if (!link.isEmpty()) {
+            try {
+                int linkId = Integer.parseInt(link);
+                mapData = mapSource.getData(mapImgPath(linkId / 100000000, linkId));
+            } catch (NumberFormatException ignored) {
+                // malformed link: read the map as is
+            }
+        }
+        Data life = mapData == null ? null : mapData.getChildByPath("life");
+        int longest = 0;
+        if (life != null) {
+            for (Data entry : life) {
+                String id = DataTool.getString("id", entry, "");
+                if ("m".equals(DataTool.getString("type", entry, "")) && id.matches("\\d+") && Integer.parseInt(id) == mobId) {
+                    longest = Math.max(longest, DataTool.getInt("mobTime", entry, 0));
+                }
+            }
+        }
+        return longest;
+    }
+
     private static String mapImgPath(int area, int mapId) {
         return "Map/Map" + area + "/" + String.format("%09d", mapId) + ".img";
     }
