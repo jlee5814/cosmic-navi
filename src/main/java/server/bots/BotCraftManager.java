@@ -43,6 +43,20 @@ final class BotCraftManager {
 
     static final List<Recipe> RECIPES = load();
     private static final Map<Integer, List<Recipe>> BY_OUTPUT = byOutput(RECIPES);
+    // Inputs no refining recipe makes: ores, monster drops, base gear. What a fleet has to farm or find.
+    private static final java.util.Set<Integer> RAW = rawMaterials(RECIPES);
+
+    private static java.util.Set<Integer> rawMaterials(List<Recipe> recipes) {
+        java.util.Set<Integer> raw = new java.util.TreeSet<>();
+        for (Recipe r : recipes) {
+            for (Mat m : r.mats()) {
+                if (BY_OUTPUT.getOrDefault(m.itemId(), List.of()).stream().allMatch(Recipe::gear)) {
+                    raw.add(m.itemId());
+                }
+            }
+        }
+        return raw;
+    }
 
     private static List<Recipe> load() {
         List<Recipe> out = new ArrayList<>();
@@ -171,6 +185,8 @@ final class BotCraftManager {
      * half its meso. An output that wins only once scrolled (a scroll base, like Work Gloves) needs a bot that
      * scrolls its own gear ({@code selfScroll}).
      */
+    static final String SHORT = "short on materials";
+
     /** Why a recipe didn't make the plan, for {@code /api/craftplan}: the recipe, the reason, its gain. */
     interface Rejects {
         void reject(Recipe recipe, String reason, double gain);
@@ -205,7 +221,7 @@ final class BotCraftManager {
             }
             boolean scrollBase = lookups.value(bot, cand) <= (worn == null ? 0 : lookups.value(bot, worn));
             Plan p = plan(bot, r, have, gain);
-            String no = p == null ? "short on materials"
+            String no = p == null ? SHORT
                     : p.fees() * 2 > meso ? "fees over half its meso"
                     : p.fees() + p.inputValue() >= lookups.obtainCost(bot, r.outputId()) ? "cheaper to buy or farm"
                     : ItemConstants.isWeapon(r.outputId()) && !lookups.preferredWeapon(bot, cand) ? "not its weapon type"
@@ -431,8 +447,7 @@ final class BotCraftManager {
         boolean selfScroll = entry != null && entry.selfScrollEnabled;
         Map<Integer, Integer> bag = bagCounts(bot);
         Map<Integer, Map<Integer, Integer>> stock = BotStorageMuleManager.binStock(bot);
-        Map<Integer, Integer> have = new HashMap<>(bag);
-        stock.values().forEach(held -> held.forEach((id, qty) -> have.merge(id, qty, Integer::sum)));
+        Map<Integer, Integer> have = holdings(bag, stock);
         Plan plan = bestPlan(bot, have, bot.getMeso(), selfScroll, rejects);
         Map<Integer, Map<Integer, Integer>> pickups = plan == null ? Map.of()
                 : BotStorageMuleManager.assignPickups(stock, shortfall(plan.used(), bag));
@@ -440,6 +455,47 @@ final class BotCraftManager {
             return new Choice(bestPlan(bot, bag, bot.getMeso(), selfScroll, null), Map.of()); // its bag, no trip
         }
         return new Choice(plan, pickups);
+    }
+
+    private static Map<Integer, Integer> holdings(Map<Integer, Integer> bag, Map<Integer, Map<Integer, Integer>> stock) {
+        Map<Integer, Integer> have = new HashMap<>(bag);
+        stock.values().forEach(held -> held.forEach((id, qty) -> have.merge(id, qty, Integer::sum)));
+        return have;
+    }
+
+    /** An upgrade the bot would craft but can't yet, and the raw materials it lacks beyond its bag and bins. */
+    record Want(Recipe recipe, double gain, Map<Integer, Integer> missing) {}
+
+    private static final int UNLIMITED = 1_000_000;
+
+    /**
+     * The upgrades this bot is short on materials for (every other gate of {@link #bestPlan} passed), one per
+     * output (the NPC whose recipe lacks the fewest items), with what it lacks in raw materials: the plan run
+     * again as if every ore, drop and base were at hand, less what it holds. Feeds {@code /api/craftdemand}.
+     */
+    static List<Want> wants(BotEntry entry, Character bot) {
+        Map<Integer, Integer> have = holdings(bagCounts(bot), BotStorageMuleManager.binStock(bot));
+        Map<Recipe, Double> shortOn = new java.util.LinkedHashMap<>();
+        bestPlan(bot, have, bot.getMeso(), entry != null && entry.selfScrollEnabled, (r, reason, gain) -> {
+            if (SHORT.equals(reason)) {
+                shortOn.put(r, gain);
+            }
+        });
+        Map<Integer, Integer> plenty = new HashMap<>(have);
+        RAW.forEach(id -> plenty.merge(id, UNLIMITED, Integer::sum));
+        Map<Integer, Want> byOutput = new java.util.LinkedHashMap<>();
+        shortOn.forEach((r, gain) -> {
+            Plan p = plan(bot, r, plenty, gain);
+            if (p == null) {
+                return; // deeper than the refine chain goes
+            }
+            Want w = new Want(r, gain, shortfall(p.used(), have));
+            Want had = byOutput.get(r.outputId());
+            if (had == null || w.missing().size() < had.missing().size()) {
+                byOutput.put(r.outputId(), w);
+            }
+        });
+        return List.copyOf(byOutput.values());
     }
 
     /** What the plan takes from the holdings beyond what the bag has: the part the bins supply. */

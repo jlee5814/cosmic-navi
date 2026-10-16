@@ -169,6 +169,17 @@ class BotCraftManagerTest {
     }
 
     @Test
+    void wantsListTheRawMaterialsAnUpgradeLacks() {
+        // An empty bag: Juno needs 15 Leather and a Steel Plate, which it would refine from 10 Steel Ore.
+        List<BotCraftManager.Want> wants = BotCraftManager.wants(null, bot(20));
+        assertEquals(1, wants.size());
+        assertEquals(JUNO, wants.get(0).recipe().outputId());
+        assertEquals(10.0, wants.get(0).gain());
+        assertEquals(Map.of(LEATHER, 15, STEEL_ORE, 10), wants.get(0).missing());
+        assertTrue(BotCraftManager.wants(null, bot(14)).isEmpty()); // above its level: not a want
+    }
+
+    @Test
     void aCleanBaseThatWinsOnceScrolledIsCraftedOnlyByABotThatScrolls() {
         // Its gloves beat clean Work Gloves as they are, but have no slots left; five open slots win once scrolled.
         worn = equip(WORN_GLOVES);
