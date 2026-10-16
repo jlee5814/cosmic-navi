@@ -15,31 +15,45 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * The best gear a bot can get per hour of effort, given how strong it is now: every obtainable piece it can wear
- * today, its gain over what it wears in that slot by the gear score ({@link BotScrollManager#potentialValue}), and
- * that gain over the cheapest way to get one ({@link BotScrollManager#cheapestAcquisition}: a shop's price, its own
- * farming effort on the best dropper, or an NPC craft, all in hours at the effort anchor). A boss drop is priced
- * by how long this bot alone takes to kill the boss, so it gets cheaper as the bot gets stronger. Read only;
- * served at {@code /api/gearplan}.
+ * The gear that pays back fastest in leveling, given how strong the bot is now. For every obtainable piece it can
+ * wear today: its gain over the best it owns for the slot (the grind planner's {@link
+ * BotGrindAdvisor#catalogAcquireGain}, an overall against top plus pants), the cheapest way to get one ({@link
+ * BotScrollManager#cheapestAcquisition}: a shop's price, its own farming effort on the best dropper, or an NPC
+ * craft, in hours at the effort anchor), the experience per hour it adds on the bot's grind map ({@link
+ * BotGrindAdvisor#expPerHourWithDpsGain}), and the hours of grinding with it that win back the detour ({@link
+ * BotGrindAdvisor#paybackHours}). Ranked by payback. A boss drop is priced by this bot's solo kill time, so it pays
+ * back sooner as the bot grows. Read only; served at {@code /api/gearplan}.
  */
 final class BotGearPlanReport {
     private BotGearPlanReport() {}
 
-    /** A piece the bot could go get: how much it gains and what it costs. */
-    record Pick(int itemId, int reqLevel, double gain, BotScrollManager.Acquisition how) {
+    /** A piece the bot could go get: how much it gains, what it costs, the experience per hour it adds on the
+     *  grind map and the hours of grinding with it that repay the detour (infinite when it adds none). */
+    record Pick(int itemId, int reqLevel, double gain, BotScrollManager.Acquisition how, double expGainPerHour,
+                double paybackHours) {
         double perHour() {
             return how.hours() <= 0 ? Double.POSITIVE_INFINITY : gain / how.hours();
         }
     }
 
-    /** Best gain per hour first; a free pick (already cheap to nothing) first of all. */
-    static final Comparator<Pick> BEST_FIRST = Comparator.comparingDouble(Pick::perHour).reversed()
+    /** Fastest payback first, then the bigger gain. */
+    static final Comparator<Pick> BEST_FIRST = Comparator.comparingDouble(Pick::paybackHours)
             .thenComparing(Comparator.comparingDouble(Pick::gain).reversed());
 
+    /** The bot's grind map as the grind planner sees it (its destination, else where it stands), or null. */
+    static BotGrindPlanner.MobCandidate grindMap(BotEntry entry, Character bot) {
+        int map = entry != null && entry.autopilotMapId != -1 ? entry.autopilotMapId : bot.getMapId();
+        List<BotGrindPlanner.MobCandidate> cs = BotGrindAdvisor.candidatesFor(entry, bot, m -> m == map);
+        return cs.isEmpty() ? null : cs.get(0);
+    }
+
     /** Every upgrade the bot can wear now and get some way, by slot. */
-    static Map<Short, List<Pick>> picksBySlot(Character bot, ItemInformationProvider ii) {
+    static Map<Short, List<Pick>> picksBySlot(BotEntry entry, Character bot, ItemInformationProvider ii,
+                                              BotGrindPlanner.MobCandidate grind) {
         Map<Short, List<Pick>> bySlot = new TreeMap<>();
-        Map<Short, Double> wornScore = new TreeMap<>();
+        Map<Short, Double> bar = new java.util.HashMap<>();
+        double worn = Math.max(1.0, BotGrindAdvisor.totalWornValue(bot, ii));
+        double exp0 = grind == null ? 0 : grind.exp() * BotGrindPlanner.killsPerHour(grind);
         for (Pair<Integer, String> p : ii.getAllItems()) {
             int id = p.getLeft();
             if (id < 1000000 || id >= 2000000 || ii.isCash(id)) {
@@ -52,26 +66,26 @@ final class BotGearPlanReport {
                     || (ItemConstants.isWeapon(id) && !BotEquipManager.isPreferredWeapon(bot, ii.getWeaponType(id), clean))) {
                 continue;
             }
-            double worn = wornScore.computeIfAbsent(slot, s -> {
-                Equip w = BotScrollManager.wornInSlot(bot, ii, s);
-                return w == null ? 0.0 : BotScrollManager.potentialValue(bot, ii, w);
-            });
-            double gain = BotScrollManager.potentialValue(bot, ii, clean) - worn;
+            double gain = BotGrindAdvisor.catalogAcquireGain(bot, ii, id, bar);
             if (gain <= 0) {
                 continue;
             }
             BotScrollManager.Acquisition how = BotScrollManager.cheapestAcquisition(bot, id);
             if (Double.isFinite(how.meso())) {
-                bySlot.computeIfAbsent(slot, s -> new ArrayList<>()).add(new Pick(id, req == null ? 0 : req, gain, how));
+                double exp1 = grind == null ? 0 : BotGrindAdvisor.expPerHourWithDpsGain(grind, gain / worn);
+                bySlot.computeIfAbsent(slot, s -> new ArrayList<>()).add(new Pick(id, req == null ? 0 : req, gain, how,
+                        exp1 - exp0, grind == null ? Double.POSITIVE_INFINITY
+                                : BotGrindAdvisor.paybackHours(how.hours(), exp0, exp1)));
             }
         }
         bySlot.values().forEach(l -> l.sort(BEST_FIRST));
         return bySlot;
     }
 
-    static String json(Character bot) {
+    static String json(BotEntry entry, Character bot) {
         ItemInformationProvider ii = ItemInformationProvider.getInstance();
-        Map<Short, List<Pick>> bySlot = picksBySlot(bot, ii);
+        BotGrindPlanner.MobCandidate grind = grindMap(entry, bot);
+        Map<Short, List<Pick>> bySlot = picksBySlot(entry, bot, ii, grind);
         List<Pick> all = new ArrayList<>();
         List<String> slots = new ArrayList<>();
         bySlot.forEach((slot, picks) -> {
@@ -86,8 +100,13 @@ final class BotGearPlanReport {
         all.sort(BEST_FIRST);
         List<String> top = new ArrayList<>();
         all.stream().limit(10).forEach(p -> top.add(pick(ii, p)));
+        String map = grind == null ? "null" : "{\"id\":" + grind.mapId() + ",\"n\":" + str(grind.mapName())
+                + ",\"mob\":" + str(grind.mobName()) + ",\"expPerHour\":"
+                + Math.round(grind.exp() * BotGrindPlanner.killsPerHour(grind)) + ",\"killSeconds\":"
+                + round(grind.killSeconds()) + "}";
         return "{\"id\":" + bot.getId() + ",\"name\":" + str(bot.getName()) + ",\"level\":" + bot.getLevel()
-                + ",\"job\":" + (bot.getJob() == null ? 0 : bot.getJob().getId()) + ",\"best\":[" + String.join(",", top)
+                + ",\"job\":" + (bot.getJob() == null ? 0 : bot.getJob().getId()) + ",\"grind\":" + map
+                + ",\"best\":[" + String.join(",", top)
                 + "],\"slots\":[" + String.join(",", slots) + "]}";
     }
 
@@ -100,7 +119,8 @@ final class BotGearPlanReport {
         }
         return "{\"id\":" + p.itemId() + ",\"n\":" + str(ii.getName(p.itemId())) + ",\"req\":" + p.reqLevel()
                 + ",\"gain\":" + round(p.gain()) + ",\"via\":" + str(via) + ",\"hours\":" + Math.round(p.how().hours() * 100) / 100.0
-                + ",\"perHour\":" + (Double.isFinite(p.perHour()) ? round(p.perHour()) : "null") + "}";
+                + ",\"expPerHour\":" + Math.round(p.expGainPerHour())
+                + ",\"payback\":" + (Double.isFinite(p.paybackHours()) ? Math.round(p.paybackHours() * 100) / 100.0 : "null") + "}";
     }
 
     private static double round(double v) {

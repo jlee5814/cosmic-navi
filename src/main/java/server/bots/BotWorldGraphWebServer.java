@@ -519,7 +519,7 @@ public final class BotWorldGraphWebServer {
         }
         String body;
         try {
-            body = BotGearPlanReport.json(bot);
+            body = BotGearPlanReport.json(e, bot);
         } catch (RuntimeException err) { // the game thread can move gear mid read; poll again
             send(ex, 503, "application/json", "{\"error\":\"gear changed, retry\"}".getBytes(StandardCharsets.UTF_8));
             return;
