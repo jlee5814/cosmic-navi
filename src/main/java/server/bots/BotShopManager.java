@@ -1672,6 +1672,12 @@ final class BotShopManager {
                     BotPerformanceMonitor.recordSince("shop-gear-search", t0);
                 }
                 GearTrip found = trip;
+                if (found != null && found.itemId() != entry.gearTripItemId) {
+                    log.info("bot-shop: {} gear trip for {} at map {}: payback {} h, worn {} h", bot.getName(),
+                            ItemInformationProvider.getInstance().getName(found.itemId()), found.mapId(),
+                            Math.round(found.verdict().paybackHours() * 100) / 100.0,
+                            Math.round(found.verdict().wearHours() * 10) / 10.0);
+                }
                 BotManager.after(0, () -> {
                     entry.gearTripSearchInFlight = false;
                     entry.gearTripShopMapId = found == null ? -1 : found.mapId();
