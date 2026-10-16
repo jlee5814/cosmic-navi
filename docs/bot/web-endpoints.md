@@ -300,13 +300,17 @@ reqLevel, src, bestLevels:{class: levels}}]}`. A reign is a run of sampled level
 Cape, Red and Purple Snowshoes, Work Gloves). Clean catalog stats, stat requirements ignored. Scans every equip.
 
 ### `/api/gearplan?id=<botCharId>`
-The best gear an online bot can get per hour of effort, given how strong it is now (`BotGearPlanReport`): every
-obtainable piece it can wear today (level, job, stats, preferred weapon type) that beats what it wears in that slot by
-the gear score, priced by its cheapest route (`BotScrollManager.cheapestAcquisition`: a shop's price, this bot's own
-farming effort on the best dropper, or an NPC craft), in hours at the effort anchor (1,000 meso a second).
-`{id, name, level, job, best:[pick], slots:[{slot, worn:{id, n, score}, picks:[pick]}]}` with `pick` = `{id, n, req,
-gain, via, hours, perHour}`; `best` is the top 10 by `perHour`, each slot its top 3. Farming is solo kill time, so a
-boss gets cheaper as the bot gets stronger. `404` when the bot isn't online.
+The gear that pays back fastest in leveling for an online bot, given how strong it is now (`BotGearPlanReport`):
+every obtainable piece it can wear today (level, job, stats, preferred weapon type) that beats the best it owns for
+the slot by the grind planner's gain (`BotGrindAdvisor.catalogAcquireGain`, an overall against top plus pants),
+priced by its cheapest route (`BotScrollManager.cheapestAcquisition`: a shop's price, this bot's own farming effort
+on the best dropper, or an NPC craft) in hours at the effort anchor (1,000 meso a second). `expPerHour` is what it
+adds on the bot's grind map (`expPerHourWithDpsGain`: kill time shrinks by the damage gain down to one attack cycle,
+capped by respawn) and `payback` the hours of grinding with it that repay the detour (`paybackHours`; null when it
+levels no faster). `{id, name, level, job, grind:{id, n, mob, expPerHour, killSeconds}, best:[pick], slots:[{slot,
+worn:{id, n, score}, picks:[pick]}]}` with `pick` = `{id, n, req, gain, via, hours, expPerHour, payback}`; ranked by
+payback, `best` the top 10, each slot its top 3. `grind` is null in a town with no grind map. `404` when the bot isn't
+online.
 
 ## Write API
 
