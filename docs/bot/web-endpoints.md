@@ -299,6 +299,15 @@ reqLevel, src, bestLevels:{class: levels}}]}`. A reign is a run of sampled level
 `shop` or `craft` (unobtainable items are left out). `watch` defaults to the meta pieces (Zakum Helmet, Pink Adventurer
 Cape, Red and Purple Snowshoes, Work Gloves). Clean catalog stats, stat requirements ignored. Scans every equip.
 
+### `/api/gearplan?id=<botCharId>`
+The best gear an online bot can get per hour of effort, given how strong it is now (`BotGearPlanReport`): every
+obtainable piece it can wear today (level, job, stats, preferred weapon type) that beats what it wears in that slot by
+the gear score, priced by its cheapest route (`BotScrollManager.cheapestAcquisition`: a shop's price, this bot's own
+farming effort on the best dropper, or an NPC craft), in hours at the effort anchor (1,000 meso a second).
+`{id, name, level, job, best:[pick], slots:[{slot, worn:{id, n, score}, picks:[pick]}]}` with `pick` = `{id, n, req,
+gain, via, hours, perHour}`; `best` is the top 10 by `perHour`, each slot its top 3. Farming is solo kill time, so a
+boss gets cheaper as the bot gets stronger. `404` when the bot isn't online.
+
 ## Write API
 
 ### `/api/chat` (GET, POST)

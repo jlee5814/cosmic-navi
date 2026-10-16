@@ -92,6 +92,23 @@ final class BotCraftManager {
         return m;
     }
 
+    /** The cheapest NPC craft of one item: per recipe, its fee plus each input at {@code inputCost}, over its yield.
+     *  Infinite when no recipe makes it or an input can't be had. */
+    static double craftCostMeso(int itemId, java.util.function.IntToDoubleFunction inputCost) {
+        double best = Double.POSITIVE_INFINITY;
+        for (Recipe r : BY_OUTPUT.getOrDefault(itemId, List.of())) {
+            double cost = r.fee();
+            for (Mat m : r.mats()) {
+                cost += m.qty() * inputCost.applyAsDouble(m.itemId());
+                if (!Double.isFinite(cost)) {
+                    break;
+                }
+            }
+            best = Math.min(best, cost / r.yield());
+        }
+        return best;
+    }
+
     /** True when some NPC recipe makes this item. */
     static boolean craftable(int itemId) {
         return BY_OUTPUT.containsKey(itemId);
