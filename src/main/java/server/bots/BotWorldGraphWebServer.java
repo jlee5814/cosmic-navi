@@ -196,6 +196,7 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/scrollmatch", BotWorldGraphWebServer::serveScrollMatch);
             s.createContext("/api/gearmeta", BotWorldGraphWebServer::serveGearMeta);
             s.createContext("/api/gearplan", BotWorldGraphWebServer::serveGearPlan);
+            s.createContext("/api/bossplan", BotWorldGraphWebServer::serveBossPlan);
             s.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "bot-worldmap-web");
                 t.setDaemon(true);
@@ -520,6 +521,42 @@ public final class BotWorldGraphWebServer {
         String body;
         try {
             body = BotGearPlanReport.json(e, bot);
+        } catch (RuntimeException err) { // the game thread can move gear mid read; poll again
+            send(ex, 503, "application/json", "{\"error\":\"gear changed, retry\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        send(ex, 200, "application/json", body.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** GET /api/bossplan?ids=botCharId,botCharId: which boss runs pay back for a party of online bots and what each
+     *  member needs first to survive one (BotBossPlanReport). Read only; offline ids are listed, not loaded. */
+    private static void serveBossPlan(HttpExchange ex) throws IOException {
+        List<BotEntry> online = new ArrayList<>();
+        List<Integer> offline = new ArrayList<>();
+        try {
+            for (String s : queryParams(ex.getRequestURI().getRawQuery()).getOrDefault("ids", "").split(",")) {
+                if (s.isBlank()) {
+                    continue;
+                }
+                int id = Integer.parseInt(s.trim());
+                BotEntry e = lookupBotEntry(id);
+                if (e == null || e.bot == null) {
+                    offline.add(id);
+                } else {
+                    online.add(e);
+                }
+            }
+        } catch (NumberFormatException e) {
+            send(ex, 400, "application/json", "{\"error\":\"ids are bot char ids\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        if (online.isEmpty()) {
+            send(ex, 404, "application/json", "{\"error\":\"no listed bot is online\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        String body;
+        try {
+            body = BotBossPlanReport.json(online, offline);
         } catch (RuntimeException err) { // the game thread can move gear mid read; poll again
             send(ex, 503, "application/json", "{\"error\":\"gear changed, retry\"}".getBytes(StandardCharsets.UTF_8));
             return;
