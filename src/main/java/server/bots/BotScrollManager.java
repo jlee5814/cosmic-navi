@@ -1195,7 +1195,7 @@ final class BotScrollManager {
 
     /** Expected gain per use of each scroll copy the fleet can hand the bot for this item, best first: applicable,
      *  routable (no meta scrolls), no boom risk, positive success, as the catalog EV filters them. */
-    private static double[] heldScrollEvs(Character bot, ItemInformationProvider ii, int equipId) {
+    static double[] heldScrollEvs(Character bot, ItemInformationProvider ii, int equipId) {
         Map<Integer, Integer> supply = fleetScrolls.of(bot, equipId / 10000);
         if (supply == null || supply.isEmpty()) {
             return new double[0];
