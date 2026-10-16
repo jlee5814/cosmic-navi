@@ -99,7 +99,31 @@ final class BotAutopilotDebug {
         PartyScoring scoring = BotGrindPlanner.scorePartyBest(
                 in.perMember(), in.weights(), mapId -> 0.0, -1,
                 BotAutopilotManager.grinderMask(members), ThreadLocalRandom.current());
-        return renderReport(ItemInformationProvider.getInstance(), bot, members, in, scoring);
+        String report = renderReport(ItemInformationProvider.getInstance(), bot, members, in, scoring);
+        return BotAutopilotManager.decidesAsGroupMember(entry) ? report : report + soloSection(entry, bot);
+    }
+
+    // Solo draws are weighted random among the near best, so sample a few.
+    private static final int SOLO_DRAWS = 5;
+
+    /** A self deciding bot doesn't take the party pick above: it runs the solo advisor (travel weight with
+     *  wanderlust, danger weight, crowd surcharge, and the exp and gear blend), so show what that path picks. */
+    private static String soloSection(BotEntry entry, Character bot) {
+        StringBuilder sb = new StringBuilder("\n--- g. SOLO DECISION (the path this bot takes) ---\n");
+        boolean ferry = BotAutopilotManager.ferryAllowed(entry);
+        for (int i = 0; i < SOLO_DRAWS; i++) {
+            BotGrindPlanner.Recommendation rec = BotAutopilotManager.advisor.recommend(entry, bot, bot.getMapId(),
+                    BotAutopilotManager.MAX_TRAVEL_HOPS, ferry);
+            if (rec == null) {
+                sb.append("  no pick\n");
+                continue;
+            }
+            MobCandidate p = rec.pick();
+            sb.append(String.format("  map=%d %-22s mob=%s exp/hr=%,.0f needGear=%.2f gearFocused=%s wanted=%s score=%.4f%n",
+                    p.mapId(), truncate(p.mapName(), 22), p.mobName(), rec.expPerHour(), rec.needGear(),
+                    rec.gearFocused(), rec.wantedGear() == null ? "-" : rec.wantedGear().itemName(), rec.score()));
+        }
+        return sb.toString();
     }
 
     /** Pure rendering of an already-assembled decision — the unit-test seam (no WZ / world graph;
