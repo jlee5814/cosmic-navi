@@ -321,8 +321,8 @@ Which boss runs pay back for a party of online bots, and what each member needs 
 (`BotBossPlanReport`). Bosses come from Map.wz life (boss flagged, respawning, `respawnHours` from `mobTime`) and the
 area boss event scripts (`scripts/event/*.js` naming one map and one monster; `respawnHours` is the recheck period),
 on fields some member can travel to. Per member: `dps` on the boss (the grind planner's kill model), `maxHit` (its
-hardest landed touch, the damage bots take), `hp` (Magic Guard counted when up), `trip` (round trip hours), `hpPerMin`
-(expected touch damage a minute in contact, one touch per hit cooldown), `fightHp` (that over the kill, for a fighter) and `need`:
+hardest landed touch, the damage bots take), `hp` (Magic Guard counted when up), `trip` (round trip hours), `touchLoss`
+(the share of its HP one touch attempt takes on average, the grind planner's danger primitive) and `need`:
 `ready`, `can't reach`, `can't hurt it`, or the HP to live through two hardest touches. Ready members fight: `killMinutes`
 is the boss HP over their summed damage, `runHours` the longest trip plus the kill, `partyExp` the boss experience split
 by damage, `forgoneExp` what the fighters would have ground in that time, and `expWorth` whether the run beats grinding
@@ -331,10 +331,10 @@ by `BotGearPayback.judge` over `runs` expected kills (net of the experience they
 those runs span at the respawn and `wearLeft` the wear time once the waiting is spent leveling. `worth` is `expWorth`
 or the best drop's payback beating its `wearLeft`. `{party:[{id, n, level, job, hp, grind:{n, mob, expPerHour}}],
 offline:[id], bosses:[{mob, n, level, hp, map, mapName, respawnHours, source, killMinutes, runHours, partyExp,
-forgoneExp, expWorth, worth, fighters:[{id, n, dps, maxHit, hp, trip, hpPerMin, fightHp, need}], drops:[{id, n, taker,
+forgoneExp, expWorth, worth, fighters:[{id, n, dps, maxHit, hp, trip, touchLoss, need}], drops:[{id, n, taker,
 chance, runs, days, payback, wearLeft, worth}]}]}`, worth first, then by experience return; a boss on several fields
-shows its best site. Boss skills and magic attacks are not modeled (bots take touch damage only), potions are not
-priced (read `fightHp`), and there is no channel hopping for more spawns. `404` when no listed bot is online.
+shows its best site. Boss skills and magic attacks are not modeled (bots take touch damage only), potions and how
+often a boss lands touches over a long fight are not priced, and there is no channel hopping for more spawns. `404` when no listed bot is online.
 
 ## Write API
 
