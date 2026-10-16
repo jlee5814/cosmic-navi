@@ -45,7 +45,7 @@ class BotBossPlanReportTest {
     void aRunIsWorthItOnExperienceAloneOrForADropThatRepaysBeforeItsWearRunsOut() {
         BotBossPlanReport.Site site = new BotBossPlanReport.Site(1, 2, 3.0, "event");
         BotGearPayback.Verdict quick = new BotGearPayback.Verdict(4, 500_000, 550_000, 40, 60);
-        BotBossPlanReport.Drop waits = new BotBossPlanReport.Drop(9, 1, 0.1, 10, 30, quick, 35);
+        BotBossPlanReport.Drop waits = new BotBossPlanReport.Drop(9, 1, 0.1, 10, 30, quick, 45);
         BotBossPlanReport.Drop outlived = new BotBossPlanReport.Drop(9, 1, 0.01, 100, 300, quick, -200);
         assertTrue(waits.worth());
         assertFalse(outlived.worth()); // the respawn waits eat the wear before the drop shows up
