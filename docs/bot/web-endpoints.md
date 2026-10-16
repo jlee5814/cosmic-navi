@@ -268,8 +268,9 @@ from maplestory.io in the viewer's browser. The **graph** button beside it opens
 The craft an online bot would start now, computed live by the same `BotCraftManager.choose` its errand uses
 (bag plus its free bins from the roster snapshot): `{id, name, level, meso, active, bins, plan, rejected, near}`.
 `active` is true while a craft errand runs; `bins` counts the free bins with ETC stock. `plan` is null or
-`{goal, n, gain, fees, inputValue, steps:[{npc, id, n, times}], pickups:[{mule, items:[{id, q}]}]}` (steps in run
-order, the goal last; pickups empty when the bag covers it). `rejected` counts the gear recipes that lost, by
+`{goal, n, scrollBase, gain, fees, inputValue, steps:[{npc, id, n, times}], pickups:[{mule, items:[{id, q}]}]}` (steps in run
+order, the goal last; pickups empty when the bag covers it; `scrollBase` true when the goal beats the worn piece only
+once scrolled). `rejected` counts the gear recipes that lost, by
 reason; `near` lists up to 10 that would be upgrades (`gain` > 0), biggest first, with `why` they lost. `404` when
 the bot isn't online; `503` when the bag changed mid read.
 

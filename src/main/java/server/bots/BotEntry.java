@@ -514,6 +514,7 @@ public class BotEntry {
     final java.util.ArrayDeque<BotCraftManager.Step> craftSteps = new java.util.ArrayDeque<>();
     final BotTravelManager.ErrandProgress craftProgress = new BotTravelManager.ErrandProgress();
     long craftNextCheckAtMs = 0L;
+    volatile boolean craftPlanInFlight = false; // a plan search is running on the decision pool
     // Pickup before the craft: mule char id to the ETC items it brings to the Free Market (read by the mules'
     // ticks), and the bag counts that mean the farmer has them all.
     final java.util.concurrent.ConcurrentHashMap<Integer, Map<Integer, Integer>> craftPickups = new java.util.concurrent.ConcurrentHashMap<>();

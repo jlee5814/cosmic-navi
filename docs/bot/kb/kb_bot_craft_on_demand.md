@@ -14,8 +14,15 @@ Built 2026-10-15 in `BotCraftManager` (phase A: the bot's own upgrade from its o
   recipe source.
 
 **Planning (`bestPlan`, `plan`, `resolve`)**
-- A gear recipe qualifies when its output is wearable now, req level within `OUTGROWN_LEVELS` (20) of the bot,
-  of the preferred weapon type for weapons, and beats the worn item in that slot by job offense weights.
+- Gear is scored by the gear SSOT, `BotScrollManager.potentialValue` (base value plus half the best catalog
+  scroll EV per open slot), against the same for the worn piece, as the shop's gear purchase does. A recipe
+  qualifies when that gain is positive, the output is wearable now and of the preferred weapon type. (Until
+  2026-10-16 it had its own offense only scorer and a 20 level window; that parallel scorer is gone.)
+- Scroll bases: when the clean output loses to the worn piece as is (`equipValue`) but wins on potential, the
+  plan is a scroll base (Work Gloves: 15 Leather, five open slots). Only bots with `selfScrollEnabled` (on for
+  population bots) craft one; the town break scroll pass then scrolls it and autoEquip wears it once it wins.
+- The search runs on `BotGrindAdvisor.DECIDE_POOL` (perf key `craft-scan`) and starts the errand back on the
+  scheduler thread, after rechecking the bot is free.
 - `resolve` takes materials from the bag and crafts any shortfall from ETC recipes (ore to plate, plate to
   screw), up to 3 levels deep, preferring the parent recipe's NPC so one stop does both, and backtracking
   across alternative recipes. Steps come out in run order, the goal last.
