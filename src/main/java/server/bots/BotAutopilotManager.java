@@ -50,7 +50,7 @@ final class BotAutopilotManager {
     // Trade-off: a larger reachable set means more candidate maps profiled per decision, but that runs
     // on the async DECIDE_POOL with warmed caches. Tune down if decisions get heavy.
     static final int MAX_TRAVEL_HOPS = 30;
-    private static final long DECISION_INTERVAL_MS = 12 * 60_000L;
+    static final long DECISION_INTERVAL_MS = 12 * 60_000L;
     private static final long DECISION_JITTER_MS = 6 * 60_000L; // de-syncs many bots' re-decides
     private static final long ERRAND_COOLDOWN_MS = 10 * 60_000L; // min spacing between resupply trips
     private static final long OWNER_SUPPLY_GRACE_MS = 20_000L;

@@ -369,7 +369,7 @@ class BotGrindPlannerTest {
     void aFarmerTakesTheExpMapOverAScrollThatDoesntRepayIt() {
         // SipsBuddy1 sat on Line 1 Area 4 (446k exp/h) for a 10% INT helmet scroll over Ghost Ship 2 (629k).
         // Priced in exp, a scroll worn for a level adds too little to cover the gap.
-        GearProspect helmetScroll = new GearProspect(2040016, "Scroll for Helmet for INT 10%", 0.01, 0.6, 0.005, 70, 71);
+        GearProspect helmetScroll = new GearProspect(2040016, "Scroll for Helmet for INT 10%", 0.01, 0.6, 0.005, 70, 71, 7);
         MobCandidate ship = mob(1, 600, 1.0, 10, 20, List.of());
         MobCandidate subway = mob(2, 450, 1.0, 20, 20, List.of(helmetScroll));
         for (long seed = 0; seed < 20; seed++) {
@@ -383,13 +383,24 @@ class BotGrindPlannerTest {
     @Test
     void aScrollThatRepaysTheExpGivenUpStillWinsTheMap() {
         // A big damage scroll that drops often and is worn for thirty levels is worth more than the exp gap.
-        GearProspect attackScroll = new GearProspect(2043701, "Scroll for Wand for Magic Att.", 0.2, 6.0, 0.05, 70, 100);
+        GearProspect attackScroll = new GearProspect(2043701, "Scroll for Wand for Magic Att.", 0.2, 6.0, 0.05, 70, 100, 7);
         MobCandidate ship = mob(1, 600, 1.0, 10, 20, List.of());
         MobCandidate subway = mob(2, 450, 1.0, 20, 20, List.of(attackScroll));
         for (long seed = 0; seed < 20; seed++) {
             Recommendation rec = BotGrindPlanner.planBest(List.of(ship, subway), m -> 1.0, new java.util.Random(seed));
             assertEquals(20, rec.pick().mapId());
             assertFalse(rec.gearFocused()); // picked on exp, not hunted as gear
+        }
+    }
+
+    @Test
+    void aScrollTheFleetAlreadyHoldsForEverySlotIsWorthNothing() {
+        // Live: Garden of Green I (183k) won over Ghost Ship 2 (629k) on Cape INT scrolls while 103 sat in the bins.
+        GearProspect covered = new GearProspect(2043701, "Scroll for Wand for Magic Att.", 0.2, 6.0, 0.05, 70, 100, 0);
+        MobCandidate ship = mob(1, 600, 1.0, 10, 20, List.of());
+        MobCandidate garden = mob(2, 450, 1.0, 20, 20, List.of(covered));
+        for (long seed = 0; seed < 20; seed++) {
+            assertEquals(10, BotGrindPlanner.planBest(List.of(ship, garden), m -> 1.0, new Random(seed)).pick().mapId());
         }
     }
 }
