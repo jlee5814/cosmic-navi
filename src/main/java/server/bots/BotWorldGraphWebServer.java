@@ -194,6 +194,7 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/craftplan", BotWorldGraphWebServer::serveCraftPlan);
             s.createContext("/api/craftdemand", BotWorldGraphWebServer::serveCraftDemand);
             s.createContext("/api/scrollmatch", BotWorldGraphWebServer::serveScrollMatch);
+            s.createContext("/api/gearmeta", BotWorldGraphWebServer::serveGearMeta);
             s.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "bot-worldmap-web");
                 t.setDaemon(true);
@@ -475,6 +476,28 @@ public final class BotWorldGraphWebServer {
                 + ",\"strandedWithTaker\":" + withTaker + ",\"strandedNoTaker\":" + without
                 + ",\"matches\":" + rawArr(rows) + "}";
         send(ex, 200, "application/json", body.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** GET /api/gearmeta?from=10&to=120&step=5&watch=id,id: which gear the gear score ranks best per class, slot
+     *  and level (BotGearMetaReport). Read only; scans every equip, so a second or two. */
+    private static void serveGearMeta(HttpExchange ex) throws IOException {
+        Map<String, String> q = queryParams(ex.getRequestURI().getRawQuery());
+        int from, to, step;
+        List<Integer> watch = new ArrayList<>();
+        try {
+            from = Integer.parseInt(q.getOrDefault("from", "10"));
+            to = Integer.parseInt(q.getOrDefault("to", "120"));
+            step = Math.max(1, Integer.parseInt(q.getOrDefault("step", "5")));
+            for (String w : q.getOrDefault("watch", "1002357,1102041,1072168,1072338,1082002").split(",")) {
+                if (!w.isBlank()) {
+                    watch.add(Integer.parseInt(w.trim()));
+                }
+            }
+        } catch (NumberFormatException e) {
+            send(ex, 400, "application/json", "{\"error\":\"from, to, step and watch are numbers\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        send(ex, 200, "application/json", BotGearMetaReport.json(from, to, step, watch).getBytes(StandardCharsets.UTF_8));
     }
 
     /** POST /api/fleetops/act {"bot":id,"action":"rescue|hold_errands|sell_trash|park","arg":n,"reason":"..."}:
