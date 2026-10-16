@@ -2,6 +2,7 @@ package server.bots;
 
 import client.Character;
 import client.Client;
+import client.inventory.Equip;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,21 +29,35 @@ class BotCraftManagerTest {
     private static final int LEATHER = 4000021, BRONZE_ORE = 4010000, STEEL_ORE = 4010001;
     private static final int BRONZE_PLATE = 4011000, STEEL_PLATE = 4011001, SCREW = 4003000;
     private static final int JUNO = 1082003, STEEL_FINGERLESS = 1082007;
+    private static final int WORK_GLOVES = 1082002, WORN_GLOVES = 1082145; // Work Gloves: 15 Leather at 1052002
 
     private BotCraftManager.Lookups prev;
     private final Map<Integer, Map<String, Integer>> stats = new HashMap<>();
+    private final Map<Integer, Double> potential = new HashMap<>(); // base value plus scroll headroom
+    private final Map<Integer, Double> value = new HashMap<>();     // base value alone
+    private Equip worn;
     private double obtainCost = 1_000_000;
+
+    private static Equip equip(int id) {
+        Equip e = mock(Equip.class);
+        when(e.getItemId()).thenReturn(id);
+        return e;
+    }
 
     @BeforeEach
     void hermeticLookups() {
         prev = BotCraftManager.lookups;
-        stats.put(JUNO, Map.of("reqLevel", 15, "PAD", 0, "DEF", 10));
+        stats.put(JUNO, Map.of("reqLevel", 15));
+        potential.put(JUNO, 10.0);
+        value.put(JUNO, 10.0);
         BotCraftManager.lookups = new BotCraftManager.Lookups() {
             @Override public Map<String, Integer> stats(int itemId) { return stats.get(itemId); }
-            @Override public double offense(Character bot, Map<String, Integer> st) { return st.getOrDefault("DEF", 0); }
-            @Override public double wornOffense(Character bot, int slot) { return 0; }
-            @Override public boolean wearable(Character bot, int itemId) { return true; }
-            @Override public boolean preferredWeapon(Character bot, int itemId) { return true; }
+            @Override public Equip clean(int itemId) { return stats.containsKey(itemId) ? equip(itemId) : null; }
+            @Override public double potential(Character bot, Equip e) { return potential.getOrDefault(e.getItemId(), 0.0); }
+            @Override public double value(Character bot, Equip e) { return value.getOrDefault(e.getItemId(), 0.0); }
+            @Override public Equip worn(Character bot, int itemId) { return worn; }
+            @Override public boolean wearable(Character bot, Equip e) { return true; }
+            @Override public boolean preferredWeapon(Character bot, Equip e) { return true; }
             @Override public int sellPrice(int itemId, int qty) { return qty; }
             @Override public double obtainCost(Character bot, int itemId) { return obtainCost; }
         };
@@ -133,20 +148,48 @@ class BotCraftManagerTest {
     @Test
     void bestPlanPicksAWearableUpgradeTheBagCovers() {
         Map<Integer, Integer> have = Map.of(LEATHER, 15, STEEL_ORE, 10);
-        BotCraftManager.Plan p = BotCraftManager.bestPlan(bot(20), have, 10_000);
+        BotCraftManager.Plan p = BotCraftManager.bestPlan(bot(20), have, 10_000, false, null);
         assertNotNull(p);
         assertEquals(JUNO, p.goal().outputId());
+        assertFalse(p.scrollBase()); // better as it comes from the NPC
     }
 
     @Test
     void bestPlanSkipsWhatItCantUseOrAfford() {
         Map<Integer, Integer> have = Map.of(LEATHER, 15, STEEL_ORE, 10);
-        assertNull(BotCraftManager.bestPlan(bot(14), have, 10_000), "level too low");
-        assertNull(BotCraftManager.bestPlan(bot(15 + BotCraftManager.OUTGROWN_LEVELS + 1), have, 10_000), "outgrown");
-        assertNull(BotCraftManager.bestPlan(bot(20), have, 2_000), "fees take more than half the meso");
-        assertNull(BotCraftManager.bestPlan(bot(20), Map.of(LEATHER, 14, STEEL_ORE, 10), 10_000), "short");
+        assertNull(BotCraftManager.bestPlan(bot(14), have, 10_000, true, null), "level too low");
+        assertNull(BotCraftManager.bestPlan(bot(20), have, 2_000, true, null), "fees take more than half the meso");
+        assertNull(BotCraftManager.bestPlan(bot(20), Map.of(LEATHER, 14, STEEL_ORE, 10), 10_000, true, null), "short");
+        worn = equip(WORN_GLOVES);
+        potential.put(WORN_GLOVES, 12.0);
+        assertNull(BotCraftManager.bestPlan(bot(60), have, 10_000, true, null), "what it wears scores higher");
+        worn = null;
         obtainCost = 1_300;
-        assertNull(BotCraftManager.bestPlan(bot(20), have, 10_000), "cheaper to get it another way");
+        assertNull(BotCraftManager.bestPlan(bot(20), have, 10_000, true, null), "cheaper to get it another way");
+    }
+
+    @Test
+    void aCleanBaseThatWinsOnceScrolledIsCraftedOnlyByABotThatScrolls() {
+        // Its gloves beat clean Work Gloves as they are, but have no slots left; five open slots win once scrolled.
+        worn = equip(WORN_GLOVES);
+        value.put(WORN_GLOVES, 3.0);
+        potential.put(WORN_GLOVES, 3.0);
+        stats.put(WORK_GLOVES, Map.of("reqLevel", 10));
+        value.put(WORK_GLOVES, 1.0);
+        potential.put(WORK_GLOVES, 6.0);
+        potential.put(JUNO, 2.0); // Juno loses either way
+        Map<Integer, Integer> have = Map.of(LEATHER, 15);
+        assertNull(BotCraftManager.bestPlan(bot(40), have, 10_000, false, null), "it never scrolls its gear");
+        BotCraftManager.Plan p = BotCraftManager.bestPlan(bot(40), have, 10_000, true, null);
+        assertNotNull(p);
+        assertEquals(WORK_GLOVES, p.goal().outputId());
+        assertTrue(p.scrollBase());
+        assertEquals(3.0, p.gain());
+        assertEquals(1000, p.fees());
+
+        Map<String, Integer> why = new HashMap<>();
+        BotCraftManager.bestPlan(bot(40), have, 10_000, false, (r, reason, gain) -> why.merge(reason, 1, Integer::sum));
+        assertEquals(1, why.get("needs scrolling, and it doesn't scroll its gear"));
     }
 
     @Test

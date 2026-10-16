@@ -5,7 +5,6 @@ import client.inventory.Equip;
 import client.inventory.Inventory;
 import client.inventory.InventoryType;
 import client.inventory.Item;
-import client.inventory.WeaponType;
 import constants.inventory.ItemConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,46 +101,50 @@ final class BotCraftManager {
     record Step(Recipe recipe, int times) {}
 
     /** {@code used}: how much of each item the steps take from what the bot holds (its bag and bins), not
-     *  counting what an earlier step makes. */
-    record Plan(Recipe goal, List<Step> steps, long fees, double inputValue, double gain, Map<Integer, Integer> used) {}
+     *  counting what an earlier step makes. {@code scrollBase}: the goal beats what the bot wears only once it is
+     *  scrolled (its open upgrade slots), not as it comes from the NPC. */
+    record Plan(Recipe goal, List<Step> steps, long fees, double inputValue, double gain, Map<Integer, Integer> used,
+                boolean scrollBase) {
+        Plan asScrollBase(boolean b) {
+            return new Plan(goal, steps, fees, inputValue, gain, used, b);
+        }
+    }
 
     private static final int MAX_CHAIN_DEPTH = 3;      // gear <- screws <- plates <- ores
-    static final int OUTGROWN_LEVELS = 20;             // gear this far under the bot's level isn't worth a trip
 
-    /** Test seams: item data, prices and the bot's worn offense (all WZ, DB or live state). */
+    /**
+     * Test seams over item data, prices and live gear. Gear is scored the way every other gear decision scores
+     * it (the shop's purchase, the grind planner): {@link BotScrollManager#potentialValue}, base value plus
+     * the discounted headroom of open upgrade slots, against the same for what the bot wears in that slot.
+     */
     interface Lookups {
-        Map<String, Integer> stats(int itemId);       // equip info: reqLevel, reqJob, PAD, MAD, STR...
-        double offense(Character bot, Map<String, Integer> stats);
-        double wornOffense(Character bot, int slot);   // what it wears in that slot, 0 when nothing
-        boolean wearable(Character bot, int itemId);   // job, level and stats now
-        boolean preferredWeapon(Character bot, int itemId);
+        Map<String, Integer> stats(int itemId);        // equip info: reqLevel, cash
+        Equip clean(int itemId);                       // a copy with catalog stats, as the NPC makes it; null if none
+        double potential(Character bot, Equip e);      // base value plus scroll headroom
+        double value(Character bot, Equip e);          // base value alone
+        Equip worn(Character bot, int itemId);         // what it wears in that item's slot, or null
+        boolean wearable(Character bot, Equip e);      // job, level and stats now
+        boolean preferredWeapon(Character bot, Equip e);
         int sellPrice(int itemId, int qty);
         double obtainCost(Character bot, int itemId);  // a shop's price, else the farming effort
     }
 
     static Lookups lookups = new Lookups() {
-        private final ItemInformationProvider ii() { return ItemInformationProvider.getInstance(); }
+        private ItemInformationProvider ii() { return ItemInformationProvider.getInstance(); }
         @Override public Map<String, Integer> stats(int itemId) { return ii().getEquipStats(itemId); }
-        @Override public double offense(Character bot, Map<String, Integer> stats) {
-            return BotScrollManager.offenseValueFromStats(bot, stats);
+        @Override public Equip clean(int itemId) { return ii().getEquipById(itemId) instanceof Equip e ? e : null; }
+        @Override public double potential(Character bot, Equip e) { return BotScrollManager.potentialValue(bot, ii(), e); }
+        @Override public double value(Character bot, Equip e) { return BotScrollManager.equipValue(bot, e); }
+        @Override public Equip worn(Character bot, int itemId) {
+            Short slot = BotScrollManager.primarySlot(ii(), itemId);
+            return slot == null ? null : BotScrollManager.wornInSlot(bot, ii(), slot);
         }
-        @Override public double wornOffense(Character bot, int slot) {
-            double best = 0;
-            for (Item it : bot.getInventory(InventoryType.EQUIPPED).list()) {
-                if (it instanceof Equip e && !ii().isCash(e.getItemId()) && BotStorageMuleManager.gearSlot(e.getItemId()) == slot) {
-                    best = Math.max(best, BotScrollManager.offenseValue(bot, e));
-                }
-            }
-            return best;
+        @Override public boolean wearable(Character bot, Equip e) {
+            Short slot = BotScrollManager.primarySlot(ii(), e.getItemId());
+            return slot != null && ii().canWearEquipment(bot, e, slot);
         }
-        @Override public boolean wearable(Character bot, int itemId) {
-            Item it = ii().getEquipById(itemId);
-            return it instanceof Equip e && ii().meetsEquipRequirements(e, bot.getJob(), bot.getLevel(),
-                    bot.getTotalStr(), bot.getTotalDex(), bot.getTotalInt(), bot.getTotalLuk(), bot.getFame());
-        }
-        @Override public boolean preferredWeapon(Character bot, int itemId) {
-            WeaponType type = ii().getWeaponType(itemId);
-            return BotEquipManager.isPreferredWeapon(bot, type);
+        @Override public boolean preferredWeapon(Character bot, Equip e) {
+            return BotEquipManager.isPreferredWeapon(bot, ii().getWeaponType(e.getItemId()), e);
         }
         @Override public int sellPrice(int itemId, int qty) { return BotInventoryManager.sellPrice.price(itemId, qty); }
         @Override public double obtainCost(Character bot, int itemId) {
@@ -162,20 +165,13 @@ final class BotCraftManager {
     }
 
     /**
-     * The best craft for this bot now, or null: gear recipes whose output it can wear, of its preferred weapon
-     * type, that beat what it wears in that slot by the job's offense weights, and whose materials its bag covers
-     * (refining on the way). Cheaper than getting the item another way, and affordable with half its meso.
+     * The best craft for this bot now, or null: the gear recipe whose output most improves on what it wears in that
+     * slot ({@link Lookups#potential}), that it can wear now, of its preferred weapon type, and whose materials
+     * {@code have} covers (refining on the way). Cheaper than getting the item another way, and affordable with
+     * half its meso. An output that wins only once scrolled (a scroll base, like Work Gloves) needs a bot that
+     * scrolls its own gear ({@code selfScroll}).
      */
-    static Plan bestPlan(Character bot, Map<Integer, Integer> have, long meso) {
-        return bestPlan(bot, have, meso, null);
-    }
-
-    /** Why a recipe didn't make the plan, for {@code /api/craftplan}: the recipe, the reason, its offense gain. */
-    interface Rejects {
-        void reject(Recipe recipe, String reason, double gain);
-    }
-
-    static Plan bestPlan(Character bot, Map<Integer, Integer> have, long meso, Rejects rejects) {
+    static Plan bestPlan(Character bot, Map<Integer, Integer> have, long meso, boolean selfScroll, Rejects rejects) {
         Rejects why = rejects != null ? rejects : (r, reason, gain) -> {};
         Plan best = null;
         for (Recipe r : RECIPES) {
@@ -183,17 +179,17 @@ final class BotCraftManager {
                 continue;
             }
             Map<String, Integer> st = lookups.stats(r.outputId());
-            if (st == null || st.getOrDefault("cash", 0) > 0) {
+            Equip cand = st == null || st.getOrDefault("cash", 0) > 0 ? null : lookups.clean(r.outputId());
+            if (cand == null) {
                 why.reject(r, "no item data", 0);
                 continue;
             }
-            int req = st.getOrDefault("reqLevel", 0);
-            if (req > bot.getLevel() || req < bot.getLevel() - OUTGROWN_LEVELS) {
-                why.reject(r, "outside its level window", 0);
+            if (st.getOrDefault("reqLevel", 0) > bot.getLevel()) {
+                why.reject(r, "above its level", 0);
                 continue;
             }
-            int slot = BotStorageMuleManager.gearSlot(r.outputId());
-            double gain = lookups.offense(bot, st) - lookups.wornOffense(bot, slot);
+            Equip worn = lookups.worn(bot, r.outputId());
+            double gain = lookups.potential(bot, cand) - (worn == null ? 0 : lookups.potential(bot, worn));
             if (gain <= 0) {
                 why.reject(r, "no better than what it wears", gain);
                 continue;
@@ -202,20 +198,21 @@ final class BotCraftManager {
                 why.reject(r, "a bigger upgrade won", gain);
                 continue;
             }
+            boolean scrollBase = lookups.value(bot, cand) <= (worn == null ? 0 : lookups.value(bot, worn));
             Plan p = plan(bot, r, have, gain);
             String no = p == null ? "short on materials"
                     : p.fees() * 2 > meso ? "fees over half its meso"
                     : p.fees() + p.inputValue() >= lookups.obtainCost(bot, r.outputId()) ? "cheaper to buy or farm"
-                    : ItemConstants.isWeapon(r.outputId()) && !lookups.preferredWeapon(bot, r.outputId())
-                            ? "not its weapon type"
-                    : !lookups.wearable(bot, r.outputId()) ? "can't wear it yet" : null;
+                    : ItemConstants.isWeapon(r.outputId()) && !lookups.preferredWeapon(bot, cand) ? "not its weapon type"
+                    : !lookups.wearable(bot, cand) ? "can't wear it yet"
+                    : scrollBase && !selfScroll ? "needs scrolling, and it doesn't scroll its gear" : null;
             if (no != null) {
                 why.reject(r, no, gain);
                 continue;
             }
             if (best == null || gain > best.gain() || (gain == best.gain()
                     && p.fees() + p.inputValue() < best.fees() + best.inputValue())) {
-                best = p;
+                best = p.asScrollBase(scrollBase);
             }
         }
         return best;
@@ -234,7 +231,7 @@ final class BotCraftManager {
         for (Step s : acc.steps) {
             fees += (long) s.recipe().fee() * s.times();
         }
-        return new Plan(goal, List.copyOf(acc.steps), fees, acc.value, gain, Map.copyOf(acc.used));
+        return new Plan(goal, List.copyOf(acc.steps), fees, acc.value, gain, Map.copyOf(acc.used), false);
     }
 
     // A plan in progress: what's left of the holdings, what earlier steps made and left over, the steps so far,
@@ -351,12 +348,39 @@ final class BotCraftManager {
             entry.craftNextCheckAtMs = now + 5_000L; // the roster snapshot is loading; the bins count once it's in
             return;
         }
-        Choice choice = choose(bot, null);
-        Plan plan = choice.plan();
-        Map<Integer, Map<Integer, Integer>> pickups = choice.pickups();
-        if (plan == null) {
+        if (entry.craftPlanInFlight) {
             return;
         }
+        // The search scores every gear recipe with WZ lookups: off the tick thread, on the shared decision pool
+        // (as the scroll scan does), and the result applied back on the scheduler thread.
+        entry.craftPlanInFlight = true;
+        BotGrindAdvisor.DECIDE_POOL.execute(() -> {
+            Choice choice = null;
+            long t0 = BotPerformanceMonitor.start();
+            try {
+                choice = choose(entry, bot, null);
+            } catch (RuntimeException e) {
+                log.debug("craft: plan search failed for {}", bot.getName(), e); // the next check retries
+            } finally {
+                BotPerformanceMonitor.recordSince("craft-scan", t0);
+            }
+            Choice c = choice;
+            BotManager.after(0, () -> {
+                entry.craftPlanInFlight = false;
+                start(entry, bot, c);
+            });
+        });
+    }
+
+    /** Starts the errand the search found, when the bot is still free for it. */
+    private static void start(BotEntry entry, Character bot, Choice choice) {
+        if (choice == null || choice.plan() == null || entry.bot != bot || active(entry) || busy(entry)
+                || bot.getMap() == null) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        Plan plan = choice.plan();
+        Map<Integer, Map<Integer, Integer>> pickups = choice.pickups();
         entry.craftSteps.clear();
         entry.craftSteps.addAll(plan.steps());
         entry.craftGoalId = plan.goal().outputId();
@@ -380,9 +404,12 @@ final class BotCraftManager {
                 return;
             }
         }
-        log.info("craft: {} plans {} ({} steps, {} meso, pickups {})", bot.getName(), name, plan.steps().size(),
-                plan.fees(), pickups);
-        BotManager.getInstance().botReply(entry, BotManager.randomReply(pickups.isEmpty()
+        log.info("craft: {} plans {} ({} steps, {} meso, pickups {}{})", bot.getName(), name, plan.steps().size(),
+                plan.fees(), pickups, plan.scrollBase() ? ", to scroll" : "");
+        BotManager.getInstance().botReply(entry, BotManager.randomReply(plan.scrollBase()
+                ? List.of("gonna craft a " + name + " and scroll it up", "making a fresh " + name + " to scroll, brb",
+                        "a clean " + name + " with open slots beats mine once scrolled, going to make one")
+                : pickups.isEmpty()
                 ? List.of("gonna get a " + name + " made, brb", "i have the mats for a " + name + ", going to craft it",
                         "heading to the npc to make a " + name)
                 : List.of("grabbing mats from my storage guys to craft a " + name,
@@ -395,16 +422,17 @@ final class BotCraftManager {
 
     /** The craft this bot would start now, planning against its bag plus its free bins; the bag alone when the
      *  pickup can't be fetched. */
-    static Choice choose(Character bot, Rejects rejects) {
+    static Choice choose(BotEntry entry, Character bot, Rejects rejects) {
+        boolean selfScroll = entry != null && entry.selfScrollEnabled;
         Map<Integer, Integer> bag = bagCounts(bot);
         Map<Integer, Map<Integer, Integer>> stock = BotStorageMuleManager.binStock(bot);
         Map<Integer, Integer> have = new HashMap<>(bag);
         stock.values().forEach(held -> held.forEach((id, qty) -> have.merge(id, qty, Integer::sum)));
-        Plan plan = bestPlan(bot, have, bot.getMeso(), rejects);
+        Plan plan = bestPlan(bot, have, bot.getMeso(), selfScroll, rejects);
         Map<Integer, Map<Integer, Integer>> pickups = plan == null ? Map.of()
                 : BotStorageMuleManager.assignPickups(stock, shortfall(plan.used(), bag));
         if (!pickups.isEmpty() && !canFetch(bot, pickups)) {
-            return new Choice(bestPlan(bot, bag, bot.getMeso()), Map.of()); // its own bag, no market trip
+            return new Choice(bestPlan(bot, bag, bot.getMeso(), selfScroll, null), Map.of()); // its bag, no trip
         }
         return new Choice(plan, pickups);
     }

@@ -343,7 +343,7 @@ public final class BotWorldGraphWebServer {
         Map<String, Integer> reasons = new java.util.TreeMap<>();
         record Near(BotCraftManager.Recipe recipe, String reason, double gain) {}
         List<Near> near = new ArrayList<>();
-        BotCraftManager.Choice c = BotCraftManager.choose(bot, (r, reason, gain) -> {
+        BotCraftManager.Choice c = BotCraftManager.choose(e, bot, (r, reason, gain) -> {
             reasons.merge(reason, 1, Integer::sum);
             if (gain > 0) {
                 near.add(new Near(r, reason, gain));
@@ -371,6 +371,7 @@ public final class BotWorldGraphWebServer {
                     .map(g -> "{\"id\":" + g.getKey() + ",\"q\":" + g.getValue() + "}")
                     .collect(java.util.stream.Collectors.joining(",", "[", "]")) + "}"));
             plan = "{\"goal\":" + p.goal().outputId() + ",\"n\":" + jsonStr(String.valueOf(ii.getName(p.goal().outputId())))
+                    + ",\"scrollBase\":" + p.scrollBase()
                     + ",\"gain\":" + Math.round(p.gain() * 10) / 10.0 + ",\"fees\":" + p.fees()
                     + ",\"inputValue\":" + Math.round(p.inputValue()) + ",\"steps\":" + rawArr(steps)
                     + ",\"pickups\":" + rawArr(pickups) + "}";
