@@ -1366,4 +1366,23 @@ class BotAutopilotManagerTest {
 
         assertEquals(0L, f.entry().autopilotNextDecisionAtMs); // leader picks it up next tick
     }
+
+    @Test
+    void aGrindTargetTravelFindsNoWayToIsAvoidedAndRedecided() {
+        Fixture f = fixture(682010200);
+        when(f.bot().getName()).thenReturn("SipsBuddy2");
+        f.entry().autopilotMapId = 682010202;
+        f.entry().autopilotDestinationName = "Chimney Possessed by the Scarecrow";
+        try (Seams seams = new Seams(null)) {
+            long now = System.currentTimeMillis();
+            BotAutopilotManager.onUnreachableTarget(f.entry(), f.bot(), now);
+            assertEquals(-1, f.entry().autopilotMapId);
+            assertEquals("", f.entry().autopilotDestinationName);
+            assertTrue(BotAutopilotManager.isAvoided(f.entry(), 682010202));
+            long until = f.entry().autopilotAvoidMapUntilMs.get(682010202);
+            assertTrue(until - now >= BotAutopilotManager.UNREACHABLE_AVOID_MIN_MS
+                    && until - now <= BotAutopilotManager.UNREACHABLE_AVOID_MAX_MS);
+            assertEquals(1, seams.replies.size());
+        }
+    }
 }

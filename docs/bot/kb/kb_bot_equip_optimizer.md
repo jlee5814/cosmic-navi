@@ -102,3 +102,9 @@ The following legacy non-DP code is gone — do not try to call or revive:
 - **`damageWith` still takes II** (param) but doesn't use it post-refactor — `scoreNode` passes null. Cleanup deferred.
 - **Ring slot moves**: `applyEquipPlan` won't reshuffle rings between equipped slots (skips when target's `getPosition() <= 0`). Stats unaffected; only cosmetic. If ever needed, would require explicit unequip→re-equip dance.
 - **Tests**: `BotEquipOptimizerTest` (3 DP tests) + `BotEquipManagerTest` (13 mob-profile / damage tests). Tests stub `OptimizerHooks` with lambdas; **never** mock `ItemInformationProvider` directly.
+- UPDATE (2026-10-16): the lex score now really is `damage > defense > statSum`. `EquipScore` had no defense term
+  (weaponRank, damage, statSum), so armor that adds neither damage nor useful stats (wdef, mdef, HP, MP, avoid,
+  speed) tied with what was worn and the worn piece stayed. The gear score counts survival (`equipValue`), so the
+  gear trip bought SipsBuddy2 Red Whitebottom Boots over and over and the optimizer never wore them (fleet ops
+  paused its errands). `DpNode.survival` (thousandths of `BotScrollManager.survivalValue`, the SSOT) breaks
+  damage ties, also inside same signature dedup. Test: `atEqualDamageTheSturdierPieceIsWorn`.
