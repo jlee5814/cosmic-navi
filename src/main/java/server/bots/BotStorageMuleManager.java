@@ -182,13 +182,19 @@ final class BotStorageMuleManager {
      * counts the equips in its bag by item id (a storage mule's bag is its bin).
      */
     record Member(int charId, int jobId, int level, Map<Integer, Integer> wornReq, Map<Integer, Integer> bagCopies,
-                  Map<Integer, Integer> etcHeld) {
+                  Map<Integer, Integer> etcHeld, String name, java.util.Set<Integer> wornIds,
+                  Map<Integer, Integer> scrollsHeld) {
         Member(int charId, int jobId, int level) {
             this(charId, jobId, level, Map.of(), Map.of(), Map.of());
         }
 
         Member(int charId, int jobId, int level, Map<Integer, Integer> wornReq, Map<Integer, Integer> bagCopies) {
             this(charId, jobId, level, wornReq, bagCopies, Map.of());
+        }
+
+        Member(int charId, int jobId, int level, Map<Integer, Integer> wornReq, Map<Integer, Integer> bagCopies,
+               Map<Integer, Integer> etcHeld) {
+            this(charId, jobId, level, wornReq, bagCopies, etcHeld, "", java.util.Set.of(), Map.of());
         }
     }
 
@@ -322,7 +328,7 @@ final class BotStorageMuleManager {
         Map<Integer, List<Member>> membersByOwner = new HashMap<>();
         try (Connection con = DatabaseConnection.getConnection()) {
             try (PreparedStatement ps = con.prepareStatement(
-                    "SELECT o.bot_char_id, o.owner_char_id, b.config, c.job, c.level FROM bot_owners o "
+                    "SELECT o.bot_char_id, o.owner_char_id, b.config, c.job, c.level, c.name FROM bot_owners o "
                             + "LEFT JOIN bot_config b ON b.bot_char_id=o.bot_char_id "
                             + "LEFT JOIN characters c ON c.id=o.bot_char_id");
                  ResultSet rs = ps.executeQuery()) {
@@ -331,7 +337,7 @@ final class BotStorageMuleManager {
                     int owner = rs.getInt("owner_char_id");
                     ownerOf.put(bot, owner);
                     membersByOwner.computeIfAbsent(owner, k -> new ArrayList<>())
-                            .add(new Member(bot, rs.getInt("job"), rs.getInt("level")));
+                            .add(named(new Member(bot, rs.getInt("job"), rs.getInt("level")), rs.getString("name")));
                     String role = roleKey(BotPersonality.parse(rs.getString("config")).rosterRole());
                     if (binRoles.contains(role)) {
                         mulesByOwner.computeIfAbsent(owner, k -> new HashMap<>()).put(role, bot);
@@ -340,12 +346,13 @@ final class BotStorageMuleManager {
                 }
             }
             // The owners themselves play too.
-            try (PreparedStatement ps = con.prepareStatement("SELECT job, level FROM characters WHERE id=?")) {
+            try (PreparedStatement ps = con.prepareStatement("SELECT job, level, name FROM characters WHERE id=?")) {
                 for (Map.Entry<Integer, List<Member>> e : membersByOwner.entrySet()) {
                     ps.setInt(1, e.getKey());
                     try (ResultSet rs = ps.executeQuery()) {
                         if (rs.next()) {
-                            e.getValue().add(new Member(e.getKey(), rs.getInt("job"), rs.getInt("level")));
+                            e.getValue().add(named(new Member(e.getKey(), rs.getInt("job"), rs.getInt("level")),
+                                    rs.getString("name")));
                         }
                     }
                 }
@@ -357,14 +364,22 @@ final class BotStorageMuleManager {
         return new Directory(ownerOf, mulesByOwner, roleOfMule, membersByOwner, nowMs);
     }
 
-    /** Fills in each member's worn gear levels, bag equips and ETC holdings from the saved inventories (type 1 =
-     *  a character's own items; inventorytype -1 worn, 1 the equip bag, 4 the ETC bag). */
+    private static Member named(Member m, String name) {
+        return new Member(m.charId(), m.jobId(), m.level(), m.wornReq(), m.bagCopies(), m.etcHeld(),
+                name == null ? "" : name, m.wornIds(), m.scrollsHeld());
+    }
+
+    /** Fills in each member's worn gear (levels by slot, and the item ids), bag equips, equip scrolls and ETC
+     *  holdings from the saved inventories (type 1 = a character's own items; inventorytype -1 worn, 1 the equip
+     *  bag, 2 the use bag, 4 the ETC bag). */
     private static void loadFleetGear(Connection con, Map<Integer, List<Member>> membersByOwner) throws Exception {
         Map<Integer, Map<Integer, Integer>> worn = new HashMap<>();
+        Map<Integer, java.util.Set<Integer>> wornIds = new HashMap<>();
         Map<Integer, Map<Integer, Integer>> bags = new HashMap<>();
+        Map<Integer, Map<Integer, Integer>> scrolls = new HashMap<>();
         Map<Integer, Map<Integer, Integer>> etc = new HashMap<>();
         try (PreparedStatement ps = con.prepareStatement(
-                "SELECT characterid, itemid, inventorytype, quantity FROM inventoryitems WHERE type=1 AND inventorytype IN (-1,1,4) "
+                "SELECT characterid, itemid, inventorytype, quantity FROM inventoryitems WHERE type=1 AND inventorytype IN (-1,1,2,4) "
                         + "AND characterid IN (SELECT bot_char_id FROM bot_owners UNION SELECT owner_char_id FROM bot_owners)");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
@@ -374,10 +389,17 @@ final class BotStorageMuleManager {
                     etc.computeIfAbsent(charId, k -> new HashMap<>()).merge(itemId, rs.getInt("quantity"), Integer::sum);
                     continue;
                 }
+                if (rs.getInt("inventorytype") == 2) {
+                    if (ItemConstants.isEquipScroll(itemId)) {
+                        scrolls.computeIfAbsent(charId, k -> new HashMap<>()).merge(itemId, rs.getInt("quantity"), Integer::sum);
+                    }
+                    continue;
+                }
                 if (rs.getInt("inventorytype") == 1) {
                     bags.computeIfAbsent(charId, k -> new HashMap<>()).merge(itemId, 1, Integer::sum);
                     continue;
                 }
+                wornIds.computeIfAbsent(charId, k -> new java.util.HashSet<>()).add(itemId);
                 Map<Integer, Integer> slots = worn.computeIfAbsent(charId, k -> new HashMap<>());
                 int req = reqLevel.applyAsInt(itemId);
                 int slot = gearSlot(itemId);
@@ -389,7 +411,8 @@ final class BotStorageMuleManager {
         }
         for (List<Member> members : membersByOwner.values()) {
             members.replaceAll(m -> new Member(m.charId(), m.jobId(), m.level(), worn.getOrDefault(m.charId(), Map.of()),
-                    bags.getOrDefault(m.charId(), Map.of()), etc.getOrDefault(m.charId(), Map.of())));
+                    bags.getOrDefault(m.charId(), Map.of()), etc.getOrDefault(m.charId(), Map.of()), m.name(),
+                    wornIds.getOrDefault(m.charId(), java.util.Set.of()), scrolls.getOrDefault(m.charId(), Map.of())));
         }
     }
 

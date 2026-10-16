@@ -163,7 +163,7 @@ final class BotOfferManager {
     }
 
     /** An equip scroll worth routing by category (skips universally-valuable meta scrolls). */
-    private static boolean isOfferableScroll(ItemInformationProvider ii, int sid) {
+    static boolean isOfferableScroll(ItemInformationProvider ii, int sid) {
         if (!ItemConstants.isEquipScroll(sid)) {
             return false;
         }
@@ -176,16 +176,87 @@ final class BotOfferManager {
 
     /** Useful to {@code c} = the scroll grants a stat c's job values AND applies to gear c wears. */
     private static boolean scrollUsefulTo(ItemInformationProvider ii, Character c, int sid) {
-        if (!scrollStatRelevantTo(ii, c, sid)) {
+        List<Integer> worn = new ArrayList<>();
+        for (Item it : c.getInventory(InventoryType.EQUIPPED).list()) {
+            worn.add(it.getItemId());
+        }
+        return scrollUsefulTo(ii, c.getJob(), worn, sid);
+    }
+
+    /** The rule on ids alone (a roster snapshot member): the scroll grants a stat the job values and applies to
+     *  a non cash piece among {@code worn}. */
+    static boolean scrollUsefulTo(ItemInformationProvider ii, client.Job job, java.util.Collection<Integer> worn, int sid) {
+        return scrollUsefulTo(ScrollRules.of(ii), job, worn, sid);
+    }
+
+    private static boolean scrollUsefulTo(ScrollRules rules, client.Job job, java.util.Collection<Integer> worn, int sid) {
+        if (!scrollStatRelevantToJob(rules.stats(sid), job)) {
             return false;
         }
-        for (Item it : c.getInventory(InventoryType.EQUIPPED).list()) {
-            if (it instanceof Equip e && !ii.isCash(e.getItemId())
-                    && BotScrollManager.applicable(ii, sid, e.getItemId())) {
+        for (int id : worn) {
+            if (!rules.isCash(id) && rules.applicable(sid, id)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /** Test seam: the item data the scroll rules read (WZ). */
+    interface ScrollRules {
+        java.util.Map<String, Integer> stats(int scrollId);
+        boolean isCash(int itemId);
+        boolean applicable(int scrollId, int equipId);
+        boolean offerable(int scrollId);
+
+        static ScrollRules of(ItemInformationProvider ii) {
+            return new ScrollRules() {
+                @Override public java.util.Map<String, Integer> stats(int scrollId) { return ii.getEquipStats(scrollId); }
+                @Override public boolean isCash(int itemId) { return ii.isCash(itemId); }
+                @Override public boolean applicable(int scrollId, int equipId) {
+                    return BotScrollManager.applicable(ii, scrollId, equipId);
+                }
+                @Override public boolean offerable(int scrollId) { return isOfferableScroll(ii, scrollId); }
+            };
+        }
+    }
+
+    static ScrollRules scrollRules = null; // null: the live item data
+
+    /** A scroll its holder can't use, and the fleet members (same owner) who could. */
+    record ScrollMatch(BotStorageMuleManager.Member holder, int scrollId, int qty,
+                       List<BotStorageMuleManager.Member> takers) {}
+
+    /**
+     * Fleet wide, from the roster snapshot (offline members included): every routable equip scroll
+     * ({@link #isOfferableScroll}) a member holds that is useless to it by {@link #scrollUsefulTo}, with the
+     * other members of the same owner's fleet it is useful to (beginners left out).
+     */
+    static List<ScrollMatch> fleetScrollMatches(BotStorageMuleManager.Directory dir) {
+        ScrollRules rules = scrollRules != null ? scrollRules : ScrollRules.of(ItemInformationProvider.getInstance());
+        List<ScrollMatch> out = new ArrayList<>();
+        if (dir == null) {
+            return out;
+        }
+        for (List<BotStorageMuleManager.Member> fleet : dir.membersByOwner().values()) {
+            for (BotStorageMuleManager.Member holder : fleet) {
+                client.Job job = client.Job.getById(holder.jobId());
+                holder.scrollsHeld().forEach((sid, qty) -> {
+                    if (!rules.offerable(sid) || scrollUsefulTo(rules, job, holder.wornIds(), sid)) {
+                        return;
+                    }
+                    List<BotStorageMuleManager.Member> takers = new ArrayList<>();
+                    for (BotStorageMuleManager.Member m : fleet) {
+                        // Beginners (every storage mule) count every stat and scroll nothing: never a taker.
+                        if (m != holder && m.jobId() != 0
+                                && scrollUsefulTo(rules, client.Job.getById(m.jobId()), m.wornIds(), sid)) {
+                            takers.add(m);
+                        }
+                    }
+                    out.add(new ScrollMatch(holder, sid, qty, List.copyOf(takers)));
+                });
+            }
+        }
+        return out;
     }
 
     private static boolean scrollStatRelevantTo(ItemInformationProvider ii, Character c, int sid) {
