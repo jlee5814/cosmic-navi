@@ -25,7 +25,7 @@ def log_lines():
     for f in files:
         m = re.search(r'cosmic-log-(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})', f)
         start = (datetime.datetime.strptime(' '.join(m.groups()), '%Y-%m-%d %H %M %S') if m
-                 else datetime.datetime.utcnow())
+                 else datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None))
         day, last = start.replace(hour=0, minute=0, second=0), None
         try:
             fh = open(f, errors='ignore')
