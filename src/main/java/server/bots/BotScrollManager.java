@@ -1431,23 +1431,37 @@ final class BotScrollManager {
     }
 
     /**
-     * A mob a bot can farm: it spawns on some field that is neither a town nor instanced or event space (the grind
-     * advisor's {@link BotGrindAdvisor#INSTANCED_MAPID_FLOOR}). Summoned bosses (Zakum, Pink Bean) and event mobs
-     * spawn on no such field, so what only they drop has no farming route. True when the spawn index can't be read
-     * (unit tests), as before.
+     * A mob a bot can farm: it spawns on some field a bot can travel to ({@code world}, the world graph flooded from
+     * Henesys, ferries and fares allowed) that is neither a town nor instanced space (the grind advisor's
+     * {@link BotGrindAdvisor#INSTANCED_MAPID_FLOOR}). Summoned bosses (Zakum, Pink Bean) spawn on no field, and event
+     * mobs (Giant Cake, Slot Machine) only on fields no route reaches, so what only they drop has no farming route.
+     * True when the spawn index can't be read (unit tests), as before; {@code world} null skips that check.
      */
-    static boolean farmableDropper(int mobId) {
+    static boolean farmableDropper(int mobId, Set<Integer> world) {
         try {
             BotSpawnIndex.Index index = BotSpawnIndex.get();
             for (BotSpawnIndex.SpawnSite site : BotSpawnIndex.spawnSites(mobId)) {
                 BotSpawnIndex.MapSpawns map = index.byMap().get(site.mapId());
-                if (site.mapId() < BotGrindAdvisor.INSTANCED_MAPID_FLOOR && (map == null || !map.town())) {
+                if (site.mapId() < BotGrindAdvisor.INSTANCED_MAPID_FLOOR && (map == null || !map.town())
+                        && (world == null || world.contains(site.mapId()))) {
                     return true;
                 }
             }
             return false;
         } catch (RuntimeException e) {
             return true;
+        }
+    }
+
+    // Every field a bot can travel to from Henesys, any route (an abstract probe, no level or meso limit).
+    private static final int WORLD_FLOOD_HOPS = 1_000;
+
+    private static Set<Integer> travelableFields() {
+        try {
+            return BotWorldGraph.reachableWithin(100000000, WORLD_FLOOD_HOPS,
+                    new BotWorldGraph.RouteOptions(true, Integer.MAX_VALUE, true));
+        } catch (RuntimeException e) {
+            return null; // no world graph (unit tests): the spawn check alone
         }
     }
 
@@ -1463,12 +1477,13 @@ final class BotScrollManager {
                      "SELECT itemid, dropperid, chance FROM drop_data WHERE chance > 0");
              ResultSet rs = ps.executeQuery()) {
             Map<Integer, Boolean> farmable = new HashMap<>();
+            Set<Integer> world = travelableFields();
             while (rs.next()) {
                 int item = rs.getInt("itemid");
                 int chance = rs.getInt("chance");
                 int mob = rs.getInt("dropperid");
                 int[] cur = m.get(item);
-                if ((cur == null || chance > cur[1]) && farmable.computeIfAbsent(mob, BotScrollManager::farmableDropper)) {
+                if ((cur == null || chance > cur[1]) && farmable.computeIfAbsent(mob, id -> farmableDropper(id, world))) {
                     m.put(item, new int[]{mob, chance});
                 }
             }
