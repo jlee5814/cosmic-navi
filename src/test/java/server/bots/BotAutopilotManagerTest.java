@@ -206,6 +206,52 @@ class BotAutopilotManagerTest {
         }
     }
 
+    private static Fixture cappedFighter() {
+        Fixture f = fixture(TOWN);
+        when(f.bot().getJob()).thenReturn(Job.FIGHTER);
+        when(f.bot().getLevel()).thenReturn(43);
+        f.entry().personality = BotPersonality.parse("v=1;trainingLevel=43");
+        return f;
+    }
+
+    @Test
+    void aCappedBotHuntsTheScrollsTheFleetLacksInsteadOfGrinding() {
+        Fixture f = cappedFighter();
+        assertTrue(BotTrainingPlan.complete(f.entry(), f.bot()));
+        BotAutopilotManager.Advisor previousHunt = BotAutopilotManager.huntAdvisor;
+        try (Seams seams = new Seams(expRec(HUNTING_GROUND, "Henesys Hunting Ground I"))) {
+            BotAutopilotManager.advisor = (entry, bot, fromMapId, maxHops, withFerry) -> {
+                throw new AssertionError("a capped bot doesn't plan exp");
+            };
+            BotAutopilotManager.huntAdvisor = (entry, bot, fromMapId, maxHops, withFerry) ->
+                    gearRec(HUNTING_GROUND, "Henesys Hunting Ground I", "Scroll for Wand for Magic Att.", 1.0);
+            BotAutopilotManager.start(f.entry(), f.bot());
+            assertEquals(HUNTING_GROUND, f.entry().autopilotMapId);
+            assertTrue(f.entry().scrollHunt);
+            assertFalse(BotTrainingPlan.holdsAtCap(f.entry(), f.bot())); // the cap no longer stops it
+        } finally {
+            BotAutopilotManager.huntAdvisor = previousHunt;
+        }
+    }
+
+    @Test
+    void aCappedBotWithNothingToHuntHoldsAtItsCapAndLooksAgainLater() {
+        Fixture f = cappedFighter();
+        BotAutopilotManager.Advisor previousHunt = BotAutopilotManager.huntAdvisor;
+        try (Seams seams = new Seams(null)) {
+            BotAutopilotManager.huntAdvisor = (entry, bot, fromMapId, maxHops, withFerry) -> null;
+            long before = System.currentTimeMillis();
+            BotAutopilotManager.start(f.entry(), f.bot());
+            assertEquals(-1, f.entry().autopilotMapId);
+            assertFalse(f.entry().scrollHunt);
+            assertTrue(BotTrainingPlan.holdsAtCap(f.entry(), f.bot()));
+            assertTrue(f.entry().autopilotNextDecisionAtMs >= before + BotAutopilotManager.HUNT_RECHECK_MS);
+            assertTrue(seams.replies.isEmpty()); // no "nothing to grind" chatter at the cap
+        } finally {
+            BotAutopilotManager.huntAdvisor = previousHunt;
+        }
+    }
+
     @Test
     void shouldAnnounceGearObjectiveAsItemFromMobWithoutNumbers() {
         Fixture f = fixture(TOWN);

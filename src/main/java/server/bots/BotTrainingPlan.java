@@ -25,9 +25,10 @@ final class BotTrainingPlan {
     }
 
     /** At its cap with no operator command live: the cap stops the bot's own farming, never an order someone
-     *  gave it (an RTS or dashboard move travels on the autopilot destination too). */
+     *  gave it (an RTS or dashboard move travels on the autopilot destination too), nor a hunt for the scrolls its
+     *  fleet lacks ({@link BotScrollHunt}). */
     static boolean holdsAtCap(BotEntry entry, Character bot) {
-        return entry.operatorCmd == null && complete(entry, bot);
+        return entry.operatorCmd == null && complete(entry, bot) && !entry.scrollHunt;
     }
 
     static void stopIfComplete(BotEntry entry, Character bot) {
