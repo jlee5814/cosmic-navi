@@ -10,7 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BotScrollHuntTest {
-    private static final int WAND_MATK = 2043700, CAPE_INT = 2041000, BW_ATT = 2043200, WHITE = 2340000;
+    private static final int WAND_MATK = 2043700, CAPE_INT = 2041000, BW_ATT = 2043200, BW_ATT_60 = 2043201, WHITE = 2340000;
+    private static final int BLUNT = 1322005;
     private static final int WAND = 1372000, CAPE = 1102000;
 
     private static final BotOfferManager.ScrollRules RULES = new BotOfferManager.ScrollRules() {
@@ -18,7 +19,8 @@ class BotScrollHuntTest {
             return switch (scrollId) {
                 case WAND_MATK -> Map.of("MAD", 2, "success", 60);
                 case CAPE_INT -> Map.of("INT", 2, "success", 60);
-                case BW_ATT -> Map.of("PAD", 2, "success", 60);
+                case BW_ATT -> Map.of("PAD", 1, "success", 100);
+                case BW_ATT_60 -> Map.of("PAD", 2, "success", 60);
                 default -> Map.of();
             };
         }
@@ -50,5 +52,17 @@ class BotScrollHuntTest {
         assertEquals(Set.of(WAND_MATK), want.keySet());
         assertTrue(want.get(WAND_MATK) > 0);
         assertEquals(Map.of(), BotScrollHunt.wanted(dir, 77, RULES, Set.of(WAND_MATK))); // a bot with no fleet
+    }
+
+    @Test
+    void scrollsForTheSameSlotsAndStatsAreSubstitutes() {
+        // Live: SipsBuddy26 hunted a 60% blunt weapon attack scroll while 150 of the 100% kind sat in the fleet.
+        var fighter1 = member(1, 110, Set.of(BLUNT), Map.of());
+        var fighter2 = member(2, 110, Set.of(BLUNT), Map.of());
+        var holder = member(3, 222, Set.of(), Map.of(BW_ATT, 150));
+        var dir = new BotStorageMuleManager.Directory(Map.of(1, 9, 2, 9, 3, 9, 4, 9), Map.of(), Map.of(),
+                Map.of(9, List.of(fighter1, fighter2, holder)), 0L);
+        assertEquals(Map.of(), BotScrollHunt.wanted(dir, 4, RULES, Set.of(BW_ATT, BW_ATT_60)));
+        assertEquals(BotScrollHunt.substituteKind(RULES, BW_ATT), BotScrollHunt.substituteKind(RULES, BW_ATT_60));
     }
 }
