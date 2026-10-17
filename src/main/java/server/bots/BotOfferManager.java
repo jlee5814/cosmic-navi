@@ -261,7 +261,7 @@ final class BotOfferManager {
         return takers(rules(), dir.membersByOwner().getOrDefault(owner, List.of()), holderId, sid);
     }
 
-    private static List<BotStorageMuleManager.Member> takers(ScrollRules rules, List<BotStorageMuleManager.Member> fleet,
+    static List<BotStorageMuleManager.Member> takers(ScrollRules rules, List<BotStorageMuleManager.Member> fleet,
                                                             int holderId, int sid) {
         List<BotStorageMuleManager.Member> out = new ArrayList<>();
         for (BotStorageMuleManager.Member m : fleet) {

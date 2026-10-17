@@ -292,6 +292,7 @@ public class BotEntry {
     // Autopilot (BotAutopilotManager): owner-ordered independent play. -1 = off.
     // Deliberately NOT cleared on death: the bot revives in town and walks back.
     int autopilotMapId = -1;            // chosen grind map; travel destination while != current map
+    volatile boolean scrollHunt;        // a capped bot's plan is the fleet scroll hunt (BotScrollHunt), not exp
     volatile BotGrindPlanner.MobCandidate autopilotPlanPick = null; // the plan's map candidate (kill time, exp): gear payback reads it
     long autopilotNextDecisionAtMs = 0L; // when to re-run the grind advisor
     // Post-mortem for "idle in town overnight": the LAST decision the advisor resolved and when, so

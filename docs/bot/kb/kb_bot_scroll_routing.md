@@ -31,3 +31,15 @@ Two-Handed Sword accuracy, and pet equip speed scrolls (no job values speed). Ow
   equip bag): a blunt weapon a Page bought or crafted makes it a taker, so the holder routes those scrolls into
   Warrior weapons. The taker's room (`roomByKind`) counts a bag piece only when it beats the worn one by the gear
   score, so a junk spare pulls nothing.
+
+**The hunt (2026-10-16, owner decision)**
+- Capped bots (training target reached) hunt the fleet's shortfall instead of idling and parking: `BotScrollHunt`.
+  Wanted = every dropped equip scroll members could use (`BotOfferManager.takers`, snapshot) beyond the copies of
+  it and its substitutes (same gear type and stats: 10%, 60% and 100% fill the same slots) the fleet holds; weight
+  = shortfall × success × `marketStatValue`. Farmed as a basket (`BotGrindAdvisor.recommendFarmBasket`, the
+  generalized `recommendFarmItem`). `BotTrainingPlan.holdsAtCap` is false while `entry.scrollHunt`; nothing to hunt
+  holds at the cap and looks again in 5 minutes (`HUNT_RECHECK_MS`), parking after 10 idle minutes as before.
+- Hunting levels the bot past its target (owner: the target stops grinding for exp, it is not a ceiling).
+- Storage mules on duty log out after their visit, so in practice the hunters are the online capped roster bots.
+- Live: SipsBuddy26 (43 Spearman) hunted 60% blunt attack scrolls while 150 of the 100% kind sat in the fleet,
+  until substitutes shared one shortfall; then Claw attack scrolls from Street Slime.

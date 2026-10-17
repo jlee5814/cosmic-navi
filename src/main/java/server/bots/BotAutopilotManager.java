@@ -98,6 +98,26 @@ final class BotAutopilotManager {
                 BotOccupancy.extraCompetitors(bot, BotManager.cfg.CROWD_PENALTY_FACTOR));
     };
 
+    /** A capped bot's plan: the hunt for the scrolls its fleet lacks ({@link BotScrollHunt}), on the same reachable
+     *  set, travel weight and crowd surcharge as a grind plan. */
+    static Advisor huntAdvisor = (entry, bot, fromMapId, maxHops, withFerry) -> {
+        BotWorldGraph.RouteOptions options = travelOptions(bot, withFerry);
+        Set<Integer> reachable = reachableForEntry(entry, bot, fromMapId, maxHops, options);
+        return BotScrollHunt.recommend(entry, bot, reachable::contains,
+                travelWeight(bot, fromMapId, maxHops, options, entry.activeQuestMobIds, rollWanderlust(entry)),
+                BotOccupancy.extraCompetitors(bot, BotManager.cfg.CROWD_PENALTY_FACTOR));
+    };
+
+    // A capped bot with nothing to hunt looks again after this long (the fleet's wants change as members level).
+    static final long HUNT_RECHECK_MS = 5 * 60_000L;
+
+    /** Nothing the fleet lacks that this capped bot can farm: it holds at its cap as before (and parks when idle). */
+    private static void atCapWithNothingToHunt(BotEntry entry, Character bot) {
+        entry.scrollHunt = false;
+        BotTrainingPlan.stopIfComplete(entry, bot);
+        entry.autopilotNextDecisionAtMs = System.currentTimeMillis() + HUNT_RECHECK_MS;
+    }
+
     @FunctionalInterface
     interface FarmAdvisor {
         Recommendation recommend(BotEntry entry, Character bot, int itemId, int fromMapId, int maxHops,
@@ -432,6 +452,7 @@ final class BotAutopilotManager {
         }
         entry.autopilotMapId = -1;
         entry.autopilotPlanPick = null;
+        entry.scrollHunt = false;
         entry.autopilotNextDecisionAtMs = 0L;
         entry.autopilotDestinationName = "";
         entry.autopilotObjectiveSummary = "";
@@ -483,18 +504,18 @@ final class BotAutopilotManager {
         if (entry == null || bot == null || bot.getMap() == null) {
             return;
         }
-        if (BotTrainingPlan.complete(entry, bot)) {
-            BotTrainingPlan.stopIfComplete(entry, bot);
-            return;
-        }
         int epoch = entry.activityEpoch;
         boolean ferryApprovedBefore = entry.autopilotFerryApproved;
         warmAttackSkills(entry, bot);
         decisionRunner.run(() -> decide(entry, bot), result -> {
             Decision decision = (Decision) result;
             Recommendation rec = decision != null ? decision.rec() : null;
-            if (entry.activityEpoch != epoch || bot.getMap() == null || BotTrainingPlan.complete(entry, bot)) {
+            if (entry.activityEpoch != epoch || bot.getMap() == null) {
                 return; // a newer owner directive won while we were thinking
+            }
+            if (rec == null && BotTrainingPlan.complete(entry, bot)) {
+                atCapWithNothingToHunt(entry, bot); // the cap holds: nothing the fleet lacks that it can farm
+                return;
             }
             if (rec == null) {
                 // Legitimate "nothing reachable worth grinding from here" (a non-null Decision with a
@@ -516,6 +537,7 @@ final class BotAutopilotManager {
             entry.autopilotFerryApproved = ferryApprovedBefore; // the clear() in issueGrind
             // must not revoke the permission this very plan was decided with.
             installPlan(entry, rec, bot.getMapId());
+            entry.scrollHunt = BotTrainingPlan.complete(entry, bot);
             entry.autopilotNextDecisionAtMs = nextDecisionAt();
             announcePlan(entry, rec, bot.getMapId());
             maybeTeaseFerry(entry, decision);
@@ -1183,7 +1205,8 @@ final class BotAutopilotManager {
         if (entry == null || bot == null || entry.personality.rosterRole().isBlank()) return status;
         BotPersonality p = entry.personality;
         String training = p.trainingLevelTarget() == 0 ? "uncapped farming"
-                : BotTrainingPlan.complete(entry, bot) ? "training target reached"
+                : BotTrainingPlan.complete(entry, bot) ? (entry.scrollHunt ? "training target reached, hunting scrolls for the fleet"
+                        : "training target reached")
                 : "training to lv" + p.trainingLevelTarget();
         return "assigned: " + p.rosterRole() + "; " + training + "; " + status;
     }
@@ -1470,6 +1493,10 @@ final class BotAutopilotManager {
             }
             maybeTeaseFerry(entry, decision);
             Recommendation rec = decision != null ? decision.rec() : null;
+            if (rec == null && BotTrainingPlan.complete(entry, bot)) {
+                atCapWithNothingToHunt(entry, bot);
+                return;
+            }
             if (rec == null) {
                 recordDecision(entry, decision == null
                         ? "decide failed (see warn log)"
@@ -1477,6 +1504,7 @@ final class BotAutopilotManager {
                 escapeTrappedRegion(entry, bot); // if walled into a danger region, scroll out / beg
                 return;
             }
+            entry.scrollHunt = BotTrainingPlan.complete(entry, bot);
             if (rec.pick().mapId() == entry.autopilotMapId) {
                 return; // current spot is still the call
             }
@@ -1512,6 +1540,9 @@ final class BotAutopilotManager {
     }
 
     private static Recommendation recommendOnce(BotEntry entry, Character bot, boolean withFerry) {
+        if (BotTrainingPlan.complete(entry, bot) && entry.operatorCmd == null) {
+            return huntAdvisor.recommend(entry, bot, bot.getMapId(), MAX_TRAVEL_HOPS, withFerry);
+        }
         if (entry.autopilotFarmItemId != 0) {
             return farmAdvisor.recommend(entry, bot, entry.autopilotFarmItemId,
                     bot.getMapId(), MAX_TRAVEL_HOPS, withFerry);
