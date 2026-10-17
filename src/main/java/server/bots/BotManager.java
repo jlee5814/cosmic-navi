@@ -5659,7 +5659,8 @@ public class BotManager {
      * resets it to nextDecisionAt() the moment a plan installs.
      */
     private void maybeRecoverInertAutopilot(BotEntry entry, Character bot) {
-        if (BotTrainingPlan.complete(entry, bot)) return; // intentional training stop survives idle recovery
+        // At its cap the bot doesn't resume grinding: start() plans the fleet scroll hunt, or holds at the cap again
+        // and backs off (BotAutopilotManager.HUNT_RECHECK_MS).
         if (entry.operatorCmd != null || isAdminFollowActive(entry)) {
             return; // an operator command (IDLE/FIDGET) or an admin hijack-follow deliberately holds the bot off autopilot
         }
@@ -5679,7 +5680,7 @@ public class BotManager {
         // re-decides its own best map and they scatter). Leader-only triggers the group recovery; the
         // rest wait and get re-engaged by the leader's startParty.
         List<BotEntry> cohort = partyAutopilotCohort(entry);
-        if (cohort.size() >= 2) {
+        if (cohort.size() >= 2 && !BotTrainingPlan.complete(entry, bot)) { // a capped bot hunts on its own
             // When the whole crew goes inert together, only the leader fires (non-leaders see an inert
             // leader and defer to its tick) so decideParty doesn't run N times. But if the leader is
             // ACTIVE it will never self-recover the group, so an orphaned inert member must trigger it.

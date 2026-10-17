@@ -25,6 +25,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -778,20 +779,47 @@ final class BotGrindAdvisor {
                                             java.util.function.IntPredicate mapAllowed,
                                             java.util.function.IntToDoubleFunction mapScoreWeight,
                                             java.util.function.IntToDoubleFunction extraCompetitors) {
-        Map<Integer, Integer> droppers = droppersForItem.droppers(itemId);
-        if (droppers.isEmpty()) {
+        return recommendFarmBasket(entry, bot, Map.of(itemId, 1.0), mapAllowed, mapScoreWeight, extraCompetitors);
+    }
+
+    /**
+     * Farm a basket of items, each by its weight (one item at weight 1 is the plain "farm &lt;item&gt;"): candidates are
+     * every allowed map where a dropper of any of them spawns, with the grind spawn share blend (mobs that drop none
+     * still take kill time). A map's one prospect carries the weight scaled chance per kill (each item's chance times
+     * its weight over the basket's top weight, summed), so {@link BotGrindPlanner#planFarmBest} ranks maps by
+     * weighted items an hour; it is labeled with the item that contributes most there. Null when nothing the bot can
+     * reach (and damage) drops any of them.
+     */
+    static Recommendation recommendFarmBasket(BotEntry entry, Character bot, Map<Integer, Double> weights,
+                                              java.util.function.IntPredicate mapAllowed,
+                                              java.util.function.IntToDoubleFunction mapScoreWeight,
+                                              java.util.function.IntToDoubleFunction extraCompetitors) {
+        double top = 0.0;
+        Map<Integer, Map<Integer, Integer>> droppersByItem = new HashMap<>();
+        for (Map.Entry<Integer, Double> w : weights.entrySet()) {
+            Map<Integer, Integer> d = w.getValue() > 0 ? droppersForItem.droppers(w.getKey()) : Map.of();
+            if (!d.isEmpty()) {
+                droppersByItem.put(w.getKey(), d);
+                top = Math.max(top, w.getValue());
+            }
+        }
+        if (droppersByItem.isEmpty()) {
             return null;
         }
         ItemInformationProvider ii = ItemInformationProvider.getInstance();
         MonsterInformationProvider mi = MonsterInformationProvider.getInstance();
         BotSpawnIndex.Index index = BotSpawnIndex.get();
-        String name = itemName(ii, itemId);
 
         Map<Integer, Optional<MobProfile>> profiles = new HashMap<>();
         Set<Integer> dropperMaps = new LinkedHashSet<>();
-        for (int mobId : droppers.keySet()) {
-            for (BotSpawnIndex.SpawnSite site : BotSpawnIndex.spawnSites(mobId)) {
-                dropperMaps.add(site.mapId());
+        Set<Integer> dropperMobs = new HashSet<>();
+        for (Map<Integer, Integer> d : droppersByItem.values()) {
+            for (int mobId : d.keySet()) {
+                if (dropperMobs.add(mobId)) {
+                    for (BotSpawnIndex.SpawnSite site : BotSpawnIndex.spawnSites(mobId)) {
+                        dropperMaps.add(site.mapId());
+                    }
+                }
             }
         }
 
@@ -808,7 +836,7 @@ final class BotGrindAdvisor {
                         id -> Optional.ofNullable(profileFor(entry, bot, mi, id)))
                         .orElse(null);
                 // Grindable mobs dilute; 0-exp droppers (prop-like sources) still count.
-                if (p != null && (p.exp() > 0 || droppers.containsKey(p.mobId()))) {
+                if (p != null && (p.exp() > 0 || dropperMobs.contains(p.mobId()))) {
                     pointsByMob.put(p, e.getValue());
                 }
             }
@@ -816,33 +844,53 @@ final class BotGrindAdvisor {
             if (totalPoints < MIN_SPAWN_POINTS) {
                 continue;
             }
-            // The map's item rate: each dropper's per-kill chance diluted by its spawn share.
+            // The map's weighted item rate: each dropper's per-kill chance diluted by its spawn share.
             double chancePerKill = 0.0;
             MobProfile face = null;
             double faceRate = 0.0;
+            Map<Integer, Double> byItem = new HashMap<>();
             for (Map.Entry<MobProfile, Integer> e : pointsByMob.entrySet()) {
-                Integer chance = droppers.get(e.getKey().mobId());
-                if (chance == null) {
-                    continue;
-                }
                 double share = e.getValue() / (double) totalPoints;
-                double rate = share * Math.min(1.0,
-                        chance * bot.getDropRate() / DROP_CHANCE_DENOMINATOR);
-                chancePerKill += rate;
-                if (rate > faceRate) {
-                    faceRate = rate;
+                double mobRate = 0.0;
+                for (Map.Entry<Integer, Map<Integer, Integer>> d : droppersByItem.entrySet()) {
+                    Integer chance = d.getValue().get(e.getKey().mobId());
+                    if (chance == null) {
+                        continue;
+                    }
+                    double rate = share * Math.min(1.0, chance * bot.getDropRate() / DROP_CHANCE_DENOMINATOR)
+                            * weights.get(d.getKey()) / top;
+                    mobRate += rate;
+                    byItem.merge(d.getKey(), rate, Double::sum);
+                }
+                chancePerKill += mobRate;
+                if (mobRate > faceRate) {
+                    faceRate = mobRate;
                     face = e.getKey();
                 }
             }
             if (face == null || chancePerKill <= 0) {
                 continue;
             }
+            int label = byItem.entrySet().stream().max(Map.Entry.comparingByValue()).get().getKey();
             MobCandidate blend = blendCandidate(mapId, mapName(mapId), map.areaPx(), pointsByMob);
             candidates.add(new MobCandidate(face.mobId(), face.mobName(), face.level(),
                     blend.exp(), blend.killSeconds(), mapId, blend.mapName(), totalPoints,
-                    map.areaPx(), List.of(new GearProspect(itemId, name, chancePerKill, 0, 0))));
+                    map.areaPx(), List.of(new GearProspect(label, itemName(ii, label), chancePerKill, 0, 0))));
         }
         return BotGrindPlanner.planFarmBest(candidates, mapScoreWeight, extraCompetitors, ThreadLocalRandom.current());
+    }
+
+    /** Every equip scroll some mob drops ({@code drop_data}, the gear drop table). */
+    static Set<Integer> droppedScrollIds() {
+        Set<Integer> out = new HashSet<>();
+        for (List<int[]> drops : gearDropsByMob().values()) {
+            for (int[] d : drops) {
+                if (d[0] / 10000 == BotScrollManager.SCROLL_ITEM_PREFIX) {
+                    out.add(d[0]);
+                }
+            }
+        }
+        return out;
     }
 
     /** All mobs dropping an item with their best chance ({@code drop_data}); test seam. */
