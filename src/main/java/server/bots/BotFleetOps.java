@@ -101,6 +101,9 @@ final class BotFleetOps {
         Double recentExpPerHour;    // the last 30 minutes, or null without a full busy window
         long lowSinceMs;            // 0 when not low
         boolean lowAlerted;
+        // Hunting scrolls at its cap: it picks maps by drop value, so its EXP rate is no measure of a stall
+        // and no bar for its level band. Frozen and no EXP still apply; a hunter kills mobs.
+        boolean hunting;
         final Map<Integer, Long> loopAlertedAtMs = new HashMap<>();
     }
 
@@ -129,6 +132,9 @@ final class BotFleetOps {
                     continue;
                 }
                 Track track = tracks.computeIfAbsent(bot.getId(), id -> new Track());
+                synchronized (track) {
+                    track.hunting = entry.scrollHunt;
+                }
                 record(track, sampleOf(entry, bot, now));
                 updatePace(track, now, bot.getLevel(), bandMedian(bot.getLevel(), bot.getId(), tracks));
                 List<String> alerts = new ArrayList<>(alerts(track, now, bot.getName(), shortName(bot.getName())));
@@ -255,10 +261,10 @@ final class BotFleetOps {
         }
     }
 
-    private static Sample sampleOf(BotEntry entry, Character bot, long now) {
+    static Sample sampleOf(BotEntry entry, Character bot, long now) {
         boolean busy = (entry.grinding || BotAutopilotManager.isActive(entry) || entry.autopilotErrandMapId != -1)
                 && entry.operatorCmd == null && !entry.loggingOut && !entry.restErrand && now >= entry.breakUntilMs
-                && !BotTrainingPlan.complete(entry, bot)
+                && !BotTrainingPlan.holdsAtCap(entry, bot) // a capped bot hunting scrolls is still working
                 && !BotFerryManager.isWaitingOrRiding(entry, bot); // standing on a dock or a deck is the plan
         java.awt.Point p = bot.getPosition();
         return new Sample(now, bot.getMapId(), p.x, p.y, totalExp(bot.getLevel(), bot.getExp()), busy,
@@ -367,7 +373,7 @@ final class BotFleetOps {
             }
             Track o = e.getValue();
             synchronized (o) {
-                if (o.level > 0 && Math.abs(o.level - level) <= PACE_BAND_LEVELS && o.paceExpPerHour > 0) {
+                if (!o.hunting && o.level > 0 && Math.abs(o.level - level) <= PACE_BAND_LEVELS && o.paceExpPerHour > 0) {
                     paces.add(o.paceExpPerHour);
                 }
             }
@@ -391,7 +397,7 @@ final class BotFleetOps {
             t.paceAtMs = now;
             t.recentExpPerHour = r;
             t.expectedExpPerHour = Math.max(t.paceExpPerHour, bandMedian / 2);
-            boolean low = r != null && r > 0 && r < LOW_EXP_FRACTION * t.expectedExpPerHour;
+            boolean low = !t.hunting && r != null && r > 0 && r < LOW_EXP_FRACTION * t.expectedExpPerHour;
             if (!low) {
                 t.lowSinceMs = 0;
             } else if (t.lowSinceMs == 0) {

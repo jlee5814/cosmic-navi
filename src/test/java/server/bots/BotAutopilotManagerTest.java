@@ -229,6 +229,10 @@ class BotAutopilotManagerTest {
             assertEquals(HUNTING_GROUND, f.entry().autopilotMapId);
             assertTrue(f.entry().scrollHunt);
             assertFalse(BotTrainingPlan.holdsAtCap(f.entry(), f.bot())); // the cap no longer stops it
+            // Live: SipsBuddy26 hunted at its cap and sat knocked back on Snowy Hill 11 h; fleet ops never looked.
+            when(f.bot().getPosition()).thenReturn(new Point(0, 0));
+            assertTrue(BotFleetOps.sampleOf(f.entry(), f.bot(), System.currentTimeMillis()).busy(),
+                    "fleet ops watches a hunting bot for stalls");
         } finally {
             BotAutopilotManager.huntAdvisor = previousHunt;
         }
@@ -245,6 +249,9 @@ class BotAutopilotManagerTest {
             assertEquals(-1, f.entry().autopilotMapId);
             assertFalse(f.entry().scrollHunt);
             assertTrue(BotTrainingPlan.holdsAtCap(f.entry(), f.bot()));
+            when(f.bot().getPosition()).thenReturn(new Point(0, 0));
+            assertFalse(BotFleetOps.sampleOf(f.entry(), f.bot(), System.currentTimeMillis()).busy(),
+                    "a bot holding at its cap is resting, not stalled");
             assertTrue(f.entry().autopilotNextDecisionAtMs >= before + BotAutopilotManager.HUNT_RECHECK_MS);
             assertTrue(seams.replies.isEmpty()); // no "nothing to grind" chatter at the cap
         } finally {
