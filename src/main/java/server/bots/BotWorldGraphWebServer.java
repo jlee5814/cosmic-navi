@@ -1619,8 +1619,9 @@ public final class BotWorldGraphWebServer {
                 .append(",\"navEdge\":").append(jsonStr(BotPathLogger.navEdgeSummary(e)))
                 .append(",\"navDecision\":").append(jsonStr(e.lastNavDecision == null ? "" : e.lastNavDecision))
                 .append(",\"edgeBlock\":").append(jsonStr(e.lastEdgeBlockReason == null ? "" : e.lastEdgeBlockReason))
-                .append(",\"canMoveSkill\":").append(BotNavigationManager.botCanUseMovementSkill(chr))
-                .append(",\"skills\":{");
+                .append(",\"canMoveSkill\":").append(BotNavigationManager.botCanUseMovementSkill(chr));
+        appendMobContact(sb, chr, e, navPos);
+        sb.append(",\"skills\":{");
         boolean firstSkill = true;
         for (var entry : chr.getSkills().entrySet()) {
             if (entry.getKey() == null) {
@@ -1633,6 +1634,37 @@ public final class BotWorldGraphWebServer {
             sb.append('"').append(entry.getKey().getId()).append("\":").append(entry.getValue().skillevel);
         }
         sb.append("}}");
+    }
+
+    private static final int NEAR_MOB_RADIUS_PX = 500;
+
+    /** Who last touched the bot ({@code lastHit}) and the live mobs within {@link #NEAR_MOB_RADIUS_PX}, each with
+     *  the en route attack's verdict on it ({@code v}): the debug answer to a bot that takes hits and never swings. */
+    private static void appendMobContact(StringBuilder sb, Character chr, BotEntry e, java.awt.Point botPos) {
+        long ago = e.lastHitAtMs == 0L ? -1L : System.currentTimeMillis() - e.lastHitAtMs;
+        sb.append(",\"lastHit\":{\"mob\":").append(e.lastHitMobId)
+                .append(",\"x\":").append(e.lastHitMobX).append(",\"y\":").append(e.lastHitMobY)
+                .append(",\"agoMs\":").append(ago).append('}');
+        sb.append(",\"enRoute\":").append(jsonStr(e.dbgEnRoute))
+                .append(",\"enRouteTarget\":").append(jsonStr(e.dbgEnRouteTarget))
+                .append(",\"idleLeech\":").append(e.idleLeech);
+        sb.append(",\"nearMobs\":[");
+        MapleMap map = chr.getMap();
+        if (map != null && botPos != null) {
+            boolean first = true;
+            for (var mob : map.getAllMonsters()) {
+                java.awt.Point p = mob.getPosition();
+                if (p == null || p.distance(botPos) > NEAR_MOB_RADIUS_PX) {
+                    continue;
+                }
+                sb.append(first ? "" : ",").append("{\"id\":").append(mob.getId())
+                        .append(",\"x\":").append(p.x).append(",\"y\":").append(p.y)
+                        .append(",\"hp\":").append(mob.getHp())
+                        .append(",\"v\":").append(jsonStr(BotCombatManager.enRouteVerdict(e, chr, mob))).append('}');
+                first = false;
+            }
+        }
+        sb.append(']');
     }
 
     /** Live perf snapshot from {@link BotPerformanceMonitor} (per-subsystem timings incl. "scroll-scan").

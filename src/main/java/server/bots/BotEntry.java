@@ -551,6 +551,14 @@ public class BotEntry {
     // Damage taken
     long deadUntil = 0;
     int mobHitCooldownMs = 0;
+    // The last mob touch that hit this bot, for /api/botdebug (which mob, where it stood, when).
+    volatile int lastHitMobId = 0;
+    volatile int lastHitMobX = 0;
+    volatile int lastHitMobY = 0;
+    volatile long lastHitAtMs = 0L;
+    // Last en route opportunity attack decision (BotManager.tryEnRouteOpportunityAttack) and its target, for /api/botdebug.
+    volatile String dbgEnRoute = "";
+    volatile String dbgEnRouteTarget = "";
     /** How this bot decides to heal its party ({@link BotCombatManager#tickSupportHealing}). */
     BotHealPolicy healPolicy = new BotHealPolicy.Reactive();
     // Absolute time until which this bot may not take another portal (set on portal use).

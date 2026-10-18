@@ -24,6 +24,9 @@ Fleet: 98.8 h online, 56.0 h grinding (57%). Freezes and stalls flagged by fleet
 - Ludibrium Ticketing Place and Ludibrium, 292 min (SipsBuddy2, Oct 13): the ferry ticket sell loop, fixed by #91
   ([[kb_bot_ferry_ticket_sell_loop]]).
 - El Nath, 80 min (SipsBuddy1, Oct 14 to 15): slow then stalled with no return scroll; not diagnosed.
+- Snowy Hill, about 11 h (SipsBuddy26, Oct 17, after this window): the en route attack aimed past the Jr. Pepe in
+  the lane and the bot was knocked back on every approach; fixed ([[kb_bot_en_route_attack_reach]]). Possibly the
+  El Nath stall above too, since Snowy Hill is the only walking way out.
 
 **Wrong map after login** was small in this window: SipsBuddy2 45 min (Murupa, Nefarious Hill, fixed by #141) and
 SipsBuddy26 82 min on an Ellinia field (level 10 mobs at level 40, 71k vs 285k exp/h), not diagnosed.

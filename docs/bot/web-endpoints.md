@@ -113,6 +113,12 @@ Every row also includes `plannedJob` (terminal owner career goal, or empty), `tr
     "pos":[x,y],"navEdge",         // live position + committed nav edge summary (e.g. "TELEPORT r3->r7 (..)->(..)")
     "navDecision","edgeBlock",     // last resolveTarget decision ("exec"/"skill-hop"/"reuse"/..) + last edge block reason ("tele-mp"/"fj-pos"/..)
     "canMoveSkill":bool,           // passes the teleport/flash-jump gate right now (has skill && >40% MP && >500k meso)
+    "lastHit":{"mob","x","y","agoMs"},             // last mob touch that hit the bot: mob id, where it stood, ms ago (-1 never)
+    "enRoute","enRouteTarget",     // last en route attack decision (attacked | out-of-range | move-window | not-worth |
+                                   //   no-plan | no-target | idle-leech | in-air | climbing | quiet-move | no-ammo) + its target "mobId@x,y"
+    "idleLeech":bool,              // party level-gap idle leech (suppresses all damage)
+    "nearMobs":[{"id","x","y","hp","v"}, ...],     // live mobs within 500 px; v = en route attack verdict:
+                                   //   attackable | not-worth | no-plan | not-local | not-hostile
     "skills":{ "<skillId>": <level>, ... }          // every learned skill, live
   }
 }, ...],
