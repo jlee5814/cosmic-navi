@@ -1,6 +1,6 @@
 ---
 name: kb_bot_fleet_ops_blind_spots
-description: "Which bots BotFleetOps watches for stalls and which it skips on purpose; capped scroll hunters were skipped by mistake until Oct 18, so SipsBuddy26's 11 h Snowy Hill freeze went unseen"
+description: "Which bots BotFleetOps watches for stalls and which it skips on purpose; capped scroll hunters were skipped by mistake until Oct 18, so SipsBuddy26's 11 h Snowy Hill freeze went unseen; the dry hunt flag for a hunter that never gets its scroll"
 ---
 
 `BotFleetOps` samples every online bot once a minute. A sample is **busy** (`sampleOf`) when the bot is grinding,
@@ -22,7 +22,16 @@ and no EXP checks only: it picks maps by drop value, so a low EXP rate is its pl
 its level band (`bandMedian` skips it). Tests: `BotFleetOpsTest.aHunterIsJudgedByFreezesNotByItsExpPace`,
 `huntersSetNoBarForTheirLevelBand`, and the busy asserts in the two capped tests of `BotAutopilotManagerTest`.
 
-**Still blind.** A bot that moves and earns EXP but makes no progress on its goal (a hunter that never gets its
-scroll, a farmer on a poor map) is not a stall to these checks. A ferry that never arrives is hidden by the
-ferry exclusion. Neither has been seen live yet.
+**Dry hunt (Oct 18).** A hunter that keeps killing but never gets a wanted scroll. `BotCombatManager.attackMonster`
+counts each target its swing kills while on the hunt map (`BotEntry.huntKills`); a pickup of any scroll in
+`huntWanted` (the set `BotScrollHunt.recommend` priced) restarts the count; a hunt on a new map starts it fresh
+(`BotAutopilotManager.startHuntProgress`). Fleet ops whispers once per hunt (`dryHuntAlert`) when
+(1 - p)^kills < 1/100 after at least an hour, with p the plan's per kill chance. That chance is value weighted
+(`recommendFarmBasket` scales each scroll by its weight over the top weight), so it is a lower bound of the real
+chance: the flag can come late, never early. It whispers instead of rescuing, since a scroll only sends the bot
+back to the same farm. Likely causes when it fires: drop_data the server doesn't honor, a drop the bot can't
+reach to loot, or kills of mobs that aren't the dropper. `navi why` and `/api/botdebug` `hunt` show the count.
+
+**Still blind.** A farmer on a poor map that still earns EXP, and a ferry that never arrives (hidden by the
+ferry exclusion). Neither has been seen live yet.
 See [[kb_bot_fleet_time_loss]].

@@ -229,6 +229,9 @@ class BotAutopilotManagerTest {
             assertEquals(HUNTING_GROUND, f.entry().autopilotMapId);
             assertTrue(f.entry().scrollHunt);
             assertFalse(BotTrainingPlan.holdsAtCap(f.entry(), f.bot())); // the cap no longer stops it
+            assertEquals(HUNTING_GROUND, f.entry().huntMapId); // the dry hunt clock starts on the hunt map
+            assertEquals(0.01, f.entry().huntChancePerKill); // the plan's priced chance
+            assertEquals(0, f.entry().huntKills);
             // Live: SipsBuddy26 hunted at its cap and sat knocked back on Snowy Hill 11 h; fleet ops never looked.
             when(f.bot().getPosition()).thenReturn(new Point(0, 0));
             assertTrue(BotFleetOps.sampleOf(f.entry(), f.bot(), System.currentTimeMillis()).busy(),
@@ -248,6 +251,7 @@ class BotAutopilotManagerTest {
             BotAutopilotManager.start(f.entry(), f.bot());
             assertEquals(-1, f.entry().autopilotMapId);
             assertFalse(f.entry().scrollHunt);
+            assertEquals(-1, f.entry().huntMapId);
             assertTrue(BotTrainingPlan.holdsAtCap(f.entry(), f.bot()));
             when(f.bot().getPosition()).thenReturn(new Point(0, 0));
             assertFalse(BotFleetOps.sampleOf(f.entry(), f.bot(), System.currentTimeMillis()).busy(),

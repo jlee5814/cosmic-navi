@@ -74,6 +74,11 @@ final class BotFleetOps {
     static final long PACE_HALF_LIFE_MS = 6 * 60 * 60_000L;
     static final int PACE_BAND_LEVELS = 5;
     static final int MAX_LINE = 90;
+    // Dry hunt: a hunter's kills on its hunt map without one wanted scroll, past the point where the plan's own
+    // per kill chance says that happens less than 1 time in 100. Its chance is value weighted, a lower bound of
+    // the real one, so the flag can come late but never early. At least an hour, so a fresh hunt never flags.
+    static final double DRY_HUNT_ODDS = 0.01;
+    static final long DRY_HUNT_MIN_MS = 60 * 60_000L;
 
     /** Seam: where samples survive a restart (the server-cache volume outlives a rebuild). */
     static Path store = Path.of("cache", "fleet-ops", "samples.tsv");
@@ -104,6 +109,7 @@ final class BotFleetOps {
         // Hunting scrolls at its cap: it picks maps by drop value, so its EXP rate is no measure of a stall
         // and no bar for its level band. Frozen and no EXP still apply; a hunter kills mobs.
         boolean hunting;
+        long dryHuntAlertedSinceMs = Long.MIN_VALUE; // start time of the hunt already flagged dry
         final Map<Integer, Long> loopAlertedAtMs = new HashMap<>();
     }
 
@@ -138,6 +144,10 @@ final class BotFleetOps {
                 record(track, sampleOf(entry, bot, now));
                 updatePace(track, now, bot.getLevel(), bandMedian(bot.getLevel(), bot.getId(), tracks));
                 List<String> alerts = new ArrayList<>(alerts(track, now, bot.getName(), shortName(bot.getName())));
+                String dry = dryHuntAlert(track, entry, now, bot.getName(), shortName(bot.getName()));
+                if (dry != null) {
+                    alerts.add(dry);
+                }
                 AutoRescue ar = autoRescue(track, now);
                 if (ar != null && ar.rescue()) {
                     entry.nextTickTask = () -> runAutoRescue(entry, ar.why());
@@ -554,6 +564,37 @@ final class BotFleetOps {
         return out;
     }
 
+    /** The odds of {@code kills} kills with no wanted drop if the plan's {@code chancePerKill} is right, when that
+     *  is under {@link #DRY_HUNT_ODDS} and the hunt has run {@link #DRY_HUNT_MIN_MS}; else null. */
+    static Double dryHuntOdds(int kills, double chancePerKill, long sinceMs, long now) {
+        if (kills <= 0 || chancePerKill <= 0 || now - sinceMs < DRY_HUNT_MIN_MS) {
+            return null;
+        }
+        double odds = Math.exp(kills * Math.log1p(-Math.min(chancePerKill, 0.999_999)));
+        return odds < DRY_HUNT_ODDS ? odds : null;
+    }
+
+    /** Once per hunt: a hunter busy but going nowhere. A scroll would only send it back to the same farm, so
+     *  this tells the owner rather than rescuing; the usual causes are a drop table the server doesn't honor,
+     *  a loot the bot can't reach, or kills that aren't the dropper's. */
+    static String dryHuntAlert(Track track, BotEntry entry, long now, String botName, String shortName) {
+        long since = entry.huntSinceMs;
+        int mapId = entry.huntMapId;
+        Double odds = entry.scrollHunt && mapId != -1
+                ? dryHuntOdds(entry.huntKills, entry.huntChancePerKill, since, now) : null;
+        synchronized (track) {
+            if (odds == null || track.dryHuntAlertedSinceMs == since) {
+                return null;
+            }
+            track.dryHuntAlertedSinceMs = since;
+        }
+        log.info("fleet ops: {} dry hunt for {} at {}: {} kills in {} min, chance {} per kill, odds 1 in {}",
+                botName, entry.huntItemName, mapId, entry.huntKills, (now - since) / 60_000, entry.huntChancePerKill,
+                Math.round(1 / odds));
+        return clip(botName + " hunt dry " + (now - since) / 3_600_000 + " h: " + entry.huntKills + " kills at "
+                + mapName(mapId) + ", no scroll (1 in " + Math.round(1 / odds) + "). navi why " + shortName);
+    }
+
     private static void notifyOwner(BotEntry entry, Character bot, List<String> lines) {
         Integer ownerId = BotOwnershipService.getInstance().getRegisteredOwnerId(bot.getId());
         if (ownerId == null) {
@@ -722,6 +763,11 @@ final class BotFleetOps {
                     : noExp >= NO_EXP_LIST_MS ? ", no EXP for " + noExp / 60_000 + " min"
                     : lowExpForMs(t, now) >= LOW_EXP_LIST_MS ? ", earning " + lowDetail(t) : "")
                     + (starts >= 2 ? ", " + starts + " errands to " + mapName(loopMap) + " in 45 min" : "")));
+        }
+        if (entry.scrollHunt && entry.huntMapId != -1 && entry.huntChancePerKill > 0) {
+            out.add(clip("Hunt: " + entry.huntKills + " kills at " + mapName(entry.huntMapId) + " in "
+                    + (now - entry.huntSinceMs) / 60_000 + " min since the last scroll, about 1 per "
+                    + Math.round(1 / entry.huntChancePerKill) + " kills"));
         }
         return out;
     }

@@ -453,6 +453,7 @@ final class BotAutopilotManager {
         entry.autopilotMapId = -1;
         entry.autopilotPlanPick = null;
         entry.scrollHunt = false;
+        entry.huntMapId = -1;
         entry.autopilotNextDecisionAtMs = 0L;
         entry.autopilotDestinationName = "";
         entry.autopilotObjectiveSummary = "";
@@ -538,6 +539,7 @@ final class BotAutopilotManager {
             // must not revoke the permission this very plan was decided with.
             installPlan(entry, rec, bot.getMapId());
             entry.scrollHunt = BotTrainingPlan.complete(entry, bot);
+            startHuntProgress(entry, rec);
             entry.autopilotNextDecisionAtMs = nextDecisionAt();
             announcePlan(entry, rec, bot.getMapId());
             maybeTeaseFerry(entry, decision);
@@ -1509,6 +1511,7 @@ final class BotAutopilotManager {
                 return; // current spot is still the call
             }
             installPlan(entry, rec, bot.getMapId());
+            startHuntProgress(entry, rec);
             announcePlan(entry, rec, bot.getMapId());
         });
     }
@@ -2270,6 +2273,23 @@ final class BotAutopilotManager {
         entry.autopilotArrivalAnnounced = pick.mapId() == fromMapId;
         recordDecision(entry, "grind " + entry.autopilotDestinationName + " ("
                 + entry.autopilotObjectiveSummary + ")");
+    }
+
+    /** A hunt on a new map starts its kill count over; staying on the same map keeps it (re-decides don't). */
+    static void startHuntProgress(BotEntry entry, Recommendation rec) {
+        BotGrindPlanner.GearProspect wanted = rec.wantedGear();
+        if (!entry.scrollHunt || wanted == null) {
+            entry.huntMapId = -1;
+            return;
+        }
+        if (entry.huntMapId == rec.pick().mapId()) {
+            return;
+        }
+        entry.huntChancePerKill = wanted.chancePerKill();
+        entry.huntItemName = wanted.itemName();
+        entry.huntKills = 0;
+        entry.huntSinceMs = System.currentTimeMillis();
+        entry.huntMapId = rec.pick().mapId();
     }
 
     /** Stamp the last-decision post-mortem ({@link BotEntry#autopilotLastDecisionReason}) for @botstatus. */

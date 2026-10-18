@@ -184,6 +184,10 @@ class BotInventoryManager {
             }
             cleanupBotLootGhostDrop(bot, drop);
             if (pickedItem != null && pickedItemId > 0 && hasItem(bot, pickedItem)) {
+                if (entry.huntMapId != -1 && entry.huntWanted.contains(pickedItemId)) {
+                    entry.huntKills = 0; // the hunt paid off: its dry spell starts over
+                    entry.huntSinceMs = now;
+                }
                 InventoryType pickedType = ItemConstants.getInventoryType(pickedItemId);
                 if (BotStorageMuleManager.onDuty(entry)) {
                     // A mule on duty only stores: it neither wears a handoff nor offers it around.

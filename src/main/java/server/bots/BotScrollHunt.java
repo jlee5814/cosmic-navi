@@ -98,7 +98,10 @@ final class BotScrollHunt {
     static Recommendation recommend(BotEntry entry, Character bot, IntPredicate mapAllowed, IntToDoubleFunction weight,
                                     IntToDoubleFunction competitors) {
         Map<Integer, Double> want = wanted(bot);
-        return want.isEmpty() ? null
-                : BotGrindAdvisor.recommendFarmBasket(entry, bot, want, mapAllowed, weight, competitors);
+        if (want.isEmpty()) {
+            return null;
+        }
+        entry.huntWanted = java.util.Set.copyOf(want.keySet());
+        return BotGrindAdvisor.recommendFarmBasket(entry, bot, want, mapAllowed, weight, competitors);
     }
 }
