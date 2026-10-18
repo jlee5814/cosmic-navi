@@ -1143,7 +1143,7 @@ class BotCombatManager {
      */
     static Monster findEnRouteAttackTarget(BotEntry entry, Character bot) {
         for (ScoredGrindTarget target : rankFollowAttackTargets(entry, bot)) {
-            if (planAttack(entry, bot, target.monster()) != null) {
+            if (isTargetInAttackRange(planAttack(entry, bot, target.monster()), bot, target.monster())) {
                 return target.monster();
             }
         }
