@@ -293,6 +293,16 @@ public class BotEntry {
     // Deliberately NOT cleared on death: the bot revives in town and walks back.
     int autopilotMapId = -1;            // chosen grind map; travel destination while != current map
     volatile boolean scrollHunt;        // a capped bot's plan is the fleet scroll hunt (BotScrollHunt), not exp
+    // Hunt progress, for fleet ops' dry hunt flag (BotFleetOps.dryHunt). huntWanted: the scrolls the last hunt
+    // plan valued (BotScrollHunt.recommend). On huntMapId since huntSinceMs: kills, the plan's per kill chance of
+    // a wanted drop (value weighted, so a lower bound of the real chance) and its named scroll. A wanted pickup
+    // restarts the count. -1 = not hunting.
+    volatile java.util.Set<Integer> huntWanted = java.util.Set.of();
+    volatile int huntMapId = -1;
+    volatile long huntSinceMs = 0L;
+    volatile int huntKills = 0;
+    volatile double huntChancePerKill = 0.0;
+    volatile String huntItemName = "";
     volatile BotGrindPlanner.MobCandidate autopilotPlanPick = null; // the plan's map candidate (kill time, exp): gear payback reads it
     long autopilotNextDecisionAtMs = 0L; // when to re-run the grind advisor
     // Post-mortem for "idle in town overnight": the LAST decision the advisor resolved and when, so
