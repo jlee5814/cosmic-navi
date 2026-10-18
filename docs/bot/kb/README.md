@@ -51,6 +51,7 @@ Each file is one fact/area. One-line hooks below — open the file for detail.
 - [kb_bot_cleric_heal_architecture.md](kb_bot_cleric_heal_architecture.md) — Bot heal/buff flow, packet encoding, WZ refs, formula call graph
 - [kb_bot_heal_responsibility_ab.md](kb_bot_heal_responsibility_ab.md) — Heal A/B in a seeded arena (BotHealArena): heal on request vs today's 90% standing rule vs a keep the party alive responsibility. Nobody dies in any arm; standing beats action by hundreds of pots an hour; richer triggers added nothing; stingy top ups cost pots. How to rerun
 - [kb_bot_alert_stance_emulation.md](kb_bot_alert_stance_emulation.md) — 5s alert-pose emulation: alertedUntilMs + movementSnapshot stance swap
+- [kb_bot_en_route_attack_reach.md](kb_bot_en_route_attack_reach.md) — En route attacks took the best ranked mob within 400 px, in reach or not; a Leatty outranked the Jr. Pepe in the lane on Snowy Hill and a Spearman was knocked back 11 h. Fix: first ranked mob the attack reaches. botdebug lastHit/enRoute/nearMobs for diagnosis
 - [kb_bot_attack_planning_flow.md](kb_bot_attack_planning_flow.md) — planAttack dispatch, hitbox sources by route, strike-point reach gate
 - [kb_v83_client_combat_internals.md](kb_v83_client_combat_internals.md) — Verified client facts (CMob::GetHitPoint, mob-rect = sprite lt/rb, projectilerange=400)
 - [kb_bot_swim_and_forbidfalldown.md](kb_bot_swim_and_forbidfalldown.md) — Swim-map physics + foothold/forbidFallDown drop gate; configurable swim Config; calibration TODO
