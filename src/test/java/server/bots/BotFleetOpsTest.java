@@ -186,6 +186,40 @@ class BotFleetOpsTest {
     }
 
     @Test
+    void aHunterIsJudgedByFreezesNotByItsExpPace() {
+        // A capped bot hunting scrolls picks maps by drop value: 220k EXP/h on one, 11k on the next is its plan.
+        BotFleetOps.Track t = new BotFleetOps.Track();
+        t.hunting = true;
+        long exp = 7_000_000;
+        for (int m = 0; m <= 30; m++, exp += 3_667) {
+            assertNull(tick(t, new BotFleetOps.Sample(m * MIN, 682010202, m * 37, 100, exp, true, -1), 0));
+        }
+        for (int m = 31; m <= 80; m++, exp += 183) {
+            assertNull(tick(t, new BotFleetOps.Sample(m * MIN, 682010202, m * 37 % 400, 100, exp, true, -1), 0));
+        }
+        assertEquals(0L, BotFleetOps.lowExpForMs(t, 80 * MIN));
+        // Standing still and earning nothing is still a stall.
+        BotFleetOps.AutoRescue rescue = null;
+        for (int m = 81; m <= 101 && rescue == null; m++) {
+            rescue = tick(t, new BotFleetOps.Sample(m * MIN, 211000200, -900, 34, exp, true, -1), 0);
+        }
+        assertEquals(new BotFleetOps.AutoRescue(true, "frozen 20 min"), rescue);
+    }
+
+    @Test
+    void huntersSetNoBarForTheirLevelBand() {
+        java.util.Map<Integer, BotFleetOps.Track> all = new java.util.HashMap<>();
+        for (int id = 1; id <= 3; id++) {
+            BotFleetOps.Track t = new BotFleetOps.Track();
+            t.level = 48;
+            t.paceExpPerHour = id == 1 ? 600_000 : 20_000;
+            t.hunting = id != 1;
+            all.put(id, t);
+        }
+        assertEquals(0.0, BotFleetOps.bandMedian(48, 99, all), "one grinder is too few for a band");
+    }
+
+    @Test
     void aBotHoveringFarUnderItsUsualPaceIsRescuedThoughItNeverFreezesOrStopsEarning() {
         // SipsBuddy3 on 2026-10-10: about 220k EXP/h, then 11k EXP/h twitching 20 px on Haunted House 682000100.
         BotFleetOps.Track t = new BotFleetOps.Track();
