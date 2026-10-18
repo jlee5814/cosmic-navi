@@ -19,8 +19,12 @@ Fleet: 98.8 h online, 56.0 h grinding (57%). Freezes and stalls flagged by fleet
 **Freeze sites (fleet ops rescues, minutes at rescue time)**
 - Haunted House, 291 min (SipsBuddy2 and 3, Oct 12 to 16): the Main Chimney spring pads
   ([[kb_bot_support_leveling_stalls]]). Avoid plus immediate re-decide since #139 and #143.
-- Helios Tower 2nd and 99th floors, 320 min (SipsBuddy1, Oct 15 to 16): not yet diagnosed; the tower's
-  elevator is an EventManager ride ([[kb_bot_eventmanager_transit_rides]]).
+- Helios Tower 2nd and 99th floors, 320 min (SipsBuddy1, Oct 15 to 16): not reproduced. Six rescues on Oct 15,
+  one on Oct 16 at 03:48, none since. On Oct 18 a Spearman rode the elevator up (2F to 99F in 20 s) and down
+  (35 s) with no give up, so the ride itself works ([[kb_bot_eventmanager_transit_rides]]). A refused boarding
+  (elevator moving) gives up the hop and retries 45 s later against a 48 s cycle at travel rate 5; that can
+  delay a boarding but not by the hours seen. If it recurs, read `/api/botdebug` `lastHit` and `enRoute` on the
+  stuck floor first: a mob in the lane ([[kb_bot_en_route_attack_reach]]) fits a bot that returns to the same spot.
 - Ludibrium Ticketing Place and Ludibrium, 292 min (SipsBuddy2, Oct 13): the ferry ticket sell loop, fixed by #91
   ([[kb_bot_ferry_ticket_sell_loop]]).
 - El Nath, 80 min (SipsBuddy1, Oct 14 to 15): slow then stalled with no return scroll; not diagnosed.
