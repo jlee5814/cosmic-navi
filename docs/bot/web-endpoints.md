@@ -117,6 +117,8 @@ Every row also includes `plannedJob` (terminal owner career goal, or empty), `tr
     "enRoute","enRouteTarget",     // last en route attack decision (attacked | out-of-range | move-window | not-worth |
                                    //   no-plan | no-target | idle-leech | in-air | climbing | quiet-move | no-ammo) + its target "mobId@x,y"
     "idleLeech":bool,              // party level-gap idle leech (suppresses all damage)
+    "hunt":{"map","kills","sinceMs","chance","item"},  // scroll hunt progress (map -1 = not hunting): kills on the hunt map
+                                   //   since the hunt or its last wanted scroll, the plan's per kill chance, its named scroll
     "nearMobs":[{"id","x","y","hp","v"}, ...],     // live mobs within 500 px; v = en route attack verdict:
                                    //   attackable | not-worth | no-plan | not-local | not-hostile
     "skills":{ "<skillId>": <level>, ... }          // every learned skill, live
