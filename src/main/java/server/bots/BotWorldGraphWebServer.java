@@ -1645,6 +1645,9 @@ public final class BotWorldGraphWebServer {
         sb.append(",\"lastHit\":{\"mob\":").append(e.lastHitMobId)
                 .append(",\"x\":").append(e.lastHitMobX).append(",\"y\":").append(e.lastHitMobY)
                 .append(",\"agoMs\":").append(ago).append('}');
+        sb.append(",\"enRoute\":").append(jsonStr(e.dbgEnRoute))
+                .append(",\"enRouteTarget\":").append(jsonStr(e.dbgEnRouteTarget))
+                .append(",\"idleLeech\":").append(e.idleLeech);
         sb.append(",\"nearMobs\":[");
         MapleMap map = chr.getMap();
         if (map != null && botPos != null) {

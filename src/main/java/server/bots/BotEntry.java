@@ -556,6 +556,9 @@ public class BotEntry {
     volatile int lastHitMobX = 0;
     volatile int lastHitMobY = 0;
     volatile long lastHitAtMs = 0L;
+    // Last en route opportunity attack decision (BotManager.tryEnRouteOpportunityAttack) and its target, for /api/botdebug.
+    volatile String dbgEnRoute = "";
+    volatile String dbgEnRouteTarget = "";
     /** How this bot decides to heal its party ({@link BotCombatManager#tickSupportHealing}). */
     BotHealPolicy healPolicy = new BotHealPolicy.Reactive();
     // Absolute time until which this bot may not take another portal (set on portal use).

@@ -4390,9 +4390,13 @@ public class BotManager {
      */
     boolean tryEnRouteOpportunityAttack(BotEntry entry, Character bot) {
         if (entry == null || bot == null || entry.noAmmo || entry.inAir || entry.climbing) {
+            if (entry != null) {
+                entry.dbgEnRoute = entry.noAmmo ? "no-ammo" : entry.inAir ? "in-air" : "climbing";
+            }
             return false;
         }
         if (entry.operatorCmd == BotEntry.OperatorCmd.MOVE) {
+            entry.dbgEnRoute = "quiet-move";
             return false; // operator "Move" (quiet): travel without fighting; "Move+attack" (MOVE_ATTACK) does
         }
         Point botPos = bot.getPosition();
@@ -4414,13 +4418,16 @@ public class BotManager {
         // entry.idleLeech: party level-gap idle-leech suppresses ALL damage, including opportunity
         // shots, so the over-levelled member truly drops out of the exp-share interval.
         if (entry.noAmmo || bot == null || botPos == null || entry.idleLeech) {
+            if (enRouteGate) entry.dbgEnRoute = entry.idleLeech ? "idle-leech" : "no-ammo";
             return new LocalOpportunityAttackResult(false, targetPos);
         }
 
         Monster localTarget = BotCombatManager.findFollowAttackTarget(entry, bot);
         if (localTarget == null) {
+            if (enRouteGate) entry.dbgEnRoute = "no-target";
             return new LocalOpportunityAttackResult(false, targetPos);
         }
+        if (enRouteGate) entry.dbgEnRouteTarget = localTarget.getId() + "@" + localTarget.getPosition().x + "," + localTarget.getPosition().y;
 
         Point localTargetPos = localTarget.getPosition();
         WeaponType weaponType = BotAttackExecutionProvider.getEquippedWeaponType(bot);
@@ -4436,11 +4443,13 @@ public class BotManager {
 
         BotCombatManager.AttackPlan attackPlan = BotCombatManager.planAttack(entry, bot, localTarget);
         if (attackPlan == null) {
+            if (enRouteGate) entry.dbgEnRoute = "no-plan";
             return new LocalOpportunityAttackResult(false, targetPos);
         }
         // En-route only: don't burn travel time whaling on a mob we can't promptly kill (too tanky,
         // or accuracy too low to land hits). Grind/follow/patrol/loiter callers aren't gated.
         if (enRouteGate && !BotCombatManager.isEnRouteAttackWorthwhile(entry, bot, attackPlan, localTarget)) {
+            entry.dbgEnRoute = "not-worth";
             return new LocalOpportunityAttackResult(false, targetPos);
         }
         if (entry.inAir) {
@@ -4463,6 +4472,10 @@ public class BotManager {
             return new LocalOpportunityAttackResult(true, targetPos);
         }
 
+        if (enRouteGate) {
+            entry.dbgEnRoute = entry.moveWindowMs > 0 ? "move-window"
+                    : BotCombatManager.isTargetInAttackRange(attackPlan, bot, localTarget) ? "attacked" : "out-of-range";
+        }
         if (entry.moveWindowMs <= 0 && BotCombatManager.isTargetInAttackRange(attackPlan, bot, localTarget)) {
             BotCombatManager.attackMonster(entry, bot, attackPlan);
             setLocalAttackMoveWindow(entry, botPos, moveWindowReferencePos);
