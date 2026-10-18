@@ -1982,6 +1982,48 @@ class BotCombatManagerTest {
         return mob;
     }
 
+    @Test
+    void shouldNotGrindAnAreaBossTheBotCannotKillAlone() {
+        MapleMap realMap = new MapleMap(910009061, 0, 0, 910009061, 1.0f);
+        server.maps.FootholdTree footholds = new server.maps.FootholdTree(new Point(-2000, -2000), new Point(2000, 2000));
+        footholds.insert(new Foothold(new Point(-400, 100), new Point(400, 100), 1));
+        realMap.setFootholds(footholds);
+        BotNavigationGraphProvider.rebuildGraph(realMap);   // build on the bare map; rebuildGraph through a spy OOMs
+        MapleMap map = spy(realMap);
+        Character bot = mockBot(new Point(100, 100), map, 20_000, null);
+        BotEntry entry = new BotEntry(bot, null, null);
+
+        // Black Crow on Encounter with the Buddha: 35M HP, the only mob in reach.
+        Monster crow = mockBossMob(new Point(160, 100), 9400014, 35_000_000);
+        doReturn(List.of(crow)).when(map).getAllMonsters();
+        assertNull(BotCombatManager.findGrindTarget(entry, bot));
+
+        // A respawned Dreamy Ghost farther away is the pick, not the closer boss.
+        Monster ghost = mockMob(new Point(-300, 100), 9400013);
+        doReturn(List.of(crow, ghost)).when(map).getAllMonsters();
+        assertEquals(ghost, BotCombatManager.findGrindTarget(entry, bot));
+
+        // A boss the bot kills in seconds is still fair game.
+        Monster weakBoss = mockBossMob(new Point(160, 100), 2220000, 10_000);
+        doReturn(List.of(weakBoss, ghost)).when(map).getAllMonsters();
+        assertEquals(weakBoss, BotCombatManager.findGrindTarget(entry, bot));
+
+        // Inside a PQ the boss is the party's job, however long it takes alone.
+        when(bot.getEventInstance()).thenReturn(mock(scripting.event.EventInstanceManager.class));
+        doReturn(List.of(crow)).when(map).getAllMonsters();
+        assertEquals(crow, BotCombatManager.findGrindTarget(entry, bot));
+    }
+
+    private static Monster mockBossMob(Point position, int id, int maxHp) {
+        Monster mob = mockMob(position, id);
+        MonsterStats stats = mock(MonsterStats.class);
+        when(stats.isBoss()).thenReturn(true);
+        when(mob.getStats()).thenReturn(stats);
+        when(mob.getHp()).thenReturn(maxHp);
+        when(mob.getMaxHp()).thenReturn(maxHp);
+        return mob;
+    }
+
     private static Monster mockFriendlyMob(Point position, int id) {
         Monster mob = mockMob(position, id);
         MonsterStats stats = mock(MonsterStats.class);
