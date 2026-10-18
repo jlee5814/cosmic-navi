@@ -1653,7 +1653,14 @@ class BotCombatManager {
         int hpBefore = primaryHp(primary);
         int mpBefore = botMp(bot);
         int plannedDamage = plannedAttackDamage(attack.targets);
+        boolean huntHere = entry.huntMapId == bot.getMapId();
+        List<Monster> aliveBefore = huntHere ? attackPlan.targets.stream().filter(Monster::isAlive).toList() : List.of();
         BotAttackExecutionProvider.applyAttackRoute(attackPlan.route, attack, bot);
+        for (Monster target : aliveBefore) {
+            if (!target.isAlive()) {
+                entry.huntKills++; // this swing killed it: one more roll at the hunt's drop
+            }
+        }
         int hpAfter = primaryHp(primary);
         int mpAfter = botMp(bot);
         entry.attackCooldownMs = Math.max(entry.attackCooldownMs, attackPlan.cooldownMs);

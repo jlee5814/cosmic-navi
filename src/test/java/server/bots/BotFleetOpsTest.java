@@ -207,6 +207,34 @@ class BotFleetOpsTest {
     }
 
     @Test
+    void aHuntIsDryOnlyWhenItsOwnOddsSayTheDropShouldHaveCome() {
+        double chance = 1 / 1000.0;              // one wanted scroll per 1000 kills, as the plan priced it
+        long hour = 60 * MIN;
+        assertNull(BotFleetOps.dryHuntOdds(4_000, chance, 0, 2 * hour), "1 in 55: unlucky, not dry");
+        Double odds = BotFleetOps.dryHuntOdds(5_000, chance, 0, 2 * hour);
+        assertTrue(odds != null && odds < 0.01, "1 in 149: the drop should have come");
+        assertNull(BotFleetOps.dryHuntOdds(50_000, chance, 0, 30 * MIN), "under an hour never flags");
+        assertNull(BotFleetOps.dryHuntOdds(50_000, 0, 0, 2 * hour), "no priced chance, no claim");
+    }
+
+    @Test
+    void aDryHuntWhispersOncePerHunt() {
+        BotFleetOps.Track t = new BotFleetOps.Track();
+        BotEntry entry = new BotEntry(null, null, null);
+        entry.scrollHunt = true;
+        entry.huntMapId = 211000200;
+        entry.huntSinceMs = 0;
+        entry.huntChancePerKill = 1 / 1000.0;
+        entry.huntKills = 5_000;
+        String line = BotFleetOps.dryHuntAlert(t, entry, 2 * 60 * MIN, "SipsBuddy26", "26");
+        assertEquals("SipsBuddy26 hunt dry 2 h: 5000 kills at map 211000200, no scroll (1 in 149). navi why 26", line);
+        assertNull(BotFleetOps.dryHuntAlert(t, entry, 3 * 60 * MIN, "SipsBuddy26", "26"), "one whisper per hunt");
+        entry.huntSinceMs = 3 * 60 * MIN;            // a wanted pickup or a new map starts a new hunt
+        entry.huntKills = 0;
+        assertNull(BotFleetOps.dryHuntAlert(t, entry, 4 * 60 * MIN, "SipsBuddy26", "26"));
+    }
+
+    @Test
     void huntersSetNoBarForTheirLevelBand() {
         java.util.Map<Integer, BotFleetOps.Track> all = new java.util.HashMap<>();
         for (int id = 1; id <= 3; id++) {
