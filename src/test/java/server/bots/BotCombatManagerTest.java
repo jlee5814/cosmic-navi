@@ -53,6 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
@@ -1807,6 +1808,40 @@ class BotCombatManagerTest {
             assertEquals(otherRegionMob, BotCombatManager.findFollowAttackTarget(entry, bot));
             assertEquals(otherRegionMob, BotCombatManager.findGrindTarget(entry, bot));
             assertTrue(BotCombatManager.isReachableGrindTarget(entry, bot, otherRegionMob));
+        }
+    }
+
+    @Test
+    void enRouteTakesTheMobInReachOverABetterRankedOneOutOfReach() {
+        // Live: on Snowy Hill a Leatty ranked above the Jr. Pepe in the bot's lane; the bot never swung at the
+        // Pepe and was knocked back by its touch for 11 hours.
+        MapleMap realMap = new MapleMap(910009052, 0, 0, 910009052, 1.0f);
+        server.maps.FootholdTree footholds = new server.maps.FootholdTree(new Point(-2000, -2000), new Point(2000, 2000));
+        Foothold lane = new Foothold(new Point(-400, 100), new Point(150, 100), 1);
+        Foothold next = new Foothold(new Point(150, 100), new Point(400, 100), 2);
+        lane.setNext(2);
+        next.setPrev(1);
+        footholds.insert(lane);
+        footholds.insert(next);
+        realMap.setFootholds(footholds);
+        BotNavigationGraphProvider.rebuildGraph(realMap);
+        MapleMap map = spy(realMap);
+
+        Character bot = mockBot(new Point(100, 100), map, 20_000, null);
+        when(bot.calculateMaxBaseDamage(anyInt())).thenReturn(20);
+        when(bot.calculateMinBaseDamage(anyInt(), anyDouble())).thenReturn(10);
+        Monster inReach = mockMob(new Point(160, 100), 100101);    // next foothold, in the swing
+        Monster outOfReach = mockMob(new Point(-150, 100), 100102); // same foothold, ranked first, 250 px away
+        doReturn(List.of(inReach, outOfReach)).when(map).getAllMonsters();
+        BotEntry entry = new BotEntry(bot, null, null);
+
+        try (MockedStatic<BotAttackExecutionProvider> attackExecution =
+                     Mockito.mockStatic(BotAttackExecutionProvider.class, Mockito.CALLS_REAL_METHODS)) {
+            attackExecution.when(() -> BotAttackExecutionProvider.getEquippedWeaponType(bot)).thenReturn(WeaponType.SPEAR_STAB);
+
+            assertEquals(outOfReach, BotCombatManager.findFollowAttackTarget(entry, bot));
+            assertNull(BotCombatManager.planAttack(entry, bot, outOfReach));
+            assertEquals(inReach, BotCombatManager.findEnRouteAttackTarget(entry, bot));
         }
     }
 
