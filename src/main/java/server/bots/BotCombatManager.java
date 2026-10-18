@@ -1131,6 +1131,27 @@ class BotCombatManager {
 
     /** Follow mode should only attack local mobs; it should not run pathfinding or chase across the map. */
     static Monster findFollowAttackTarget(BotEntry entry, Character bot) {
+        List<ScoredGrindTarget> ranked = rankFollowAttackTargets(entry, bot);
+        return ranked.isEmpty() ? null : ranked.get(0).monster();
+    }
+
+    /**
+     * The en route pick: the best ranked follow target an attack reaches from where the bot stands. En route never
+     * repositions, so a better ranked mob out of reach must not hide the one in the bot's lane. On Snowy Hill the AoE
+     * cluster bonus ranked a Leatty 140 px past a Jr. Pepe first; the bot swung at nothing, walked into the Pepe's
+     * touch, was knocked back, and repeated that for 11 hours.
+     */
+    static Monster findEnRouteAttackTarget(BotEntry entry, Character bot) {
+        for (ScoredGrindTarget target : rankFollowAttackTargets(entry, bot)) {
+            if (planAttack(entry, bot, target.monster()) != null) {
+                return target.monster();
+            }
+        }
+        return null;
+    }
+
+    /** Local mobs within attack or projectile reach, best first. */
+    private static List<ScoredGrindTarget> rankFollowAttackTargets(BotEntry entry, Character bot) {
         long startedAt = System.nanoTime();
         try {
             Point botPos = bot.getPosition();
@@ -1138,7 +1159,7 @@ class BotCombatManager {
                     BotCombatManager.cfg.ATTACK_RANGE_X + BotCombatManager.cfg.ATTACK_JUMP_X_EXTRA);
             List<Monster> candidates = aliveMonstersInRange(bot, botPos, range * range);
             if (candidates.isEmpty()) {
-                return null;
+                return List.of();
             }
 
             Foothold botFoothold = findGroundFoothold(botPos, bot);
@@ -1154,7 +1175,8 @@ class BotCombatManager {
                 localTargets.add(new ScoredGrindTarget(candidate, localScore, localScore,
                         candidate.getPosition().distanceSq(botPos)));
             }
-            return pickFromBestTargets(localTargets);
+            localTargets.sort(BEST_TARGET_ORDER);
+            return localTargets;
         } finally {
             BotPerformanceMonitor.record("combat-target-search", System.nanoTime() - startedAt);
         }
@@ -2318,16 +2340,10 @@ class BotCombatManager {
         return scoredTargets;
     }
 
-    private static Monster pickFromBestTargets(List<ScoredGrindTarget> scoredTargets) {
-        if (scoredTargets.isEmpty()) {
-            return null;
-        }
-        scoredTargets.sort(Comparator
-                .comparingLong(ScoredGrindTarget::graphCost)
-                .thenComparingLong(ScoredGrindTarget::localScore)
-                .thenComparingDouble(ScoredGrindTarget::distanceSq));
-        return scoredTargets.get(0).monster();
-    }
+    private static final Comparator<ScoredGrindTarget> BEST_TARGET_ORDER = Comparator
+            .comparingLong(ScoredGrindTarget::graphCost)
+            .thenComparingLong(ScoredGrindTarget::localScore)
+            .thenComparingDouble(ScoredGrindTarget::distanceSq);
 
     private static long graphTargetCost(GrindGraphContext context, Monster target) {
         Point targetPos = target.getPosition();
