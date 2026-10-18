@@ -414,7 +414,31 @@ class BotCombatManager {
     static void applyMobHit(BotEntry entry, Character bot, Monster mob) {
         int dmg = rollPhysicalMobDamage(bot, mob);
         MobHitKnockback kb = resolveMobHitKnockback(bot.getPosition(), mob.getPosition());
+        Point mobPos = mob.getPosition();
+        entry.lastHitMobId = mob.getId();
+        entry.lastHitMobX = mobPos.x;
+        entry.lastHitMobY = mobPos.y;
+        entry.lastHitAtMs = System.currentTimeMillis();
         applyDamage(entry, bot, dmg, -1, mob.getId(), kb.direction(), kb.airVelX());
+    }
+
+    /** Debug only (/api/botdebug): why the en route attack would or wouldn't take {@code mob} right now, as
+     *  the same filters {@link #findFollowAttackTarget} and {@link #isEnRouteAttackWorthwhile} apply. */
+    static String enRouteVerdict(BotEntry entry, Character bot, Monster mob) {
+        if (!isHostileLivingMonster(mob)) {
+            return "not-hostile";
+        }
+        Point botPos = bot.getPosition();
+        GrindGraphContext context = GrindGraphContext.resolve(entry, bot, botPos);
+        if (!isLocalCombatTarget(context, bot, findGroundFoothold(botPos, bot), mob)
+                && !isImmediateProjectileTarget(entry, bot, mob)) {
+            return "not-local";
+        }
+        AttackPlan plan = planAttack(entry, bot, mob);
+        if (plan == null) {
+            return "no-plan";
+        }
+        return isEnRouteAttackWorthwhile(entry, bot, plan, mob) ? "attackable" : "not-worth";
     }
 
     /**
