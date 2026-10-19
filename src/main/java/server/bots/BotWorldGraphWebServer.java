@@ -188,6 +188,7 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/fleetops", BotWorldGraphWebServer::serveFleetOps);
             s.createContext("/api/fleetops/incidents", BotWorldGraphWebServer::serveFleetIncidents);
             s.createContext("/api/fleetops/act", BotWorldGraphWebServer::serveFleetAct);
+            s.createContext("/api/party", BotWorldGraphWebServer::serveParty);
             s.createContext("/api/learned/readiness", BotWorldGraphWebServer::serveLearnedReadiness);
             s.createContext("/api/chat", BotWorldGraphWebServer::serveChat);
             s.createContext("/api/inventory", BotWorldGraphWebServer::serveInventory);
@@ -578,6 +579,45 @@ public final class BotWorldGraphWebServer {
                 reason == null ? "" : reason, System.currentTimeMillis());
         send(ex, result.startsWith("queued") ? 200 : 400, "text/plain; charset=utf-8",
                 (result + "\n").getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** POST /api/party {"ids":[leaderId, memberId, ...]}: put online self owned bots in one game party (the first id
+     *  leads) and send the party out together, the same {@code partyUp} plus {@code startParty} a crew gets, so
+     *  they pick one map worth it for all of them and share Holy Symbol and party EXP. Not reachable through the
+     *  LAN share, which is GET only. */
+    private static void serveParty(HttpExchange ex) throws IOException {
+        if (!"POST".equals(ex.getRequestMethod())) {
+            send(ex, 405, "text/plain; charset=utf-8", "POST only\n".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        List<Integer> ids = jsonIntArray(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8), "ids");
+        BotManager mgr = BotManager.getInstance();
+        List<BotEntry> members = new ArrayList<>();
+        for (int id : ids) {
+            BotEntry e = mgr.getEntryByBotCharId(id);
+            if (e == null || e.bot == null || e.bot.getMap() == null) {
+                send(ex, 400, "text/plain; charset=utf-8", ("no bot " + id + " online\n").getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            if (e.owner != null && e.owner != e.bot) { // a player's companion follows its owner, not this
+                send(ex, 400, "text/plain; charset=utf-8",
+                        (e.bot.getName() + " is a player's companion\n").getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            members.add(e);
+        }
+        if (members.size() < 2) {
+            send(ex, 400, "text/plain; charset=utf-8", "need at least two bot ids\n".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        BotEntry leader = members.get(0);
+        for (BotEntry e : members.subList(1, members.size())) {
+            mgr.partyUp(leader.bot, e.bot);
+        }
+        BotAutopilotManager.startParty(leader.bot, mgr.partyAutopilotCohort(leader));
+        String names = String.join(", ", members.stream().map(e -> e.bot.getName()).toList());
+        log.info("party: {} partied and sent out together", names);
+        send(ex, 200, "text/plain; charset=utf-8", ("partied " + names + "\n").getBytes(StandardCharsets.UTF_8));
     }
 
     private static final String LANDING_PAGE =
