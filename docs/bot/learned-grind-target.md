@@ -74,6 +74,19 @@ crosses zero, so the gate holds it. Mob HP, route seconds and horizontal distanc
 rule's own rank barely matters once those are known. Next levers: interactions (a linear model can't learn
 that a far mob is fine when it is nearly dead), or more held out data.
 
+Third run, same night, gradient boosted trees (`--model trees`: 80 trees of depth 3, learning rate 0.1, 32
+quantile bins, minimum leaf weight 400). Both models on the same log (147,985 picks, 36,7xx held out):
+
+| model | differs from rule | rule | model | gain | 90% CI | gate |
+|---|---|---|---|---|---|---|
+| linear | 7,879 | +455.8 | +470.7 | +14.9 | -6.2 to +36.5 | holds |
+| trees | 8,342 | +455.3 | +481.0 | +25.7 (about 6%) | +2.3 to +49.8 | **passes** |
+
+The trees split most on level gap and bot HP. Bot HP is the same for every candidate in a decision, so it
+only matters through interactions (which mob to take when hurt), which is exactly what the linear model
+cannot express. Caveat: two models were tried on one held out set, and the lower bound is small, so the
+offline pass licenses stage 3, not a rollout. The live split is the real test.
+
 ## Stage 3: serve and compare live
 
 - `BotGrindTargetModel` loads the JSON at startup (pure Java, no new dependency) and scores
