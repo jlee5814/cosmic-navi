@@ -243,6 +243,12 @@ in the background, the first time it's needed). Read only. Shown on the world ma
 responder action on the bot's next tick and whispers its owner. At most 3 per bot in 2 hours. Not reachable
 through the LAN share, which passes GET only.
 
+### `/api/party` (POST)
+`{"ids":[<leader char id>,<member char id>,...]}` puts online self owned bots (roster or managed, never a player's
+companion) in one game party led by the first id (`BotManager.partyUp`) and sends the cohort out together
+(`BotAutopilotManager.startParty`, the crew path: one map worth it for all, party EXP and party buffs). Plain
+text `partied <names>` or why not (400). Not reachable through the LAN share, which passes GET only.
+
 ### `/api/settings` (GET + POST)
 Live admin/tuning surface behind `/admin`. Same SSOT as the GM commands: `BotConfigReflect` (the
 `!botcfg` reflection), `BotScheduler` (`@botpop`), `BotLlmConfig` (`!botllm`), `BotAdminOps` (`@botpop wipe`).
