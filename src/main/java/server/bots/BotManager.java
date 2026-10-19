@@ -898,6 +898,7 @@ public class BotManager {
         BotGrindAdvisor.warmOwnedGearAsync(entry);
         maybeStartGraphEvictionSweep();
         BotFleetOps.ensureStarted(); // Navi fleet ops sampler: navi fleet and the stuck whispers
+        BotGrindTargetModel.ensureStarted(); // learned grind target scorer: load and watch the served model
         // Global dedup + atomic publish: a bot character has exactly one runtime owner. Remove any prior
         // entry for this bot under ANY owner key (relog, takeover, party re-register), not just
         // ownerCharId, then add ours — all under the lock so a concurrent register of the SAME id can't
@@ -3962,7 +3963,7 @@ public class BotManager {
         if (runAiTick && shouldSearchForGrindTarget(entry, bot, target, attackPlan, now)) {
             BotGrindTargetLog.Pick pick = entry.patrolRegionId >= 0
                     ? null
-                    : BotGrindTargetLog.choose(BotCombatManager.rankGrindTargets(entry, bot), target == null);
+                    : BotGrindTargetLog.choose(entry, bot, BotCombatManager.rankGrindTargets(entry, bot), target == null);
             Monster searchedTarget = entry.patrolRegionId >= 0
                     ? BotCombatManager.findPatrolTarget(entry, bot)
                     : pick == null ? null : pick.target();

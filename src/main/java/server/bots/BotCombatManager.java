@@ -207,6 +207,9 @@ class BotCombatManager {
         // (docs/bot/learned-grind-target.md). 0 turns it off.
         public double GRIND_TARGET_EXPLORE = 0.1;
         public int   GRIND_TARGET_EXPLORE_BAND_MS = 1500;
+        // Share of bots (by a stable hash of the bot id) whose fresh grind picks the learned model chooses, among
+        // the same candidates exploration allows (BotGrindTargetModel, stage 3). 0 turns the model off, 1 is all.
+        public double GRIND_TARGET_MODEL_SHARE = 0.5;
         public int   AOE_MOB_THRESHOLD = 2;
         // AoE repositioning: when the best fire-now plan is single-target but stepping into the
         // cluster centroid would let the AoE skill beat it by this DPS factor, defer the shot and
