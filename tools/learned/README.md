@@ -6,7 +6,8 @@ the model would have beaten the rules. Plain Python, no dependencies. Design and
 [docs/bot/learned-grind-target.md](../../docs/bot/learned-grind-target.md).
 
 ```
-python3 tools/learned/train_grind_target.py logs/bot-decisions            # writes tools/learned/out/grind-target-model.json
+python3 tools/learned/train_grind_target.py logs/bot-decisions                  # linear: tools/learned/out/grind-target-linear.json
+python3 tools/learned/train_grind_target.py logs/bot-decisions --model trees    # trees:  tools/learned/out/grind-target-trees.json
 python3 -m unittest tools/learned/test_train_grind_target.py
 ```
 
@@ -19,7 +20,8 @@ python3 -m unittest tools/learned/test_train_grind_target.py
 3. **What the policy could have done:** rebuilt from the logged probability. 1.0 means only the rule's first;
    otherwise the first had 0.9 and each alternative within 1500 ms of its route cost had 0.1 split among them.
    These must match `BotCombatManager.cfg.GRIND_TARGET_EXPLORE` and `_BAND_MS` when the lines were written.
-4. **Model:** ridge regression on 10 candidate features (rank, route seconds, local score, crowd, level gap,
+4. **Model:** either ridge regression or small gradient boosted trees (`--model trees`: squared loss, the same
+   row weights, splits on 32 quantile bins, 80 trees of depth 3; trees can learn interactions). Both use 10 candidate features (rank, route seconds, local score, crowd, level gap,
    mob HP, dx, dy, bot on a rope, bot HP), each row weighted by one over its probability so explored picks
    count for the decisions they stand for. The features are the ones the Java scorer can compute (stage 3).
 5. **Policy:** on each decision, the best scored candidate among those the logging policy could have taken.
@@ -31,11 +33,11 @@ python3 -m unittest tools/learned/test_train_grind_target.py
 
 ## Output
 
-`out/grind-target-model.json`: feature names, means, standard deviations, weights, bias, the readiness
+`out/grind-target-<model>.json`: feature names, means, standard deviations, weights, bias, the readiness
 counts, the held out evaluation, and `passes_gate`. Stage 3 loads it only when `passes_gate` is true.
 
 ## Limits
 
 - One pick at a time: a pick also changes where the bot ends up for the next one, which this ignores.
-- Linear: it can rank by weighted sums of features, not learn interactions.
+- Linear: it can rank by weighted sums of features, not learn interactions. The trees can.
 - The held out slice is the latest time, so a model that wins earlier and loses later reads as a loss.

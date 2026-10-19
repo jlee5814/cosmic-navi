@@ -70,5 +70,57 @@ class LearnsTest(unittest.TestCase):
         self.assertLess(ev["gain_90ci"][0], 0)
 
 
+
+class TreesTest(unittest.TestCase):
+    @staticmethod
+    def interaction_log(n, seed):
+        # The 2nd candidate pays 250 when it is far and nearly dead, or near and fresh; otherwise 0. The rule's
+        # first always pays 150, more than the 2nd's average, so a weighted sum (which can't separate the two
+        # cases by distance or mob HP alone) keeps the rule; only a model of the interaction gains.
+        rnd = random.Random(seed)
+        recs = []
+        for ts in range(n):
+            explore = rnd.random() < t.EXPLORE
+            far, low = rnd.random() < 0.5, rnd.random() < 0.5
+            pays = far == low
+            pick = 1 if explore else 0
+            exp = (250 if pays else 0) if pick == 1 else 150
+            r = decision(ts, pick, 0.1 if explore else 0.9, [1000, 1200], out_exp=exp + rnd.randint(-20, 20))
+            r["cands"][1]["dx"] = 600 if far else 60
+            r["cands"][1]["mobHp"] = 0.2 if low else 1.0
+            recs.append(r)
+        return t.prepare(recs)
+
+    def test_trees_learn_an_interaction_the_linear_model_cannot(self):
+        rows = self.interaction_log(20000, 3)
+        cut = int(len(rows) * 0.75)
+        trees = t.evaluate(t.fit_trees(rows[:cut], trees=40, min_leaf=50.0), rows[cut:], boots=200)
+        linear = t.evaluate(t.fit(rows[:cut]), rows[cut:], boots=200)
+        self.assertGreater(trees["gain_90ci"][0], 0)
+        self.assertGreater(trees["gain"], linear["gain"] + 20)
+        self.assertLessEqual(linear["gain_90ci"][0], 0)
+
+    def test_trees_find_no_gain_where_there_is_none(self):
+        rnd = random.Random(4)
+        recs = []
+        for ts in range(4000):
+            explore = rnd.random() < t.EXPLORE
+            recs.append(decision(ts, 1 if explore else 0, 0.1 if explore else 0.9, [1000, 1200],
+                                 out_exp=100 + rnd.randint(-50, 50)))
+        rows = t.prepare(recs)
+        cut = int(len(rows) * 0.75)
+        ev = t.evaluate(t.fit_trees(rows[:cut], trees=40, min_leaf=50.0), rows[cut:], boots=200)
+        self.assertLessEqual(ev["gain_90ci"][0], 0)  # the gate needs the lower end above zero
+
+    def test_raw_threshold_scoring_matches_the_binned_fit(self):
+        rows = self.interaction_log(3000, 5)
+        model = t.fit_trees(rows, trees=10, min_leaf=50.0)
+        for row in rows[:200]:
+            x = t.features(row["rec"], row["rec"]["pick"])
+            b = [t.bin_of(model["cuts"][j], x[j]) for j in range(len(x))]
+            for tree in model["trees"]:
+                self.assertEqual(t.leaf_of(tree, b), t.tree_value(tree, x))
+
+
 if __name__ == "__main__":
     unittest.main()
