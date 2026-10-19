@@ -28,6 +28,12 @@ Fleet: 98.8 h online, 56.0 h grinding (57%). Freezes and stalls flagged by fleet
 - Ludibrium Ticketing Place and Ludibrium, 292 min (SipsBuddy2, Oct 13): the ferry ticket sell loop, fixed by #91
   ([[kb_bot_ferry_ticket_sell_loop]]).
 - El Nath, 80 min (SipsBuddy1, Oct 14 to 15): slow then stalled with no return scroll; not diagnosed.
+- Encounter with the Buddha 800020130 (SipsBuddy2, Oct 17 to 18, parked Oct 18): not a terrain trap (one flat
+  floor). The grind target log (`logs/bot-decisions/grind-target-*.jsonl`) shows 20 picks of Black Crow 9400014
+  (area boss, lv115, 35M HP) as the only candidate, held 16 to 83 min each for under 1% of its HP. Grind
+  candidates now skip a boss whose solo kill time (`BotGrindAdvisor.killProfile`) is over 5 min, outside event
+  instances (`BotCombatManager.isHopelessBossTarget`). For the next unexplained freeze on a grind map, grep the
+  grind target log for long `holdMs` with a tiny `mobHpDrop` first.
 - Snowy Hill, about 11 h (SipsBuddy26, Oct 17, after this window): the en route attack aimed past the Jr. Pepe in
   the lane and the bot was knocked back on every approach; fixed ([[kb_bot_en_route_attack_reach]]). Possibly the
   El Nath stall above too, since Snowy Hill is the only walking way out.

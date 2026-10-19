@@ -1030,7 +1030,7 @@ class BotCombatManager {
             Point botPos = bot.getPosition();
             double rangeSq = (double) BotCombatManager.cfg.GRIND_SEEK_RANGE * BotCombatManager.cfg.GRIND_SEEK_RANGE;
             Foothold botFoothold = findGroundFoothold(botPos, bot);
-            List<Monster> candidates = aliveMonstersInRange(bot, botPos, rangeSq);
+            List<Monster> candidates = aliveMonstersInRange(entry, bot, botPos, rangeSq);
             if (candidates.isEmpty()) return List.of();
 
             List<ScoredGrindTarget> scoredTargets = scoreGrindTargets(entry, bot, botPos, botFoothold, candidates);
@@ -1070,7 +1070,7 @@ class BotCombatManager {
             Point botPos = bot.getPosition();
             double rangeSq = (double) cfg.GRIND_SEEK_RANGE * cfg.GRIND_SEEK_RANGE;
             Foothold botFoothold = findGroundFoothold(botPos, bot);
-            List<Monster> candidates = aliveMonstersInRange(bot, botPos, rangeSq);
+            List<Monster> candidates = aliveMonstersInRange(entry, bot, botPos, rangeSq);
             if (candidates.isEmpty()) {
                 return null;
             }
@@ -1157,7 +1157,7 @@ class BotCombatManager {
             Point botPos = bot.getPosition();
             double range = Math.max(CLIENT_PROJECTILE_BASE_RANGE + passiveProjectileRangeBonus(bot),
                     BotCombatManager.cfg.ATTACK_RANGE_X + BotCombatManager.cfg.ATTACK_JUMP_X_EXTRA);
-            List<Monster> candidates = aliveMonstersInRange(bot, botPos, range * range);
+            List<Monster> candidates = aliveMonstersInRange(entry, bot, botPos, range * range);
             if (candidates.isEmpty()) {
                 return List.of();
             }
@@ -2154,14 +2154,33 @@ class BotCombatManager {
         return scoreTargetRegions(entry, graphContext, bot, botPos, botFoothold, candidates);
     }
 
-    private static List<Monster> aliveMonstersInRange(Character bot, Point botPos, double rangeSq) {
+    private static List<Monster> aliveMonstersInRange(BotEntry entry, Character bot, Point botPos, double rangeSq) {
         List<Monster> candidates = new ArrayList<>();
         for (Monster m : bot.getMap().getAllMonsters()) {
-            if (isHostileLivingMonster(m) && m.getPosition().distanceSq(botPos) <= rangeSq) {
+            if (isHostileLivingMonster(m) && m.getPosition().distanceSq(botPos) <= rangeSq
+                    && !isHopelessBossTarget(entry, bot, m)) {
                 candidates.add(m);
             }
         }
         return candidates;
+    }
+
+    /** Longest solo kill, by {@link BotGrindAdvisor#killProfile}, that still makes an area boss worth a grind pick. */
+    static final double MAX_BOSS_GRIND_KILL_SECONDS = 300.0;
+
+    /**
+     * An area boss sharing a grind map that this bot can't kill alone in reasonable time: SipsBuddy2 (lv85 Priest)
+     * picked Black Crow (35M HP) on Encounter with the Buddha as its only candidate and stood on it for up to 83 min,
+     * taking under 1% of its HP each time, until fleet ops rescued it. The grind advisor already refuses boss maps;
+     * this keeps the per target pick consistent with it. Bosses inside an event instance (a PQ boss like King Slime)
+     * are the party's job, so they stay targets.
+     */
+    static boolean isHopelessBossTarget(BotEntry entry, Character bot, Monster mob) {
+        if (mob.getStats() == null || !mob.getStats().isBoss() || bot.getEventInstance() != null) {
+            return false;
+        }
+        double[] kill = BotGrindAdvisor.killProfile(entry, bot, mob);
+        return kill == null || kill[0] > MAX_BOSS_GRIND_KILL_SECONDS;
     }
 
     private static boolean isLocalCombatTarget(GrindGraphContext context,
