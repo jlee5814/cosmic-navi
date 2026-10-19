@@ -234,8 +234,12 @@ Polled by [tools/responder](../../tools/responder/README.md).
 How close the grind target decision log (`logs/bot-decisions/`, docs/bot/learned-grind-target.md) is to
 worth training on. Counts every logged pick since the first log, earlier days included (scanned once,
 in the background, the first time it's needed). Read only. Shown on the world map page.
+`model` is the learned scorer the model arm uses (stage 3, `BotGrindTargetModel`, loaded from
+`models/grind-target-model.json` and reloaded within a minute of the file changing), or null when every bot
+uses the rule; `share` is `GRIND_TARGET_MODEL_SHARE`.
 ```
-{"picks":38,"explored":1,"maps":1,"need":{"picks":20000,"maps":10,"explored":300},"ready":false}
+{"picks":38,"explored":1,"maps":1,"need":{"picks":20000,"maps":10,"explored":300},"ready":false,
+ "model":{"kind":"trees","version":"trees-20261019-104500-1a2b3c4d","share":0.5}}
 ```
 
 ### `/api/fleetops/act` (POST)

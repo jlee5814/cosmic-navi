@@ -19,6 +19,7 @@ explore). That keeps every decision it makes evaluable by inverse propensity wei
 """
 import argparse
 import glob
+import hashlib
 import json
 import math
 import os
@@ -57,7 +58,11 @@ def support(rec):
 
     p == 1: no exploration was possible (live target, no alternative in band, or off the graph).
     Otherwise the rule's first had 1 - EXPLORE and each in band alternative EXPLORE / n.
+    Lines since stage 3 log the support themselves ("sup"), since a model arm pick puts 1 - EXPLORE on the
+    model's best rather than on the rule's first.
     """
+    if "sup" in rec:
+        return {int(k): float(v) for k, v in rec["sup"].items()}
     if rec["p"] >= 0.999:
         return {0: 1.0}
     cands = rec["cands"]
@@ -304,12 +309,33 @@ def split_counts(model):
     return counts
 
 
+def compare(challenger, champion, rows, boots=1000, seed=11):
+    """Challenger against the served champion on the same held out rows: the mean value per decision of each
+    policy, the challenger's gain, and a 90% bootstrap interval on it."""
+    a = [policy_pick(challenger, r) for r in rows]
+    b = [policy_pick(champion, r) for r in rows]
+    rnd = random.Random(seed)
+    samples = []
+    for _ in range(boots):
+        idx = [rnd.randrange(len(rows)) for _ in rows]
+        rs = [rows[i] for i in idx]
+        samples.append(snips(rs, [a[i] for i in idx]) - snips(rs, [b[i] for i in idx]))
+    samples = sorted(x for x in samples if not math.isnan(x))
+    return {"challenger_value": snips(rows, a), "champion_value": snips(rows, b),
+            "gain": snips(rows, a) - snips(rows, b),
+            "gain_90ci": [samples[int(0.05 * len(samples))], samples[int(0.95 * len(samples)) - 1]] if samples
+            else [float("nan"), float("nan")],
+            "champion_version": champion.get("version", "unversioned")}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("log_dir")
     ap.add_argument("--model", choices=["linear", "trees"], default="linear")
     ap.add_argument("--out", default=None, help="default tools/learned/out/grind-target-<model>.json")
     ap.add_argument("--holdout", type=float, default=0.25, help="latest share of decisions held out for the gate")
+    ap.add_argument("--champion", default=None,
+                    help="the served model; the new one is promoted only if it also beats this one on held out time")
     args = ap.parse_args(argv)
 
     recs = load(args.log_dir)
@@ -325,8 +351,20 @@ def main(argv=None):
     data_ready = (ready["picks"] >= READY_PICKS and ready["maps"] >= READY_MAPS
                   and ready["explored"] >= READY_EXPLORED)
     passes = data_ready and ev["gain_90ci"][0] > 0
-    model.update({"readiness": ready, "data_ready": data_ready, "train_decisions": len(train), "eval": ev,
-                  "passes_gate": passes})
+    champ = None
+    if args.champion and os.path.isfile(args.champion):
+        with open(args.champion) as f:
+            served = json.load(f)
+        if served.get("passes_gate"):
+            champ = compare(model, served, held)
+    # Promote: beats the rule (the gate) and, when a model is served, beats it too in expectation. The rule gate
+    # is the safety bar; the champion bar only stops a retrain from replacing a better model with a worse one.
+    promote = passes and (champ is None or champ["gain"] > 0)
+    stamp = __import__("time").strftime("%Y%m%d-%H%M%S")
+    digest = hashlib.sha1(json.dumps(model, sort_keys=True).encode()).hexdigest()[:8]
+    model.update({"kind": args.model, "version": f"{args.model}-{stamp}-{digest}", "readiness": ready,
+                  "data_ready": data_ready, "train_decisions": len(train), "eval": ev, "passes_gate": passes,
+                  "vs_champion": champ, "promote": promote})
     out = args.out or f"tools/learned/out/grind-target-{args.model}.json"
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     with open(out, "w") as f:
@@ -349,6 +387,10 @@ def main(argv=None):
           f"to {ev['gain_90ci'][1]:+.1f})")
     print("verdict:", "PASS, ready for stage 3" if passes else
           "not yet: " + ("more data needed" if not data_ready else "gain not above noise"))
+    if champ is not None:
+        print(f"vs served {champ['champion_version']}: {champ['gain']:+.1f} per decision "
+              f"(90% CI {champ['gain_90ci'][0]:+.1f} to {champ['gain_90ci'][1]:+.1f})")
+    print("promote:", "yes" if promote else "no", model["version"])
     print("wrote", out)
     return 0
 

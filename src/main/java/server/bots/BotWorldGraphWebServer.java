@@ -233,9 +233,13 @@ public final class BotWorldGraphWebServer {
                 .getBytes(StandardCharsets.UTF_8));
     }
 
-    /** GET /api/learned/readiness: how close the grind decision log is to worth training on (stage 2 gate). */
+    /** GET /api/learned/readiness: how close the grind decision log is to worth training on (stage 2 gate), and
+     *  the model served to the model arm, if any (stage 3). */
     private static void serveLearnedReadiness(HttpExchange ex) throws IOException {
-        send(ex, 200, "application/json", BotGrindTargetLog.readinessJson().getBytes(StandardCharsets.UTF_8));
+        String readiness = BotGrindTargetLog.readinessJson();
+        String json = readiness.substring(0, readiness.length() - 1) + ",\"model\":"
+                + BotGrindTargetModel.statusJson(BotCombatManager.cfg.GRIND_TARGET_MODEL_SHARE) + "}";
+        send(ex, 200, "application/json", json.getBytes(StandardCharsets.UTF_8));
     }
 
     /** GET /api/chat?id=botCharId: the dashboard conversation with that bot. POST /api/chat?id=botCharId with

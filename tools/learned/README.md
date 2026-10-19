@@ -41,3 +41,16 @@ counts, the held out evaluation, and `passes_gate`. Stage 3 loads it only when `
 - One pick at a time: a pick also changes where the bot ends up for the next one, which this ignores.
 - Linear: it can rank by weighted sums of features, not learn interactions. The trees can.
 - The held out slice is the latest time, so a model that wins earlier and loses later reads as a loss.
+
+## Stage 3 tools
+
+```
+tools/learned/retrain.sh                                    # train trees, gate vs the rule and the served model, promote
+python3 tools/learned/compare_arms.py logs/bot-decisions    # live: model arm vs rule arm, and a replay since the split
+python3 -m unittest tools/learned/test_compare_arms.py
+```
+
+`--champion <served.json>` makes the trainer compare the new model with the served one on the same held out
+rows; `promote` in its output is true only when the new model passes the gate and beats the champion in
+expectation. The served file is `models/grind-target-model.json` (gitignored; mounted read only into the
+server at `/opt/server/models`).

@@ -89,12 +89,41 @@ offline pass licenses stage 3, not a rollout. The live split is the real test.
 
 ## Stage 3: serve and compare live
 
-- `BotGrindTargetModel` loads the JSON at startup (pure Java, no new dependency) and scores
-  candidates; `findGrindTarget` orders by it when present.
-- Split the fleet: half the bots on the model, half on the rule, assigned by bot id.
-- Compare over at least a day: EXP per hour, picks abandoned without a hit, stall incidents from the
-  responder (`/api/fleetops/incidents`). Keep the model only if EXP per hour improves and stalls do
-  not rise.
+Built Oct 19.
+
+- **Serving.** `BotGrindTargetModel` loads `models/grind-target-model.json` (pure Java, a small JSON reader,
+  `BotJson`; no dependency) and serves it only when its `passes_gate` is true. It checks the file once a
+  minute and reloads on a change, so promoting a model needs no restart. A missing, failed or malformed file
+  means every bot uses the rule. The features are the trainer's `features()`, computed from the same rounded
+  numbers the log writes; `BotGrindTargetModelTest` checks the served scores against the trainer's own on a
+  fixture the trainer wrote.
+- **The split.** A stable hash of the bot id against `GRIND_TARGET_MODEL_SHARE` (0.5; `/api/settings`
+  combat group) puts each bot in the model arm or the rule arm for good. 0 turns the model off live.
+- **The policy.** A model arm bot, on a fresh pick with an alternative in band, scores the same candidates
+  exploration allows (the rule's first and up to two within 1500 ms) and takes the model's best with
+  1 - `GRIND_TARGET_EXPLORE`, each other with an equal share of the rest. So the rules stay the guard: the
+  model only reorders what they allowed, never adds a candidate, and keeps exploring. No live target, or
+  nothing in band: the rule's first, in either arm.
+- **Logging.** Every line now carries `arm` (`model` or `rule`), `mv` (the model version) and `sup`, the
+  probability of every index its policy allowed. The trainer reads `sup` when present, so model arm lines
+  weight as honestly as rule ones and the next training run can still judge every alternative.
+- **The live check.** `tools/learned/compare_arms.py`: (1) each bot's EXP per hour of grinding after the
+  split against its own rate before, then the model arm's change against the rule arm's, with an interval
+  from resampling bots; (2) a replay of every decision since the split, the trainer's way, which is the
+  stronger test when grinding bots are few. Keep the model only if both point up and stalls
+  (`/api/fleetops/incidents`) don't rise; if the replay says the model earns less, set the share to 0.
+
+## Keeping it honest
+
+- **Who retrains:** `tools/learned/retrain.sh`, on the whole log. Run it by hand or nightly.
+- **What it must beat:** the rule on held out time (the gate: a 90% interval above zero), and the served
+  model, the champion (`--champion`), in expectation on the same held out rows. The rule bar is the safety
+  bar; the champion bar stops a retrain from replacing a better model with a worse one. A pass swaps the
+  served file atomically; the server picks it up within a minute. Every model carries a `version` (kind,
+  time, content hash) that the log stamps on each pick it makes.
+- **What says it drifted:** the replay in `compare_arms.py` on recent days. New maps, levels or a patch the
+  model hasn't seen show up as the model earning less than the rule on fresh decisions; the champion bar
+  then needs a retrain to win its place back, and the share can drop to 0 without a deploy.
 
 ## Not in scope
 
