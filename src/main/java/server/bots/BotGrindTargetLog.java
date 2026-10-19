@@ -57,8 +57,17 @@ final class BotGrindTargetLog {
         WRITER.execute(BotGrindTargetLog::countEarlierLogs);
     }
 
-    /** A pick: the target, the ranking it came from, its index there, and the probability it had. */
-    record Pick(Monster target, List<BotCombatManager.ScoredGrindTarget> ranking, int index, double probability) {
+    /**
+     * A pick: the target, the ranking it came from, its index there and the probability it had; which arm chose
+     * it ({@code model} or {@code rule}) and the model version, and the probability of every index the policy
+     * could have taken ({@code support}), logged so training can weight a model arm pick as honestly as a rule
+     * one.
+     */
+    record Pick(Monster target, List<BotCombatManager.ScoredGrindTarget> ranking, int index, double probability,
+                String arm, String modelVersion, java.util.Map<Integer, Double> support) {
+        Pick(Monster target, List<BotCombatManager.ScoredGrindTarget> ranking, int index, double probability) {
+            this(target, ranking, index, probability, "rule", "", java.util.Map.of(index, probability));
+        }
     }
 
     /** A committed pick waiting for its outcome; closed by the next commit. */
@@ -75,6 +84,18 @@ final class BotGrindTargetLog {
      * the nav graph explore: off the graph the scores are rule points, not milliseconds. Null when nothing ranks.
      */
     static Pick choose(List<BotCombatManager.ScoredGrindTarget> ranking, boolean freshPick) {
+        return choose(null, null, ranking, freshPick);
+    }
+
+    /**
+     * As {@link #choose(List, boolean)}, but a bot in the model arm ({@link BotGrindTargetModel#inModelArm}) lets
+     * the served model choose among the same indices: its best with {@code 1 - GRIND_TARGET_EXPLORE}, each other
+     * with an equal share of the rest. So the model only reorders what the rule allowed on a fresh pick, it keeps
+     * exploring, and the trainer can still judge every alternative. Not a fresh pick, or nothing in band: the
+     * rule's first, in either arm.
+     */
+    static Pick choose(BotEntry entry, Character bot, List<BotCombatManager.ScoredGrindTarget> ranking,
+                       boolean freshPick) {
         if (ranking.isEmpty()) {
             return null;
         }
@@ -88,11 +109,47 @@ final class BotGrindTargetLog {
         }
         double explore = freshPick && !alternatives.isEmpty() ? BotCombatManager.cfg.GRIND_TARGET_EXPLORE : 0.0;
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        BotGrindTargetModel.Loaded model = BotGrindTargetModel.current();
+        if (model != null && entry != null && bot != null && freshPick && !alternatives.isEmpty()
+                && BotGrindTargetModel.inModelArm(bot.getId(), BotCombatManager.cfg.GRIND_TARGET_MODEL_SHARE)) {
+            List<Integer> allowed = new ArrayList<>(alternatives.size() + 1);
+            allowed.add(0);
+            allowed.addAll(alternatives);
+            int bestIndex = 0;
+            double bestScore = Double.NEGATIVE_INFINITY;
+            for (int i : allowed) {
+                double score = model.scorer().score(BotGrindTargetModel.features(entry, bot, ranking, i));
+                if (score > bestScore + 1e-9) { // ties keep the rule's order
+                    bestIndex = i;
+                    bestScore = score;
+                }
+            }
+            java.util.Map<Integer, Double> support = new java.util.TreeMap<>();
+            for (int i : allowed) {
+                support.put(i, i == bestIndex ? 1.0 - explore : explore / alternatives.size());
+            }
+            int index = bestIndex;
+            if (explore > 0 && rnd.nextDouble() < explore) {
+                List<Integer> others = new ArrayList<>(allowed);
+                others.remove(Integer.valueOf(bestIndex));
+                index = others.get(rnd.nextInt(others.size()));
+            }
+            return new Pick(ranking.get(index).monster(), ranking, index, support.get(index), "model",
+                    model.version(), support);
+        }
+        java.util.Map<Integer, Double> support = new java.util.TreeMap<>();
+        support.put(0, 1.0 - explore);
+        for (int i : alternatives) {
+            if (explore > 0) {
+                support.put(i, explore / alternatives.size());
+            }
+        }
         if (explore > 0 && rnd.nextDouble() < explore) {
             int index = alternatives.get(rnd.nextInt(alternatives.size()));
-            return new Pick(ranking.get(index).monster(), ranking, index, explore / alternatives.size());
+            return new Pick(ranking.get(index).monster(), ranking, index, explore / alternatives.size(), "rule", "",
+                    support);
         }
-        return new Pick(ranking.getFirst().monster(), ranking, 0, 1.0 - explore);
+        return new Pick(ranking.getFirst().monster(), ranking, 0, 1.0 - explore, "rule", "", support);
     }
 
     /** The bot adopted {@code pick}: close the previous pick with its outcome, then open this one. */
@@ -143,8 +200,19 @@ final class BotGrindTargetLog {
                     .append(",\"region\":").append(c.regionId())
                     .append(",\"crowd\":").append(c.mobCount()).append('}');
         }
-        return sb.append("],\"pick\":").append(pick.index())
-                .append(",\"p\":").append(ratio(pick.probability())).toString();
+        sb.append("],\"pick\":").append(pick.index())
+                .append(",\"p\":").append(ratio(pick.probability()))
+                .append(",\"arm\":\"").append(pick.arm()).append('"');
+        if (!pick.modelVersion().isEmpty()) {
+            sb.append(",\"mv\":\"").append(pick.modelVersion()).append('"');
+        }
+        sb.append(",\"sup\":{");
+        boolean first = true;
+        for (var e : pick.support().entrySet()) {
+            sb.append(first ? "" : ",").append('"').append(e.getKey()).append("\":").append(ratio(e.getValue()));
+            first = false;
+        }
+        return sb.append('}').toString();
     }
 
     private static String close(OpenPick open, Character bot, long now) {

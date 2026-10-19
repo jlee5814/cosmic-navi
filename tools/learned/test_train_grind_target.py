@@ -122,5 +122,26 @@ class TreesTest(unittest.TestCase):
                 self.assertEqual(t.leaf_of(tree, b), t.tree_value(tree, x))
 
 
+
+class Stage3Test(unittest.TestCase):
+    def test_a_line_that_logs_its_support_is_weighted_by_it(self):
+        r = decision(1, 0, 0.05, [1000, 1400])
+        r["sup"] = {"0": 0.05, "1": 0.95}  # the model arm put 1 - EXPLORE on candidate 1
+        r["pick"], r["p"] = 1, 0.95
+        rows = t.prepare([r])
+        self.assertEqual({0: 0.05, 1: 0.95}, rows[0]["support"])
+
+    def test_a_challenger_is_compared_with_the_served_champion_on_the_same_rows(self):
+        rows = TreesTest.interaction_log(20000, 6)
+        cut = int(len(rows) * 0.75)
+        trees = t.fit_trees(rows[:cut], trees=40, min_leaf=50.0)
+        linear = t.fit(rows[:cut])
+        linear["version"] = "linear-old"
+        vs = t.compare(trees, linear, rows[cut:], boots=200)
+        self.assertGreater(vs["gain_90ci"][0], 0)
+        self.assertEqual("linear-old", vs["champion_version"])
+        self.assertAlmostEqual(0.0, t.compare(linear, linear, rows[cut:], boots=50)["gain"])
+
+
 if __name__ == "__main__":
     unittest.main()
