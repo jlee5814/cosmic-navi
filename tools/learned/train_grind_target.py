@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Stage 2 of the learned grind target scorer (docs/bot/learned-grind-target.md).
 
-Reads the decision log (logs/bot-decisions/grind-target-*.jsonl), fits a small linear model that predicts
-the value of picking a candidate, and checks offline, on held out time, whether ranking by the model would
-have earned more than the rules. Writes the model and its verdict as JSON. No dependencies.
+Reads the decision log (logs/bot-decisions/grind-target-*.jsonl), fits a small model that predicts the value
+of picking a candidate, and checks offline, on held out time, whether ranking by the model would have earned
+more than the rules. Writes the model and its verdict as JSON. No dependencies.
 
-    python3 tools/learned/train_grind_target.py logs/bot-decisions [--out model.json]
+    python3 tools/learned/train_grind_target.py logs/bot-decisions [--model linear|trees] [--out model.json]
+
+Two models: ridge regression (linear, the first one), and small gradient boosted trees (trees), which can learn
+interactions a weighted sum can't, such as a far mob being worth it when it is nearly dead.
 
 Value of a pick: the EXP it earned minus what its hold time would have earned at the bot's average rate,
 so a fast small kill and a slow big one compare fairly (the goal is EXP per hour, not EXP per pick).
@@ -142,8 +145,103 @@ def solve(a, b):
     return [m[i][n] / m[i][i] if abs(m[i][i]) > 1e-12 else 0.0 for i in range(n)]
 
 
+# Gradient boosted trees: squared loss on the pick's value, each row weighted by one over its logged
+# probability (as the ridge fit), splits found on quantile bins of each feature. Small on purpose: shallow
+# trees, a low learning rate and a minimum leaf weight, so the held out gate, not the fit, decides.
+TREES, DEPTH, LEARNING_RATE, BINS, MIN_LEAF_WEIGHT, LEAF_L2 = 80, 3, 0.1, 32, 400.0, 1.0
+
+
+def fit_trees(rows, trees=TREES, depth=DEPTH, lr=LEARNING_RATE, bins=BINS, min_leaf=MIN_LEAF_WEIGHT, l2=LEAF_L2):
+    xs = [features(r["rec"], r["rec"]["pick"]) for r in rows]
+    ys = [r["value"] for r in rows]
+    ws = [1.0 / r["support"][r["rec"]["pick"]] for r in rows]
+    k = len(FEATURES)
+    cuts = []
+    for j in range(k):
+        vals = sorted(set(x[j] for x in xs))
+        if len(vals) <= bins:
+            cuts.append([(a + b) / 2 for a, b in zip(vals, vals[1:])])
+        else:
+            col = sorted(x[j] for x in xs)
+            qs = sorted(set(col[int(len(col) * q / bins)] for q in range(1, bins)))
+            cuts.append(qs)
+    binned = [[bin_of(cuts[j], x[j]) for j in range(k)] for x in xs]
+    total_w = sum(ws)
+    base = sum(w * y for w, y in zip(ws, ys)) / total_w
+    pred = [base] * len(rows)
+    forest = []
+    for _ in range(trees):
+        resid = [y - p for y, p in zip(ys, pred)]
+        tree = grow(binned, resid, ws, list(range(len(rows))), cuts, depth, min_leaf, l2)
+        forest.append(tree)
+        for n, b in enumerate(binned):
+            pred[n] += lr * leaf_of(tree, b)
+    return {"kind": "trees", "features": FEATURES, "cuts": cuts, "base": base, "lr": lr, "trees": forest}
+
+
+def bin_of(cuts, v):
+    lo, hi = 0, len(cuts)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if v <= cuts[mid]:
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
+
+
+def grow(binned, resid, ws, idx, cuts, depth, min_leaf, l2):
+    sw = sum(ws[n] for n in idx)
+    sr = sum(ws[n] * resid[n] for n in idx)
+    leaf = {"v": sr / (sw + l2)}
+    if depth == 0 or sw < 2 * min_leaf:
+        return leaf
+    best = None  # (gain, feature, bin)
+    parent = sr * sr / (sw + l2)
+    for j in range(len(cuts)):
+        nb = len(cuts[j]) + 1
+        hw, hr = [0.0] * nb, [0.0] * nb
+        for n in idx:
+            b = binned[n][j]
+            hw[b] += ws[n]
+            hr[b] += ws[n] * resid[n]
+        lw = lr_ = 0.0
+        for b in range(nb - 1):
+            lw += hw[b]
+            lr_ += hr[b]
+            rw, rr = sw - lw, sr - lr_
+            if lw < min_leaf or rw < min_leaf:
+                continue
+            gain = lr_ * lr_ / (lw + l2) + rr * rr / (rw + l2) - parent
+            if best is None or gain > best[0]:
+                best = (gain, j, b)
+    if best is None or best[0] <= 0:
+        return leaf
+    _, j, b = best
+    left = [n for n in idx if binned[n][j] <= b]
+    right = [n for n in idx if binned[n][j] > b]
+    return {"f": j, "t": cuts[j][b], "b": b,
+            "l": grow(binned, resid, ws, left, cuts, depth - 1, min_leaf, l2),
+            "r": grow(binned, resid, ws, right, cuts, depth - 1, min_leaf, l2)}
+
+
+def leaf_of(tree, binned_row):
+    while "v" not in tree:
+        tree = tree["l"] if binned_row[tree["f"]] <= tree["b"] else tree["r"]
+    return tree["v"]
+
+
+def tree_value(tree, x):
+    """One tree on raw features: the threshold form the Java scorer will use (stage 3)."""
+    while "v" not in tree:
+        tree = tree["l"] if x[tree["f"]] <= tree["t"] else tree["r"]
+    return tree["v"]
+
+
 def score(model, rec, i):
     x = features(rec, i)
+    if model.get("kind") == "trees":
+        return model["base"] + model["lr"] * sum(tree_value(t, x) for t in model["trees"])
     return model["bias"] + sum(w * (v - mu) / sd for w, v, mu, sd in
                                zip(model["weights"], x, model["mean"], model["std"]))
 
@@ -192,10 +290,25 @@ def evaluate(model, rows, boots=1000, seed=7):
     }
 
 
+def split_counts(model):
+    counts = {}
+
+    def walk(t):
+        if "v" in t:
+            return
+        counts[t["f"]] = counts.get(t["f"], 0) + 1
+        walk(t["l"])
+        walk(t["r"])
+    for t in model["trees"]:
+        walk(t)
+    return counts
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("log_dir")
-    ap.add_argument("--out", default="tools/learned/out/grind-target-model.json")
+    ap.add_argument("--model", choices=["linear", "trees"], default="linear")
+    ap.add_argument("--out", default=None, help="default tools/learned/out/grind-target-<model>.json")
     ap.add_argument("--holdout", type=float, default=0.25, help="latest share of decisions held out for the gate")
     args = ap.parse_args(argv)
 
@@ -207,30 +320,36 @@ def main(argv=None):
         return 2
     cut = int(len(rows) * (1 - args.holdout))
     train, held = rows[:cut], rows[cut:]
-    model = fit(train)
+    model = fit_trees(train) if args.model == "trees" else fit(train)
     ev = evaluate(model, held)
     data_ready = (ready["picks"] >= READY_PICKS and ready["maps"] >= READY_MAPS
                   and ready["explored"] >= READY_EXPLORED)
     passes = data_ready and ev["gain_90ci"][0] > 0
     model.update({"readiness": ready, "data_ready": data_ready, "train_decisions": len(train), "eval": ev,
                   "passes_gate": passes})
-    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    with open(args.out, "w") as f:
-        json.dump(model, f, indent=2)
+    out = args.out or f"tools/learned/out/grind-target-{args.model}.json"
+    os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
+    with open(out, "w") as f:
+        json.dump(model, f, indent=2 if args.model == "linear" else None)
 
     print(f"log: {ready['picks']} picks, {ready['maps']} maps, {ready['explored']} explored "
           f"(gate {READY_PICKS}, {READY_MAPS}, {READY_EXPLORED}: {'met' if data_ready else 'not yet'})")
     print(f"usable: {len(rows)} decisions; train {len(train)}, held out {len(held)}")
-    print("weights (per standard deviation):")
-    for name, w in sorted(zip(FEATURES, model["weights"]), key=lambda t: -abs(t[1])):
-        print(f"  {name:8s} {w:+9.1f}")
+    if args.model == "linear":
+        print("weights (per standard deviation):")
+        for name, w in sorted(zip(FEATURES, model["weights"]), key=lambda t: -abs(t[1])):
+            print(f"  {name:8s} {w:+9.1f}")
+    else:
+        used = split_counts(model)
+        print(f"{len(model['trees'])} trees of depth {DEPTH}; splits per feature:",
+              ", ".join(f"{FEATURES[j]} {c}" for j, c in sorted(used.items(), key=lambda t: -t[1])))
     print(f"held out: model differs from the rule on {ev['differs_from_rule']} of {ev['decisions']} decisions")
     print(f"value per decision (EXP above the bot's average pace): rule {ev['rule_value']:+.1f}, "
           f"model {ev['model_value']:+.1f}, gain {ev['gain']:+.1f} (90% CI {ev['gain_90ci'][0]:+.1f} "
           f"to {ev['gain_90ci'][1]:+.1f})")
     print("verdict:", "PASS, ready for stage 3" if passes else
           "not yet: " + ("more data needed" if not data_ready else "gain not above noise"))
-    print("wrote", args.out)
+    print("wrote", out)
     return 0
 
 
