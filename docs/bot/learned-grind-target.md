@@ -67,6 +67,13 @@ First run, 2026-10-12, 4,402 picks: the weights point the expected way (cheaper 
 and crowds score higher), but on held out time the model lost to the rule by 12.1 EXP per decision (90% CI
 -23.3 to -1.7). The gate blocked it, as it should.
 
+Second run, 2026-10-18, 147,345 picks over 105 maps (8,943 explored, readiness met): the model now leads.
+On the held out quarter (36,575 decisions) it differs from the rule on 7,808 and earns +449.5 EXP per decision
+above pace against the rule's +433.0, a gain of +16.5 (about 4%), but the 90% interval (-4.0 to +40.8) still
+crosses zero, so the gate holds it. Mob HP, route seconds and horizontal distance carry the most weight; the
+rule's own rank barely matters once those are known. Next levers: interactions (a linear model can't learn
+that a far mob is fine when it is nearly dead), or more held out data.
+
 ## Stage 3: serve and compare live
 
 - `BotGrindTargetModel` loads the JSON at startup (pure Java, no new dependency) and scores
