@@ -4,6 +4,7 @@ import client.inventory.WeaponType;
 import org.junit.jupiter.api.Test;
 import server.bots.combat.BotAttackDataProvider;
 import server.bots.combat.BotAttackTiming;
+import testutil.RequiresWz;
 
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -15,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BotAttackDataProviderTest {
+    @RequiresWz
     @Test
     void shouldMatchOpenStoryBodyAndAfterimageAttackTimingInputs() {
         BotAttackDataProvider provider = BotAttackDataProvider.getInstance();
@@ -50,6 +52,7 @@ class BotAttackDataProviderTest {
         assertTrue(profile.getAfterimageFirstFrame("swingO1") > 0);
     }
 
+    @RequiresWz
     @Test
     void shouldPreferExplicitBodyActionTimingOverSkillAnimationDelay() {
         BotAttackDataProvider provider = BotAttackDataProvider.getInstance();
@@ -64,6 +67,7 @@ class BotAttackDataProviderTest {
         assertEquals(Math.max(adjustedDelay(rawActionDurationMs), 590), timing.cooldownMs());
     }
 
+    @RequiresWz
     @Test
     void shouldUseBodyStanceTimingForExplicitStanceStyleSkillActions() {
         BotAttackDataProvider provider = BotAttackDataProvider.getInstance();
@@ -83,6 +87,7 @@ class BotAttackDataProviderTest {
         assertEquals(adjustedDelay(rawStanceDurationMs), timing.cooldownMs());
     }
 
+    @RequiresWz
     @Test
     void shouldUseFullRegularAttackCooldownForSkillsSharingBasicAttackAnimation() {
         BotAttackDataProvider provider = BotAttackDataProvider.getInstance();
@@ -104,6 +109,7 @@ class BotAttackDataProviderTest {
         return BotAttackTiming.adjustDelayMillis(rawDelayMs, 4);
     }
 
+    @RequiresWz
     @Test
     void shouldExposePerActionAttackBoundsThatDifferBetweenStabAndSwing() {
         BotAttackDataProvider provider = BotAttackDataProvider.getInstance();

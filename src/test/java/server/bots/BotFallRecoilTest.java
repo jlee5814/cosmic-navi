@@ -2,6 +2,7 @@ package server.bots;
 
 import org.junit.jupiter.api.Test;
 import server.maps.MapleMap;
+import testutil.RequiresWz;
 
 import java.awt.Point;
 import java.nio.file.Path;
@@ -14,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * comes to rest where the recoil throws it ({@link BotPhysicsEngine#settleLanding}). 120 of 133 swept landings
  * elsewhere on main were falls long enough to hurt.
  */
+@RequiresWz
 class BotFallRecoilTest {
 
     private static MapleMap load(int mapId) {

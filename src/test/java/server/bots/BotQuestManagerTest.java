@@ -3,6 +3,7 @@ package server.bots;
 import client.Character;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import testutil.RequiresWz;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -301,6 +302,7 @@ class BotQuestManagerTest {
         assertTrue(e.buggedQuestIds.contains(29400), "the un-completable quest must be suppressed");
     }
 
+    @RequiresWz
     @Test
     void readyToTurnInSkipsQuestTheBotCannotLegallyComplete() {
         // A started quest whose counts are met (true for any no-mob/item talk quest, e.g. 2232 "Find a
@@ -371,6 +373,7 @@ class BotQuestManagerTest {
         return e;
     }
 
+    @RequiresWz
     @Test
     void autoSuggestFiresForStandoutNearbyQuestWhenSupervised() {
         BotQuestIndex.QuestMeta q1019 = BotQuestIndex.get().byId().get(1019);
@@ -448,6 +451,7 @@ class BotQuestManagerTest {
         assertTrue(replies.isEmpty(), "a non-grinding (town) bot must not auto-suggest");
     }
 
+    @RequiresWz
     @Test
     void autoSuggestDoesNotRepeatTrackedId() {
         BotQuestIndex.QuestMeta q1019 = BotQuestIndex.get().byId().get(1019);
@@ -473,6 +477,7 @@ class BotQuestManagerTest {
 
     // ---- recommend command (low bar, ranked) ----
 
+    @RequiresWz
     @Test
     void recommendReturnsRankedStartableQuests() {
         Character bot = mock(Character.class);
@@ -588,6 +593,7 @@ class BotQuestManagerTest {
 
     // ---- piggyback trigger: mob overlap under active autopilot queues a START errand ----
 
+    @RequiresWz
     @Test
     void piggybackQueuesStartErrandWhenMobsOverlap() {
         boolean prevAuto = BotManager.cfg.AUTO_QUESTS;

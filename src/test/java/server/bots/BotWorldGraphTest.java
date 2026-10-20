@@ -1,6 +1,7 @@
 package server.bots;
 
 import org.junit.jupiter.api.Test;
+import testutil.RequiresWz;
 
 import java.util.Arrays;
 import java.util.List;
@@ -130,6 +131,7 @@ class BotWorldGraphTest {
         assertNull(BotWorldGraph.route(graph, 200000141, 250000100, 4, new BotWorldGraph.RouteOptions(false, 30000, false)));
     }
 
+    @RequiresWz
     @Test
     void shouldBuildWorldGraphFromWz() {
         BotWorldGraph.Index graph = BotWorldGraph.get();

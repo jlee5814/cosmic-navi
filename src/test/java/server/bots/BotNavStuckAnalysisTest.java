@@ -2,6 +2,7 @@ package server.bots;
 
 import org.junit.jupiter.api.Test;
 import server.maps.MapleMap;
+import testutil.RequiresWz;
 
 import java.awt.Point;
 import java.util.List;
@@ -21,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * never job-advanced. {@link BotNavigationManager#footholdDetourWaypoint} must return an away-from-launch
  * waypoint here, and must stay inert when no detour is needed.
  */
+@RequiresWz
 class BotNavStuckAnalysisTest {
 
     private static final int MAP = 101020000;

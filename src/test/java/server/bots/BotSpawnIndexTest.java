@@ -1,6 +1,7 @@
 package server.bots;
 
 import org.junit.jupiter.api.Test;
+import testutil.RequiresWz;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -13,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 10x 120100, 12x Orange Mushroom(130101), 9x Pig(1210100) — verified by grepping
  * the map XML's life node directly.
  */
+@RequiresWz
 class BotSpawnIndexTest {
 
     @Test

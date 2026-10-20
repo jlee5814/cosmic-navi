@@ -8,6 +8,7 @@ import server.maps.Foothold;
 import server.maps.Rope;
 import org.junit.jupiter.api.Test;
 import server.maps.FootholdTree;
+import testutil.RequiresWz;
 
 import java.awt.*;
 import java.nio.file.Path;
@@ -735,6 +736,7 @@ class BotNavigationManagerTest {
                 "non-AI reuse must drop stale grounded edges whose destination no longer matches the live target");
     }
 
+    @RequiresWz
     @Test
     void shouldDropStaleGroundJumpWhileClimbingOnDifferentRopeRegion() {
         MapleMap map = mock(MapleMap.class);
@@ -823,6 +825,7 @@ class BotNavigationManagerTest {
         BotNavigationGraphProvider.getGraph(map, entry.movementProfile);
     }
 
+    @RequiresWz
     @Test
     void shouldHoldCurrentPositionOnlyAtNonTopClimbExitLaunchAnchor() {
         Character bot = mock(Character.class);
@@ -843,6 +846,7 @@ class BotNavigationManagerTest {
                 BotNavigationManager.selectClimbWaypoint(entry, new Point(-1251, -109), climbExit));
     }
 
+    @RequiresWz
     @Test
     void shouldKeepSteeringToClimbLaunchAnchorWhileBelowExitAnchor() {
         Character bot = mock(Character.class);
@@ -861,6 +865,7 @@ class BotNavigationManagerTest {
                 BotNavigationManager.selectClimbWaypoint(entry, new Point(-1251, -104), climbExit));
     }
 
+    @RequiresWz
     @Test
     void shouldKeepSteeringToNonTopRopeExitAnchorWhileAboveExitAnchor() {
         Character bot = mock(Character.class);
@@ -879,6 +884,7 @@ class BotNavigationManagerTest {
                 BotNavigationManager.selectClimbWaypoint(entry, new Point(707, -764), climbExit));
     }
 
+    @RequiresWz
     @Test
     void shouldKeepCommittedRopeExitClimbEdgeWhileAirborne() {
         Character bot = mock(Character.class);
@@ -898,6 +904,7 @@ class BotNavigationManagerTest {
         assertEquals(entry.navEdge, reused);
     }
 
+    @RequiresWz
     @Test
     void shouldUseTopRopeEntryInsteadOfDroppingToBottomInLithHarbor() {
         MapleMap lithHarbor = BotNavigationMapLoader.loadMapGeometry(104000000);
@@ -916,6 +923,7 @@ class BotNavigationManagerTest {
         assertTrue(path.getFirst().endPoint.y <= target.y + BotMovementManager.cfg.JUMP_Y_THRESH);
     }
 
+    @RequiresWz
     @Test
     void shouldNotLaunchVerticalRopeEntryFromOutsideRopeGrabWindow() {
         MapleMap lithHarbor = BotNavigationMapLoader.loadMapGeometry(104000000);
@@ -957,6 +965,7 @@ class BotNavigationManagerTest {
         assertEquals("climb-pos", entry.lastEdgeBlockReason);
     }
 
+    @RequiresWz
     @Test
     void shouldJumpOffTopRopeBeforePhysicsAutoDismountsToUpperPlatform() {
         MapleMap lithHarbor = BotNavigationMapLoader.loadMapGeometry(104000000);
@@ -1126,6 +1135,7 @@ class BotNavigationManagerTest {
         assertTrue(entry.downJumpPending);
     }
 
+    @RequiresWz
     @Test
     void shouldUseDownJumpInNonSwimFallbackWhenTargetIsDirectlyBelow() {
         MapleMap map = new MapleMap(910000204, 0, 0, 910000204, 1.0f);
@@ -1253,6 +1263,7 @@ class BotNavigationManagerTest {
      * job-advancing to BANDIT, nav=no-path). The target IS reachable by plain walk/jump/climb, so a search
      * that excludes self-loop portals must still reach it — and its path must contain no self-loop portal.
      */
+    @RequiresWz
     @Test
     void excludeSelfLoopPortalsStillReachesViaWalk() {
         MapleMap map = kerning();

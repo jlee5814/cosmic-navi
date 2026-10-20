@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import server.maps.MapleMap;
 import server.maps.Foothold;
 import server.maps.Rope;
+import testutil.RequiresWz;
 
 import java.awt.*;
 import java.nio.file.Path;
@@ -70,6 +71,7 @@ class BotPhysicsEngineTest {
         assertSame(BotMovementManager.cfg, BotPhysicsEngine.cfg);
     }
 
+    @RequiresWz
     @Test
     void shouldSimulateKnownHenesysVerticalJumpLanding() {
         BotPhysicsEngine.JumpLanding landing = BotPhysicsEngine.simulateJumpLanding(henesys(), new Point(1080, 334), 0);
@@ -411,6 +413,7 @@ class BotPhysicsEngineTest {
         assertEquals(new Point(24, 100), ground);
     }
 
+    @RequiresWz
     @Test
     void shouldKeepWalkingAcrossKpqPlatformEvenWithNearbyPlatformAbove() {
         BotNavigationGraph graph = BotNavigationGraphProvider.rebuildGraph(kpqS1());
@@ -453,6 +456,7 @@ class BotPhysicsEngineTest {
         assertEquals(2, landing.foothold().getId());
     }
 
+    @RequiresWz
     @Test
     void shouldLandApexJumpOnSleepyForestUpperPlatform() {
         BotPhysicsEngine.JumpLanding landing =
@@ -463,6 +467,7 @@ class BotPhysicsEngineTest {
                 "the logged r9->r5 jump should land on the upper platform instead of falling back to the ground below");
     }
 
+    @RequiresWz
     @Test
     void shouldKeepAirborneBotInsideMapSideBoundary() {
         Point start = new Point(376, 182);
@@ -562,6 +567,7 @@ class BotPhysicsEngineTest {
                 "snow brake " + snowBrake + " vs normal " + normalBrake);
     }
 
+    @RequiresWz
     @Test
     void shouldLoadElNathSlipperinessFromWzAndSlide() {
         MapleMap elNath = BotNavigationMapLoader.loadMapGeometry(211000000);
@@ -1149,6 +1155,7 @@ class BotPhysicsEngineTest {
                 "bottom-connected walls with an open top should still be collidable");
     }
 
+    @RequiresWz
     @Test
     void shouldTreatMap193000000BottomAnchoredWallsAsCollidable() {
         MapleMap map = BotNavigationMapLoader.loadMapGeometry(193000000);
@@ -1162,6 +1169,7 @@ class BotPhysicsEngineTest {
         assertTrue(collidableWallIds.contains(13), "bottom platform right wall should be collidable");
     }
 
+    @RequiresWz
     @Test
     void shouldCacheKerningPharmacyBlockedUndersidesAtGraphBuild() {
         BotNavigationGraphProvider.rebuildGraph(kerningPharmacy());
@@ -1174,6 +1182,7 @@ class BotPhysicsEngineTest {
         assertFalse(collidableFromBelowIds.contains(17), "standalone pharmacy platform should stay jump-through from below");
     }
 
+    @RequiresWz
     @Test
     void shouldCacheMushroomShrineDoughnutUndersidesAtGraphBuild() {
         BotNavigationGraphProvider.rebuildGraph(mushroomShrine());
@@ -1286,6 +1295,7 @@ class BotPhysicsEngineTest {
         assertEquals(planned.point(), bot.getPosition(), "the live flight lands where the arc said");
     }
 
+    @RequiresWz
     @Test
     void shouldStayOnTheSlopeItStandsOnWhenAnotherBranchRunsJustAbove() {
         // Ellinia 101000301: branch fh 26 slopes under fh 25, which ends 9 px above it. At x 2360 fh 26's

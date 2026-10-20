@@ -3,6 +3,7 @@ package server.bots;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import server.maps.MapleMap;
+import testutil.RequiresWz;
 
 import java.nio.file.Path;
 
@@ -14,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * side edge. Live walking stops at the edge, so the bot stands there and never falls. SipsBuddy2 sat on
  * Sky Terrace 5 for 380 minutes on 2026-10-10. Loads the real maps from the WZ files.
  */
+@RequiresWz
 class BotWalkOffMapEdgeTest {
 
     @ParameterizedTest

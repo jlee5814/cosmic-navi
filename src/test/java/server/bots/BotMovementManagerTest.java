@@ -7,6 +7,7 @@ import server.life.Monster;
 import server.maps.Foothold;
 import server.maps.MapleMap;
 import server.maps.Rope;
+import testutil.RequiresWz;
 
 import java.awt.*;
 import java.util.List;
@@ -398,6 +399,7 @@ class BotMovementManagerTest {
         assertEquals(new Point(8, 100), bot.getPosition());
     }
 
+    @RequiresWz
     @Test
     void shouldJumpForwardWhenMobBlocksWalkLaneAndLandingStaysInCurrentRegion() {
         MapleMap realMap = new MapleMap(910009048, 0, 0, 910009048, 1.0f);

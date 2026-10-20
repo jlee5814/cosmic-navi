@@ -66,6 +66,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import tools.HexTool;
+import testutil.RequiresWz;
 
 class BotCombatManagerTest {
     @Test
@@ -253,6 +254,7 @@ class BotCombatManagerTest {
         assertTrue(entry.buffSkillIds.contains(Cleric.BLESS));
     }
 
+    @RequiresWz
     @Test
     void shouldClassifySummonIntoOwnBucketNotBuffs() {
         SkillFactory.loadAllSkills();
@@ -431,6 +433,7 @@ class BotCombatManagerTest {
         assertTrue(entry.buffSkillIds.isEmpty());
     }
 
+    @RequiresWz
     @Test
     void shouldClassifyInspectedSecondJobSkillsFromRealWzData() {
         SkillFactory.loadAllSkills();
@@ -465,6 +468,7 @@ class BotCombatManagerTest {
                 Set.of(Spearman.FINAL_ATTACK_SPEAR, Spearman.FINAL_ATTACK_POLEARM));
     }
 
+    @RequiresWz
     @Test
     void shouldCacheDragonKnightAttackCandidatesButExcludePowerCrash() {
         SkillFactory.loadAllSkills();
@@ -506,6 +510,7 @@ class BotCombatManagerTest {
     // accepted Teleport as the bot's attack skill on a mid-build I/L Wizard that hadn't
     // learned Cold Beam yet, producing illegal 1-damage magic attacks at the WZ bbox
     // (500x300 around the bot).
+    @RequiresWz
     @Test
     void shouldNotPickTeleportAsAttackSkillJustBecauseDamageDefaults() {
         SkillFactory.loadAllSkills();
@@ -537,6 +542,7 @@ class BotCombatManagerTest {
     // (72 at level 1). getDamagePercent() must fall back to x instead of returning the
     // loader-default 100, otherwise Arrow Bomb deals base weapon damage and the AoE
     // scorer over-weights it as a 100% skill.
+    @RequiresWz
     @Test
     void arrowBombShouldDeriveDamagePercentFromXNotLoaderDefault() {
         SkillFactory.loadAllSkills();
@@ -1613,6 +1619,7 @@ class BotCombatManagerTest {
         assertFalse(BotCombatManager.isMobTouchingBot(entry, bot, mob));
     }
 
+    @RequiresWz
     @Test
     void shouldDetectMobTouchAcrossBotMovementSweep() {
         Character bot = mockBot(new Point(120, 200), mock(MapleMap.class), 20_000, null);

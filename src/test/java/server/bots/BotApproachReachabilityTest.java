@@ -2,6 +2,7 @@ package server.bots;
 
 import org.junit.jupiter.api.Test;
 import server.maps.MapleMap;
+import testutil.RequiresWz;
 
 import java.nio.file.Path;
 
@@ -12,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * on foot. They used to run a walk-only A* per candidate (a 441 ms tick in Ellinia); they now ask
  * {@link BotNavigationGraph#canReach}. Both must give the same answer for every region.
  */
+@RequiresWz
 class BotApproachReachabilityTest {
     @Test
     void cachedReachabilityAgreesWithAWalkOnlySearchOnEllinia() {
