@@ -35,6 +35,34 @@ class ResponderTest(unittest.TestCase):
         self.assertIn("no room in my bag for Waffle", p)
         self.assertNotIn('"_log"', p)
 
+    def test_a_bot_under_an_agent_claim_gets_no_model_call_and_no_action(self):
+        import json
+        import os
+        import tempfile
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            os.environ["COSMIC_AGENTS_DIR"] = d + "/agents"
+            try:
+                with mock.patch.object(responder.agents, "gh", return_value=True):
+                    responder.agents.claim("cloud-claude", ["bot:255"], "watching the Buddha freeze", watch=True)
+                inc = Path(d, "inc.json")
+                inc.write_text(json.dumps([
+                    {"id": 255, "name": "SipsBuddy2", "kind": "refreezing", "map": 800020130, "_log": [], "_chat": []},
+                    {"id": 254, "name": "SipsBuddy1", "kind": "errand_loop", "map": 240000000, "_log": [], "_chat": []}]))
+                none = {"diagnosis": "x", "action": "none", "reason": "x", "file_issue": False}
+                argv = ["responder.py", "--incidents", str(inc), "--runs", d + "/runs"]
+                with mock.patch.object(responder, "ask_model", return_value=(none, 0.1)) as ask, \
+                        mock.patch.object(sys, "argv", argv):
+                    responder.main()
+                    responder.main()  # a second run logs the hold once, not again
+                self.assertEqual([254], [c.args[0]["id"] for c in ask.call_args_list])  # 254 once an hour, 255 never
+                log = [json.loads(x) for x in Path(d, "runs", "log.jsonl").read_text().splitlines()]
+                skips = [r for r in log if r.get("skipped")]
+                self.assertEqual(["SipsBuddy2"], [r["bot"] for r in skips])
+                self.assertIn("cloud-claude", skips[0]["claims"][0])
+            finally:
+                os.environ.pop("COSMIC_AGENTS_DIR", None)
+
 
 if __name__ == "__main__":
     unittest.main()
