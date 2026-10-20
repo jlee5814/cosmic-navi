@@ -1,6 +1,7 @@
 package server.bots;
 
 import org.junit.jupiter.api.Test;
+import server.bots.llm.NaviRouter;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,6 +45,37 @@ class BotNaviManagerTest {
         assertFalse(BotNaviManager.isLlmRequest(BotNaviManager.requestOf("navi llm off")));
         assertFalse(BotNaviManager.isLlmRequest(BotNaviManager.requestOf("navi email")));
         assertNull(BotNaviManager.toolFor("navi llm"));
+    }
+
+    @Test
+    void everyRoutedCommandIsOneTheCommandPatternsAlreadyRun() {
+        for (String tool : NaviRouter.toolNames()) {
+            NaviRouter.Route route = new NaviRouter.Route(tool, "");
+            if (route.missingBot()) {
+                route = new NaviRouter.Route(tool, "26");
+            }
+            if (route.none()) {
+                continue;
+            }
+            String command = route.command();
+            boolean handled = BotNaviManager.isLlmRequest(command)
+                    || BotFleetOps.FLEET.matcher(command).matches()
+                    || BotFleetOps.ACTION.matcher(command).matches()
+                    || BotNaviManager.toolFor("navi " + command) != null;
+            assertTrue(handled, tool + " routes to " + command + ", which no pattern runs");
+        }
+    }
+
+    @Test
+    void aRoutedCommandWaitsForYesForOneMinuteOnly() {
+        int owner = 4242;
+        BotNaviManager.pending.put(owner, new BotNaviManager.Pending("rescue 26", 1_000 + BotNaviManager.CONFIRM_TTL_MS));
+        assertEquals("rescue 26", BotNaviManager.takePending(owner, 1_000));
+        assertNull(BotNaviManager.takePending(owner, 1_000), "a yes runs it once");
+
+        BotNaviManager.pending.put(owner, new BotNaviManager.Pending("park 5", 1_000 + BotNaviManager.CONFIRM_TTL_MS));
+        assertNull(BotNaviManager.takePending(owner, 2_000 + BotNaviManager.CONFIRM_TTL_MS));
+        assertNull(BotNaviManager.takePending(owner, 1_000), "an expired command is gone, not kept for later");
     }
 
     @Test

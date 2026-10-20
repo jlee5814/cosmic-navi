@@ -52,8 +52,14 @@ public final class OpenAiChatClient {
      *  sampled greedily: a classification, not chat. */
     static Structured sendChatStructured(java.util.List<ChatMessage> messages, int maxTokens, int timeoutMs,
                                          String schemaJson) {
+        return sendChatStructured(messages, maxTokens, timeoutMs, schemaJson, "structured");
+    }
+
+    /** As above, recorded in {@link LlmStats} under {@code kind}, so each caller's cost reads apart. */
+    static Structured sendChatStructured(java.util.List<ChatMessage> messages, int maxTokens, int timeoutMs,
+                                         String schemaJson, String kind) {
         String format = "{\"type\":\"json_schema\",\"json_schema\":{\"name\":\"turn\",\"schema\":" + schemaJson + "}}";
-        HttpResponse<String> resp = post(buildBody(messages, maxTokens, format, 0.0), timeoutMs, "structured");
+        HttpResponse<String> resp = post(buildBody(messages, maxTokens, format, 0.0), timeoutMs, kind);
         if (resp == null) return new Structured(null, false);
         if (resp.statusCode() != 200) {
             log.warn("openai: structured HTTP {} body: {}", resp.statusCode(), abbrev(resp.body(), 200));

@@ -83,8 +83,8 @@ final class BotFleetOps {
     /** Seam: where samples survive a restart (the server-cache volume outlives a rebuild). */
     static Path store = Path.of("cache", "fleet-ops", "samples.tsv");
 
-    private static final Pattern FLEET = Pattern.compile("^(?:fleet|status|bots)$", Pattern.CASE_INSENSITIVE);
-    private static final Pattern ACTION = Pattern.compile("^(why|rescue|unstick|park)\\s+(\\S+)$", Pattern.CASE_INSENSITIVE);
+    static final Pattern FLEET = Pattern.compile("^(?:fleet|status|bots)$", Pattern.CASE_INSENSITIVE);
+    static final Pattern ACTION = Pattern.compile("^(why|rescue|unstick|park)\\s+(\\S+)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern HELP = Pattern.compile("^(?:help|\\?|commands)?$", Pattern.CASE_INSENSITIVE);
     static final String HELP_LINE = "navi can do: email, fleet, why <bot>, rescue <bot>, park <bot>, llm";
 
