@@ -275,7 +275,12 @@ final class BotTravelManager {
         if (BotNavigationGraphProvider.peekGraph(map, entry.movementProfile) == null) {
             BotNavigationGraphProvider.warmGraphAsync(map, entry.movementProfile);
         }
-        int botRegion = navGraph != null ? navGraph.findRegionId(map, bot.getPosition()) : -1;
+        // The bot's region comes from the nav SSOT, not a raw coordinate lookup: that one projects a bot on a rope
+        // or mid jump onto whatever floor lies below, and Dragon Forest I hangs its climb rope over the pit of
+        // the Hidden Dragon Tomb II collision portal. A bot jumping for the rope read as standing in the pit,
+        // dropped its committed exit as unreachable and replanned through the tomb, forever (SipsBuddy1).
+        int botRegion = navGraph != null
+                ? BotNavigationManager.resolveCurrentRegionId(navGraph, entry, map, bot.getPosition()) : -1;
         boolean canCheck = navGraph != null && botRegion >= 0;
         boolean useGroundReachability = canCheck && !map.isSwim();
 
