@@ -1974,7 +1974,12 @@ final class BotPhysicsEngine {
         if (ceiling.type() != AirCollisionType.NONE && ceiling.progress() < best.progress()) {
             best = ceiling;
         }
-        if (landing.type() != AirCollisionType.NONE && landing.progress() < best.progress()) {
+        // A landing the step reaches at the same moment as a wall wins: the bot touched the floor it stands on.
+        // A bot on the end pixel of a floor that meets a wall, pushed into the wall with no lift, met both in the
+        // first column; the wall won, left it hanging at the floor's height, and the straight fall after that
+        // probes from a pixel below the floor and dropped it through (Helios Tower 99F 222020200: the floor at
+        // y 2040 between walls at x -265 and 265 hides a sealed pit at y 2342 that froze SipsBuddy3).
+        if (landing.type() != AirCollisionType.NONE && landing.progress() <= best.progress()) {
             best = landing;
         }
         return best;
