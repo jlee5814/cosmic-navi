@@ -288,6 +288,14 @@ with `r` the reason label the `inv debug` dump prints (`BotInventoryManager.bagV
 page opens it from the **items** button on a bot row (roster or right panel) and polls every 5 s; icons come
 from maplestory.io in the viewer's browser. The **graph** button beside it opens `/mapgraph` for the bot's map.
 
+### `/api/equipcheck[?id=<botCharId>[,<botCharId>...]]`
+What each online bot's auto equip (`BotEquipManager.autoEquip`) would change right now, computed by the same DP
+without moving anything (`BotEquipManager.checkEquip`); every online bot when `id` is left out. Read only.
+`{bots:[{id, name, level, map, mobContext, damageNow, damageBest, capHit, changes:[...]}]}`: `changes` lists
+`slot:worn>better` (the weapon first; empty when the bot already wears its best), `damageBest` is the plan's damage
+score and `damageNow` the same DP run over the worn pieces alone. `mobContext` false means the bot is off a grind
+map and the damage scores have no mob to benchmark against. A row with `error` hit a bag change mid read; poll again.
+
 ### `/api/craftplan?id=<botCharId>`
 The craft an online bot would start now, computed live by the same `BotCraftManager.choose` its errand uses
 (bag plus its free bins from the roster snapshot): `{id, name, level, meso, active, bins, plan, rejected, near}`.
