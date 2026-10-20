@@ -50,6 +50,7 @@ The service runs on the host, outside the game server. It holds the email creden
 | `navi why <bot>` | Where the bot is, what it is doing and why, its EXP per hour, and whether it is stuck, looping or earning nothing |
 | `navi rescue <bot>` | Uses a town return scroll (the legal way out) and puts the bot back on its own plan; without a usable scroll, walks it to the map's town |
 | `navi park <bot>` | Parks a roster bot: stores rosterActive=false and logs it out |
+| `navi llm` / `navi llm stats` | Bot LLM calls over the last hour: count and success rate, latency p50, p95, p99 and max, output tokens per second, and how much of the prompt the prefix cache served |
 | `navi` | Lists what Navi can do |
 
 `<bot>` is a full name or the number at its end: `26` for SipsBuddy26. The fleet commands run inside the game server (`BotFleetOps`), need no service call, and see only the bots registered to you.
@@ -57,6 +58,12 @@ The service runs on the host, outside the game server. It holds the email creden
 Navi also whispers you first, once per incident, when one of your bots stands still for 10 minutes while it means to grind or travel, starts a third errand to the same map within 45 minutes, or stays busy for 30 minutes without gaining EXP (a bot touring shops with a full bag moves but never fights). A once a minute sampler in the game server keeps 90 minutes of history per bot for this and saves it to `cache/fleet-ops/samples.tsv`, so a restart keeps the history and does not repeat a whisper for an incident already reported.
 
 Navi also rescues on its own, the same way `navi rescue` does, when a bot stays frozen for 20 minutes, stays busy on its own map for 45 minutes with no EXP, or spends 30 minutes on one map earning under a fifth of its usual EXP per hour. The usual pace is the bot's best recent 30 minute rate, a peak that halves every 6 hours, and never less than half the median of bots within 5 levels, so a bot that was slow since it logged in still has a bar. `navi fleet` lists those bots under Low EXP. An errand loop is left alone, since a scroll only restarts it. Each bot gets at most 2 auto rescues in 2 hours; if it freezes again after that, Navi whispers once that the spot needs a fix. Waiting for or riding a ferry doesn't count as stalled. You hear about every auto rescue when you are online.
+
+### LLM stats
+
+`navi llm` reports what live players get from the model server, the production counterpart to the synthetic runs in [tools/llm-bench](../llm-bench/RESULTS.md). The game server times every bot LLM call (chat replies, structured turns, Ollama generations) from request sent to body received, prefill included, and keeps the newest 2048 in memory. Timeouts count at the latency they reached, so the tail is never hidden. Replies are not streamed, so there is no time to first token here; the bench measures that.
+
+Each call is also appended to `cache/llm-stats/calls.tsv` (columns: `at_ms`, `backend`, `model`, `kind`, `outcome`, `latency_ms`, `prompt_tokens`, `completion_tokens`, `cached_tokens`; `-1` when the server did not say). The cache column uses the same field as the bench, `usage.prompt_tokens_details.cached_tokens`, which SGLang sends only when started with `--enable-cache-report`.
 
 To revoke access, delete the app password in your Google account or run `security delete-generic-password -s navi-gmail`.
 

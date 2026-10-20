@@ -32,7 +32,7 @@ public final class OpenAiChatClient {
     }
 
     static Optional<String> sendChat(java.util.List<ChatMessage> messages, int maxTokens, int timeoutMs) {
-        HttpResponse<String> resp = post(buildBody(messages, maxTokens, null), timeoutMs);
+        HttpResponse<String> resp = post(buildBody(messages, maxTokens, null), timeoutMs, "chat");
         if (resp == null) return Optional.empty();
         if (resp.statusCode() != 200) {
             log.warn("openai: HTTP {} body: {}", resp.statusCode(), abbrev(resp.body(), 200));
@@ -53,7 +53,7 @@ public final class OpenAiChatClient {
     static Structured sendChatStructured(java.util.List<ChatMessage> messages, int maxTokens, int timeoutMs,
                                          String schemaJson) {
         String format = "{\"type\":\"json_schema\",\"json_schema\":{\"name\":\"turn\",\"schema\":" + schemaJson + "}}";
-        HttpResponse<String> resp = post(buildBody(messages, maxTokens, format, 0.0), timeoutMs);
+        HttpResponse<String> resp = post(buildBody(messages, maxTokens, format, 0.0), timeoutMs, "structured");
         if (resp == null) return new Structured(null, false);
         if (resp.statusCode() != 200) {
             log.warn("openai: structured HTTP {} body: {}", resp.statusCode(), abbrev(resp.body(), 200));
@@ -63,8 +63,9 @@ public final class OpenAiChatClient {
         return new Structured(text == null || text.isBlank() ? null : text.trim(), false);
     }
 
-    /** The response, or null when the request could not be built or sent (logged). */
-    private static HttpResponse<String> post(String body, int timeoutMs) {
+    /** The response, or null when the request could not be built or sent (logged). Every attempt is
+     *  recorded in {@link LlmStats} under {@code kind}. */
+    private static HttpResponse<String> post(String body, int timeoutMs, String kind) {
         HttpRequest req;
         try {
             req = HttpRequest.newBuilder(URI.create(BotLlmConfig.endpoint + "/v1/chat/completions"))
@@ -74,15 +75,26 @@ public final class OpenAiChatClient {
                     .build();
         } catch (Exception e) {
             log.warn("openai: request build failed: {}", e.toString());
+            LlmStats.record(kind, LlmStats.Outcome.FAILED, 0, null);
             return null;
         }
+        long t0 = System.nanoTime();
         try {
-            return HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> resp = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+            long ms = (System.nanoTime() - t0) / 1_000_000;
+            if (resp.statusCode() == 200) {
+                LlmStats.record(kind, LlmStats.Outcome.OK, ms, LlmStats.parseOpenAiUsage(resp.body()));
+            } else {
+                LlmStats.record(kind, LlmStats.Outcome.HTTP_ERROR, ms, null);
+            }
+            return resp;
         } catch (java.net.http.HttpTimeoutException te) {
             log.info("openai: timeout after {}ms", timeoutMs);
+            LlmStats.record(kind, LlmStats.Outcome.TIMEOUT, (System.nanoTime() - t0) / 1_000_000, null);
             return null;
         } catch (Exception e) {
             log.warn("openai: send failed: {}", e.toString());
+            LlmStats.record(kind, LlmStats.Outcome.FAILED, (System.nanoTime() - t0) / 1_000_000, null);
             return null;
         }
     }

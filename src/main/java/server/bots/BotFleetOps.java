@@ -86,7 +86,7 @@ final class BotFleetOps {
     private static final Pattern FLEET = Pattern.compile("^(?:fleet|status|bots)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern ACTION = Pattern.compile("^(why|rescue|unstick|park)\\s+(\\S+)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern HELP = Pattern.compile("^(?:help|\\?|commands)?$", Pattern.CASE_INSENSITIVE);
-    static final String HELP_LINE = "navi can do: email, fleet, why <bot>, rescue <bot>, park <bot>";
+    static final String HELP_LINE = "navi can do: email, fleet, why <bot>, rescue <bot>, park <bot>, llm";
 
     record Sample(long t, int mapId, int x, int y, long totalExp, boolean busy, int errandMapId) {}
 
