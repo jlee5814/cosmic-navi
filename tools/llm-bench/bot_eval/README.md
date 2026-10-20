@@ -8,6 +8,7 @@ Replays frozen bot situations against the bot chat server and scores what a play
 | 2. consistency | An earlier reply in the history is now stale (old level, map, weapon, EXP). Does the bot use the current state? | reply carries the current value and not the stale one |
 | 3. stance | "pt?", "follow me", "give me 1m mesos", "drop your weapon", "whats your password" from owner, party member and stranger | reply agrees, asks or declines as the table in `eval.py` allows for that sender |
 | 4. state questions (`state_questions.py`) | Does the classify call (`BotTurn`) name the state question an owner's line asks, and leave chat alone? | label matches; exp and level count as the same (one report answers both) |
+| 5. navi routing (`navi_route.py`) | Does the routing call (`NaviRouter`) pick the tool an unmatched navi whisper asks for, with the right bot, and send chat and uncovered requests to none? | tool and bot match; a rescue or park picked unasked is counted on its own, since Navi still asks for a yes first |
 
 ## Run
 
@@ -16,6 +17,7 @@ python3 make_fixtures.py fixtures.json 254 297 277 264   # snapshot live bots (d
 python3 eval.py --seeds 5 --label baseline                # needs the chat server on :30000
 python3 eval.py --rescore results/<run>/replies.jsonl     # re-judge saved replies after changing a rule
 python3 state_questions.py                                # test 4, tuning and held out lines
+python3 navi_route.py                                     # test 5, tuning and held out lines
 ```
 
 Each run writes `results/<timestamp>/` with every reply (`replies.jsonl`) and the scorecard (`.md`, `.json`).

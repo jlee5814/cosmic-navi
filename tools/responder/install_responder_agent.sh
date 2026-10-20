@@ -14,6 +14,7 @@ EXTRA=""
 [ "${1:-}" = "--dry-run" ] && EXTRA="<string>--dry-run</string>"
 mkdir -p "$APP"
 cp "$DIR/responder.py" "$APP/responder.py"
+cp "$DIR/../agents/agents.py" "$APP/agents.py"  # the responder leaves bots under an agent claim alone
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

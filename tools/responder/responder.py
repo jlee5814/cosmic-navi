@@ -15,6 +15,9 @@ two auto rescues. Every run (a LaunchAgent, every 5 minutes):
    in 2 hours whatever the model says.
 5. File the issue (label responder) when the model says the cause is a code bug; one per title.
 
+A bot named in a live agent claim (tools/agents: an agent watching it or fixing it) is left alone, without
+a model call, until the claim ends: a rescue or park would cut the agent's work off.
+
 Usage: responder.py [--dry-run] [--model sonnet] [--incidents file.json]
 Log: runs/log.jsonl next to this file (the LaunchAgent copy keeps its own).
 """
@@ -38,6 +41,12 @@ GH = os.environ.get("GH", "/opt/homebrew/bin/gh")
 CLAUDE = os.environ.get("CLAUDE", str(Path.home() / ".local/bin/claude"))
 HERE = Path(__file__).resolve().parent
 RUNS = HERE / "runs"
+# The claims tool: next to this file in the LaunchAgent copy (the installer copies it), ../agents in the repo.
+sys.path[:0] = [str(HERE), str(HERE.parent / "agents")]
+try:
+    import agents
+except ImportError:  # no claims tool installed: act as before
+    agents = None
 MAX_PER_RUN = 3
 MAX_CALLS_PER_DAY = 24
 REPEAT_AFTER_S = 60 * 60
@@ -187,6 +196,16 @@ def due(incidents, state, now, budget):
     return out
 
 
+def held(incident):
+    """Live agent claims naming this bot; empty when there are none or the claims tool is missing."""
+    if agents is None:
+        return []
+    try:
+        return agents.conflicts([f"bot:{incident['id']}"], session="responder")
+    except OSError:
+        return []
+
+
 def load_state():
     try:
         return json.loads((RUNS / "state.json").read_text())
@@ -197,8 +216,8 @@ def load_state():
 def calls_today():
     day = datetime.date.today().isoformat()
     try:
-        return sum(1 for line in (RUNS / "log.jsonl").read_text().splitlines()
-                   if json.loads(line).get("ts", "").startswith(day))
+        records = [json.loads(line) for line in (RUNS / "log.jsonl").read_text().splitlines()]
+        return sum(1 for r in records if r.get("ts", "").startswith(day) and "skipped" not in r)  # model calls only
     except (OSError, ValueError):
         return 0
 
@@ -220,7 +239,23 @@ def main():
         return 0
     state = load_state()
     now = time.time()
-    for inc in due(incidents, state, now, min(MAX_PER_RUN, MAX_CALLS_PER_DAY - calls_today())):
+    free = []
+    for inc in incidents:
+        claims = held(inc)
+        if not claims:
+            free.append(inc)
+            state.pop(f"held:{inc['id']}", None)
+            continue
+        ids = sorted(c["id"] for c in claims)
+        if state.get(f"held:{inc['id']}") != ids:  # log a hold once, not every 5 minutes
+            state[f"held:{inc['id']}"] = ids
+            with open(RUNS / "log.jsonl", "a") as f:
+                f.write(json.dumps({"ts": datetime.datetime.now().isoformat(timespec="seconds"), "bot": inc["name"],
+                                    "kind": inc["kind"], "skipped": "claimed",
+                                    "claims": [agents.describe(c) for c in claims]}) + "\n")
+            print(f'{inc["name"]} {inc["kind"]}: left alone, claimed by '
+                  + ", ".join(c["session"] for c in claims))
+    for inc in due(free, state, now, min(MAX_PER_RUN, MAX_CALLS_PER_DAY - calls_today())):
         if "_log" not in inc:  # a replay file brings its own evidence
             inc["_log"] = log_lines(inc["name"])
             inc["_chat"] = chat_lines(inc["name"], inc["map"])

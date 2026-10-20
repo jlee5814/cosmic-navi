@@ -4,6 +4,8 @@ A model looks at bot stalls the game's rules can't settle and picks one safe act
 
 Fleet ops in the game server (`BotFleetOps`) already rescues a frozen bot by itself after 20 minutes. A return scroll can't fix everything, though. An errand loop restarts after the scroll, a bot can earn nothing on an errand, and some spots refreeze a bot after two rescues. Those show up at `GET /api/fleetops/incidents`, and this script handles them.
 
+A bot named in a live agent claim (`tools/agents`: an agent watching or fixing it) is left alone until the claim ends, with no model call: a rescue or park would cut that agent's work off. The hold is logged once per claim. The installer copies `agents.py` next to the responder so the LaunchAgent can read the claims.
+
 | Incident | Meaning |
 |---|---|
 | `errand_loop` | A third errand to the same map within 45 minutes |

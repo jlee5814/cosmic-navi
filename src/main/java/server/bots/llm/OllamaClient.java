@@ -37,22 +37,29 @@ public final class OllamaClient {
                     .build();
         } catch (Exception e) {
             log.warn("ollama: request build failed: {}", e.toString());
+            LlmStats.record("generate", LlmStats.Outcome.FAILED, 0, null);
             return Optional.empty();
         }
+        long t0 = System.nanoTime();
         try {
             HttpResponse<String> resp = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+            long ms = (System.nanoTime() - t0) / 1_000_000;
             if (resp.statusCode() != 200) {
+                LlmStats.record("generate", LlmStats.Outcome.HTTP_ERROR, ms, null);
                 log.warn("ollama: HTTP {} body: {}", resp.statusCode(), abbrev(resp.body(), 200));
                 return Optional.empty();
             }
+            LlmStats.record("generate", LlmStats.Outcome.OK, ms, LlmStats.parseOllamaUsage(resp.body()));
             String text = extractResponseField(resp.body());
             if (text == null || text.isBlank()) return Optional.empty();
             return Optional.of(text.trim());
         } catch (java.net.http.HttpTimeoutException te) {
             log.info("ollama: timeout after {}ms", timeoutMs);
+            LlmStats.record("generate", LlmStats.Outcome.TIMEOUT, (System.nanoTime() - t0) / 1_000_000, null);
             return Optional.empty();
         } catch (Exception e) {
             log.warn("ollama: send failed: {}", e.toString());
+            LlmStats.record("generate", LlmStats.Outcome.FAILED, (System.nanoTime() - t0) / 1_000_000, null);
             return Optional.empty();
         }
     }

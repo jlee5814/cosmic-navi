@@ -16,7 +16,8 @@ Everything shared lives on the Mac in `~/Library/Application Support/cosmic-agen
    (exit 1 when there are some). If one is live, read its note and take other work, or ask the owner. Then
    `agents.py claim --session NAME --issue 188 --intent "Buddha freeze" bot:255 map:800020130`. With `--issue`
    the GitHub issue also gets the `claimed` label and a comment. A claim lasts 2 hours; `refresh ID` extends it.
-3. **Watching bots live?** Claim them with `--watch`. Deploys refuse while a watch claim is live.
+3. **Watching bots live?** Claim them with `--watch`. Deploys refuse while a watch claim is live, and the navi
+   responder leaves any claimed bot alone (no rescue, no park) until the claim ends.
 4. **Deploy only through** `tools/agents/deploy.sh --session NAME`. It takes the deploy lock, refuses during a
    watch (`--force` overrides and says so in the journal), records the bots online, merges origin/main,
    rebuilds and restarts, respawns those bots, and writes the deploy to the journal.
