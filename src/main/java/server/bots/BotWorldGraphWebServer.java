@@ -192,6 +192,7 @@ public final class BotWorldGraphWebServer {
             s.createContext("/api/learned/readiness", BotWorldGraphWebServer::serveLearnedReadiness);
             s.createContext("/api/chat", BotWorldGraphWebServer::serveChat);
             s.createContext("/api/inventory", BotWorldGraphWebServer::serveInventory);
+            s.createContext("/api/equipcheck", BotWorldGraphWebServer::serveEquipCheck);
             s.createContext("/api/craftplan", BotWorldGraphWebServer::serveCraftPlan);
             s.createContext("/api/craftdemand", BotWorldGraphWebServer::serveCraftDemand);
             s.createContext("/api/scrollmatch", BotWorldGraphWebServer::serveScrollMatch);
@@ -298,6 +299,50 @@ public final class BotWorldGraphWebServer {
             return;
         }
         send(ex, 200, "application/json", body.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** What each bot's auto equip would change right now, without changing it ({@link BotEquipManager#checkEquip}):
+     *  {@code ?id=<id>[,<id>...]}, or every online bot without {@code id}. */
+    private static void serveEquipCheck(HttpExchange ex) throws IOException {
+        String raw = queryParams(ex.getRequestURI().getRawQuery()).getOrDefault("id", "").trim();
+        List<BotEntry> entries = new ArrayList<>();
+        if (raw.isEmpty()) {
+            entries.addAll(BotManager.getInstance().allEntries());
+        } else {
+            for (String tok : raw.split(",")) {
+                try {
+                    BotEntry e = lookupBotEntry(Integer.parseInt(tok.trim()));
+                    if (e != null) {
+                        entries.add(e);
+                    }
+                } catch (NumberFormatException ignored) {
+                    // skip a bad id
+                }
+            }
+        }
+        List<String> rows = new ArrayList<>();
+        for (BotEntry e : entries) {
+            Character bot = e.bot;
+            if (bot == null) {
+                continue;
+            }
+            String row;
+            try {
+                BotEquipManager.EquipCheck c = BotEquipManager.checkEquip(bot);
+                List<String> changes = new ArrayList<>();
+                for (String change : c.changes()) {
+                    changes.add(jsonStr(change));
+                }
+                row = "{\"id\":" + bot.getId() + ",\"name\":" + jsonStr(bot.getName()) + ",\"level\":" + bot.getLevel()
+                        + ",\"map\":" + bot.getMapId() + ",\"mobContext\":" + c.mobContext()
+                        + ",\"damageNow\":" + c.damageNow() + ",\"damageBest\":" + c.damageBest()
+                        + ",\"capHit\":" + c.capHit() + ",\"changes\":" + rawArr(changes) + "}";
+            } catch (RuntimeException err) { // the game thread can move items mid read
+                row = "{\"id\":" + bot.getId() + ",\"name\":" + jsonStr(bot.getName()) + ",\"error\":\"bag changed, retry\"}";
+            }
+            rows.add(row);
+        }
+        send(ex, 200, "application/json", ("{\"bots\":" + rawArr(rows) + "}").getBytes(StandardCharsets.UTF_8));
     }
 
     private static String inventoryJson(BotEntry e, Character bot) {

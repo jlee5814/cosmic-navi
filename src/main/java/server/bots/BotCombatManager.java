@@ -2171,15 +2171,43 @@ class BotCombatManager {
 
     private static List<Monster> aliveMonstersInRange(BotEntry entry, Character bot, Point botPos, double rangeSq) {
         List<Monster> candidates = new ArrayList<>();
+        List<Monster> hopelessBosses = new ArrayList<>(0);
         long now = System.currentTimeMillis();
         for (Monster m : bot.getMap().getAllMonsters()) {
-            if (isHostileLivingMonster(m) && m.getPosition().distanceSq(botPos) <= rangeSq
-                    && !isHopelessBossTarget(entry, bot, m)
-                    && !isSkippedGrindTarget(entry, bot, m, now)) {
+            if (!isHostileLivingMonster(m) || m.getPosition().distanceSq(botPos) > rangeSq) {
+                continue;
+            }
+            if (isHopelessBossTarget(entry, bot, m)) {
+                hopelessBosses.add(m);
+            } else if (!isSkippedGrindTarget(entry, bot, m, now)) {
                 candidates.add(m);
             }
         }
+        if (!hopelessBosses.isEmpty()) {
+            candidates.removeIf(m -> isBehindBoss(botPos, m.getPosition(), hopelessBosses));
+        }
         return candidates;
+    }
+
+    /** Vertical band, px, in which a boss stands in the line between the bot and a mob: the ±50 default projectile band. */
+    static final int BOSS_SHIELD_Y_PX = 50;
+
+    /**
+     * A mob behind a boss the bot can't kill alone, on the bot's line: every forward shot at it lands on the boss
+     * ({@link #isShotAbsorbedByHopelessBoss} refuses those plans), and walking to it means walking through the boss.
+     * Without this the pick kept choosing the Dreamy Ghosts past Black Crow on Encounter with the Buddha (one flat
+     * floor, the Crow at x 1366 among the ghosts), the plan came back empty, and the bot walked at the Crow until
+     * the stall watchdog dropped the ghost. Filtered at the pick so the ghosts on the bot's side win straight away.
+     */
+    static boolean isBehindBoss(Point botPos, Point mobPos, List<Monster> bosses) {
+        for (Monster boss : bosses) {
+            Point b = boss.getPosition();
+            if ((long) (b.x - botPos.x) * (mobPos.x - b.x) > 0
+                    && Math.abs(b.y - botPos.y) <= BOSS_SHIELD_Y_PX && Math.abs(b.y - mobPos.y) <= BOSS_SHIELD_Y_PX) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Longest solo kill, by {@link BotGrindAdvisor#killProfile}, that still makes an area boss worth a grind pick. */

@@ -309,20 +309,7 @@ class BotEquipManager {
 
             // Diff vs current for the winning branch.
             Branch best = branches.get(0);
-            List<String> diffs = new ArrayList<>();
-            for (Map.Entry<Short, Equip> e : best.result().picks().entrySet()) {
-                Equip cur = currentBySlot.get(e.getKey());
-                if (cur != e.getValue()) {
-                    diffs.add(slotLabel(e.getKey()) + ":"
-                            + (cur == null ? "-" : ii.getName(cur.getItemId()))
-                            + ">" + ii.getName(e.getValue().getItemId()));
-                }
-            }
-            Equip currentWp = (Equip) eqdInv.getItem((short) -11);
-            if (best.weapon() != currentWp) {
-                diffs.add(0, "weapon:" + (currentWp == null ? "-" : ii.getName(currentWp.getItemId()))
-                        + ">" + (best.weapon() == null ? "-" : ii.getName(best.weapon().getItemId())));
-            }
+            List<String> diffs = planChanges(ii, eqdInv, currentBySlot, best.weapon(), best.result().picks());
             if (diffs.isEmpty()) {
                 out.add("changes: none (already optimal)");
             } else {
@@ -344,6 +331,75 @@ class BotEquipManager {
         String botName = bot != null ? bot.getName() : "?";
         log.info("autoEquipDebug[{}]:\n  {}", botName, String.join("\n  ", out));
         return out;
+    }
+
+    /** Slot by slot changes from what the bot wears to {@code picks} with {@code weapon}, as
+     *  {@code slot:worn>better} labels, the weapon first. Empty when the plan is what it wears. */
+    private static List<String> planChanges(ItemInformationProvider ii, Inventory eqdInv, Map<Short, Equip> currentBySlot,
+                                            Equip weapon, Map<Short, Equip> picks) {
+        List<String> diffs = new ArrayList<>();
+        for (Map.Entry<Short, Equip> e : picks.entrySet()) {
+            Equip cur = currentBySlot.get(e.getKey());
+            if (cur != e.getValue()) {
+                diffs.add(slotLabel(e.getKey()) + ":"
+                        + (cur == null ? "-" : ii.getName(cur.getItemId()))
+                        + ">" + ii.getName(e.getValue().getItemId()));
+            }
+        }
+        Equip currentWp = (Equip) eqdInv.getItem((short) -11);
+        if (weapon != currentWp) {
+            diffs.add(0, "weapon:" + (currentWp == null ? "-" : ii.getName(currentWp.getItemId()))
+                    + ">" + (weapon == null ? "-" : ii.getName(weapon.getItemId())));
+        }
+        return diffs;
+    }
+
+    /** What {@link #autoEquip} would change right now, without changing anything: {@code changes} as
+     *  {@link #planChanges} labels, and the plan's damage score next to the score of what the bot wears
+     *  ({@code damageNow}, the same DP run over the worn pieces alone). {@code mobContext} is false off a
+     *  grind map, where the score has no mob to benchmark against. */
+    record EquipCheck(boolean mobContext, int damageNow, int damageBest, List<String> changes, boolean capHit) {}
+
+    static EquipCheck checkEquip(Character bot) {
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
+        Inventory eqpInv = bot.getInventory(InventoryType.EQUIP);
+        Inventory eqdInv = bot.getInventory(InventoryType.EQUIPPED);
+        MapDamageProfile mob = MapDamageProfile.snapshotByAvoid(bot);
+        Map<Short, List<Equip>> bySlot = collectAutoEquipCandidates(bot, ii, eqpInv, eqdInv, null);
+        Map<Short, Equip> currentBySlot = new HashMap<>();
+        Map<Short, List<Equip>> wornOnly = new LinkedHashMap<>();
+        for (Item it : eqdInv.list()) {
+            if (it instanceof Equip e && !ii.isCash(e.getItemId())) {
+                currentBySlot.put(e.getPosition(), e);
+                wornOnly.computeIfAbsent(isRingSlot(e.getPosition()) ? (short) -12 : e.getPosition(),
+                        k -> new ArrayList<>()).add(e);
+            }
+        }
+        StatSnapshot naked = nakedBase(bot, ii, eqdInv);
+        Equip currentWeapon = compatibleWeaponOrNull(bot, ii, (Equip) eqdInv.getItem((short) -11));
+
+        List<Short> dpSlots = buildDpSlots(bySlot, currentBySlot);
+        boolean[] reqRel = scanReqRelevantDims(bySlot, ii);
+        List<Equip> weaponPool = new ArrayList<>(bySlot.getOrDefault((short) -11, List.of()));
+        if (currentWeapon != null && !weaponPool.contains(currentWeapon)) weaponPool.add(currentWeapon);
+        if (weaponPool.isEmpty()) weaponPool.add(null);
+        DpResult best = null;
+        Equip bestWeapon = currentWeapon;
+        boolean capHit = false;
+        for (Equip w : weaponPool) {
+            DpResult r = solveForWeapon(bot, ii, naked, w, dpSlots, currentBySlot, bySlot, mob, reqRel);
+            if (r == null) continue;
+            capHit |= r.paretoCapHit();
+            if (best == null || compareScores(r.score(), best.score()) > 0) {
+                best = r;
+                bestWeapon = w;
+            }
+        }
+        DpResult worn = solveForWeapon(bot, ii, naked, currentWeapon, buildDpSlots(wornOnly, currentBySlot),
+                currentBySlot, wornOnly, mob, scanReqRelevantDims(wornOnly, ii));
+        List<String> changes = best == null ? List.of() : planChanges(ii, eqdInv, currentBySlot, bestWeapon, best.picks());
+        return new EquipCheck(mob != null, worn == null ? 0 : worn.score().damage(),
+                best == null ? 0 : best.score().damage(), changes, capHit);
     }
 
     /**
