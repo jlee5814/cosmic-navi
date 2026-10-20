@@ -2015,6 +2015,34 @@ class BotCombatManagerTest {
     }
 
     @Test
+    void aMobBehindAnAreaBossTheBotCannotKillIsNotATarget() {
+        MapleMap realMap = new MapleMap(910009062, 0, 0, 910009062, 1.0f);
+        server.maps.FootholdTree footholds = new server.maps.FootholdTree(new Point(-2000, -2000), new Point(2000, 2000));
+        footholds.insert(new Foothold(new Point(-400, 100), new Point(800, 100), 1));
+        realMap.setFootholds(footholds);
+        BotNavigationGraphProvider.rebuildGraph(realMap);
+        MapleMap map = spy(realMap);
+        Character bot = mockBot(new Point(100, 100), map, 20_000, null);
+        BotEntry entry = new BotEntry(bot, null, null);
+
+        // Encounter with the Buddha: the bot on the near side, Black Crow between it and the closest ghost.
+        Monster crow = mockBossMob(new Point(250, 100), 9400014, 35_000_000);
+        Monster behind = mockMob(new Point(330, 100), 9400013);
+        Monster nearSide = mockMob(new Point(-200, 100), 9400013);
+        doReturn(List.of(crow, behind, nearSide)).when(map).getAllMonsters();
+        assertEquals(nearSide, BotCombatManager.findGrindTarget(entry, bot));
+        doReturn(List.of(crow, behind)).when(map).getAllMonsters();
+        assertNull(BotCombatManager.findGrindTarget(entry, bot));
+
+        // A mob off the boss's line, one short of the boss, or a boss the bot can kill: nothing is blocked.
+        assertFalse(BotCombatManager.isBehindBoss(new Point(100, 100), new Point(330, 300), List.of(crow)));
+        assertFalse(BotCombatManager.isBehindBoss(new Point(100, 100), new Point(200, 100), List.of(crow)));
+        Monster weakBoss = mockBossMob(new Point(250, 100), 2220000, 10_000);
+        doReturn(List.of(weakBoss, behind)).when(map).getAllMonsters();
+        assertEquals(weakBoss, BotCombatManager.findGrindTarget(entry, bot));
+    }
+
+    @Test
     void shouldNotPlanAShotAHopelessBossWouldAbsorb() {
         MapleMap map = mock(MapleMap.class);
         Character bot = mockBot(new Point(100, 200), map, 20_000, null);
