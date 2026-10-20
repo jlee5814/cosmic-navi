@@ -131,6 +131,9 @@ final class BotFleetOps {
 
     private static void sampleAllSafely() {
         long now = System.currentTimeMillis();
+        // An agent watching or fixing a bot holds it in place: no auto rescue while the claim lasts. Its stall clocks
+        // keep running, so a bot still stalled when the claim ends is rescued on the next pass.
+        java.util.Set<Integer> claimed = BotAgentClaims.claimedBots(now);
         for (BotEntry entry : BotManager.getInstance().allEntries()) {
             try {
                 Character bot = entry.bot;
@@ -148,7 +151,7 @@ final class BotFleetOps {
                 if (dry != null) {
                     alerts.add(dry);
                 }
-                AutoRescue ar = autoRescue(track, now);
+                AutoRescue ar = claimed.contains(bot.getId()) ? null : autoRescue(track, now);
                 if (ar != null && ar.rescue()) {
                     entry.nextTickTask = () -> runAutoRescue(entry, ar.why());
                 } else if (ar != null) {
