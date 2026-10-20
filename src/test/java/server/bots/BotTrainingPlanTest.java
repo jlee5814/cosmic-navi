@@ -19,6 +19,7 @@ class BotTrainingPlanTest {
 
     private final java.util.function.BiConsumer<Integer, String> previousSave = BotTrainingPlan.saveConfig;
     private final java.util.function.IntConsumer previousLogout = BotTrainingPlan.logout;
+    private final java.util.function.IntFunction<String> previousLoad = BotTrainingPlan.loadConfig;
     private final List<String> saved = new ArrayList<>();
     private final List<Integer> loggedOut = new ArrayList<>();
 
@@ -26,6 +27,7 @@ class BotTrainingPlanTest {
     void restore() {
         BotTrainingPlan.saveConfig = previousSave;
         BotTrainingPlan.logout = previousLogout;
+        BotTrainingPlan.loadConfig = previousLoad;
     }
 
     private BotEntry rosterBotAtCap(boolean selfOwned) {
@@ -78,5 +80,27 @@ class BotTrainingPlanTest {
         BotTrainingPlan.parkIfIdleAtCap(entry, entry.bot, true, 1L + 2 * BotTrainingPlan.PARK_AFTER_IDLE_MS);
         assertTrue(saved.isEmpty());
         assertTrue(loggedOut.isEmpty());
+    }
+
+    @Test
+    void unparkingRestoresTheRosterPlaceAParkTookAway() {
+        BotEntry entry = rosterBotAtCap(true);
+        assertTrue(BotTrainingPlan.park(entry, entry.bot, "parked by the navi responder"));
+        String parked = saved.get(0);
+        BotTrainingPlan.loadConfig = id -> id == 266 ? parked : null;
+
+        assertTrue(BotTrainingPlan.unpark(266, entry));
+        assertEquals(2, saved.size());
+        assertTrue(saved.get(1).contains("rosterActive=true"));
+        assertEquals(entry.personality.rosterRole(), BotPersonality.parse(saved.get(1)).rosterRole(), "keeps the role");
+        assertTrue(entry.personality.rosterActive(), "the live entry can be parked again");
+        assertTrue(BotTrainingPlan.canPark(entry));
+
+        // Never parked: nothing to save. No stored config: nothing to unpark.
+        BotTrainingPlan.loadConfig = id -> saved.get(1);
+        assertTrue(BotTrainingPlan.unpark(266, null));
+        assertEquals(2, saved.size());
+        BotTrainingPlan.loadConfig = id -> null;
+        assertFalse(BotTrainingPlan.unpark(266, null));
     }
 }

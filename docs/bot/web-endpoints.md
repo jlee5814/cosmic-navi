@@ -152,15 +152,19 @@ what's hot, or call `durationMs` for a one-shot sample.
               "slow":..,"slowAvgMs":..}, ...]}
 ```
 
-### `/api/spawnbot?id=<charId>[,<charId>...]`
+### `/api/spawnbot?id=<charId>[,<charId>...][&unpark=1]`
 Bring offline bot character(s) back online as managed self-owned autopilot bots (reuses
 `BotManager.spawnManagedBot`, the `BotScheduler` path). Respawns at the character's saved map/position
 with its real level/job/skills/stats — it does **not** synthesize stats. For a controlled repro, respawn a
 character that already has the build you want, then `/api/command moveto x y` to drop it on an exact spot
 (e.g. a lv10 mage next to a snail). State-changing GET (LAN debug only). `spawned:false` = already online
-or load failed.
+or load failed. `unpark=1` first stores `rosterActive=true` (`BotTrainingPlan.unpark`), undoing a park by the
+cap idle check or the navi responder, so the boot roster restore brings the bot back after a restart; each
+result then carries `unparked` (false when the bot has no stored config or the save failed). Already online
+bots are unparked too.
 ```
 {"results":[{"id":767,"spawned":true},{"id":814,"spawned":false,"note":"already online or load failed"}]}
+{"results":[{"id":254,"spawned":true,"unparked":true}]}
 ```
 
 ### `/api/navprobe?id=<botCharId>&x=<>&y=<>[&skills=1][&mode=normal|exhaustive]`

@@ -1122,11 +1122,13 @@ public final class BotWorldGraphWebServer {
      *  controlled repro (e.g. a lv10 mage next to a snail). For a specific test condition, respawn a
      *  character that already has the build you want — this does not synthesize stats. LAN debug only. */
     private static void serveSpawnBot(HttpExchange ex) throws IOException {
-        String raw = queryParams(ex.getRequestURI().getRawQuery()).getOrDefault("id", "").trim();
+        Map<String, String> params = queryParams(ex.getRequestURI().getRawQuery());
+        String raw = params.getOrDefault("id", "").trim();
         if (raw.isEmpty()) {
             send(ex, 400, "application/json", "{\"error\":\"need ?id=<charId>[,<charId>...]\"}".getBytes(StandardCharsets.UTF_8));
             return;
         }
+        boolean unpark = "1".equals(params.get("unpark"));
         BotManager mgr = BotManager.getInstance();
         StringBuilder sb = new StringBuilder("{\"results\":[");
         boolean first = true;
@@ -1137,12 +1139,15 @@ public final class BotWorldGraphWebServer {
             } catch (NumberFormatException e) {
                 continue;
             }
+            // Unpark first, so a bot that is already online keeps its roster place too.
+            Boolean unparked = unpark ? BotTrainingPlan.unpark(id, mgr.getEntryByBotCharId(id)) : null;
             boolean spawned = mgr.spawnManagedBot(id);
             if (!first) {
                 sb.append(',');
             }
             first = false;
             sb.append("{\"id\":").append(id).append(",\"spawned\":").append(spawned)
+                    .append(unparked == null ? "" : ",\"unparked\":" + unparked)
                     .append(spawned ? "" : ",\"note\":\"already online or load failed\"").append('}');
         }
         send(ex, 200, "application/json", sb.append("]}").toString().getBytes(StandardCharsets.UTF_8));

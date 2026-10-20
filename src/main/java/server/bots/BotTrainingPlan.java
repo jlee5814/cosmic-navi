@@ -15,6 +15,7 @@ final class BotTrainingPlan {
     static java.util.function.BiConsumer<Integer, String> saveConfig =
             (id, config) -> BotConfigService.getInstance().save(id, config);
     static java.util.function.IntConsumer logout = id -> BotManager.getInstance().logoutManagedBot(id);
+    static java.util.function.IntFunction<String> loadConfig = id -> BotConfigService.getInstance().load(id);
 
     private BotTrainingPlan() {}
 
@@ -86,6 +87,30 @@ final class BotTrainingPlan {
         entry.personality = parked;
         log.info("bot-park: {} {}; parked (rosterActive=false), logging out", bot.getName(), why);
         logout.accept(bot.getId());
+        return true;
+    }
+
+    /** The owner's way back from {@link #park}: store rosterActive=true, so the boot roster restore brings the bot
+     *  online again. False when the bot has no stored config or the save failed. A bot that was never parked is
+     *  left as it is. Updates {@code live}, the bot's entry when it is online, so a later park sees it active. */
+    static boolean unpark(int botId, BotEntry live) {
+        String blob = loadConfig.apply(botId);
+        if (blob == null || blob.isBlank()) {
+            return false;
+        }
+        BotPersonality stored = BotPersonality.parse(blob);
+        if (!stored.rosterActive()) {
+            try {
+                saveConfig.accept(botId, stored.withRosterActive(true).serialize());
+            } catch (RuntimeException e) {
+                log.warn("bot-park: could not save rosterActive=true for {}", botId, e);
+                return false;
+            }
+            log.info("bot-park: {} unparked (rosterActive=true)", botId);
+        }
+        if (live != null && live.personality != null) {
+            live.personality = live.personality.withRosterActive(true);
+        }
         return true;
     }
 }

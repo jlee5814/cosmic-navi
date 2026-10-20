@@ -368,6 +368,58 @@ class BotTravelManagerTest {
     }
 
     @Test
+    void aBotJumpingForOrClimbingTheRopeOverThePitKeepsItsExit() {
+        // Dragon Forest I (240030100): the rope at x 1486 hangs over the pit of in03, a collision portal into the
+        // dead end Hidden Dragon Tomb II. The floor below the rope and below most of the jump onto it is the pit
+        // (region 19), from which east00 is unreachable. Read as standing there, SipsBuddy1 dropped east00 for
+        // in03, climbed down into the pit and looped through the tomb for hours.
+        int dragonForest = 240030100;
+        int target = 240040310;
+        Portal east00 = portal(15, 240030200, Portal.MAP_PORTAL, null, Portal.OPEN, new Point(1665, -957));
+        Portal in03 = portal(17, 240030104, 3, null, Portal.OPEN, new Point(1485, -226));
+        Point midJump = new Point(1532, -540);
+        Point onRope = new Point(1486, -380);
+        Fixture f = fixture(dragonForest, target, midJump, List.of(east00, in03));
+        BotNavigationGraph graph = mock(BotNavigationGraph.class);
+        when(graph.findRegionId(f.map(), midJump)).thenReturn(19);
+        when(graph.findRegionId(f.map(), onRope)).thenReturn(19);
+        when(graph.findRopeRegionId(onRope)).thenReturn(29);
+        when(graph.findRegionId(f.map(), east00.getPosition())).thenReturn(30);
+        when(graph.findRegionId(f.map(), in03.getPosition())).thenReturn(19);
+        when(graph.canReach(19, 30, 0)).thenReturn(false);
+        when(graph.canReach(29, 30, 0)).thenReturn(true);
+        when(graph.canReach(19, 19, 0)).thenReturn(true);
+        BotEntry e = f.entry();
+
+        try (var graphs = mockStatic(BotNavigationGraphProvider.class);
+             MovementRecorder movement = new MovementRecorder();
+             RouteStub route = new RouteStub((from, to, maxHops, options, blocked) ->
+                     List.of(240030104, dragonForest, 240030200, target));
+             PartitionRouteStub partition = new PartitionRouteStub((provider, from, exits, to, maxHops, blocked) ->
+                     List.of(new BotWorldPartitionRouter.Node(240030104, "st00"),
+                             new BotWorldPartitionRouter.Node(target, "x")))) {
+            graphs.when(() -> BotNavigationGraphProvider.peekBestGraph(any(MapleMap.class), any(BotMovementProfile.class)))
+                    .thenReturn(graph);
+            graphs.when(() -> BotNavigationGraphProvider.peekGraph(any(MapleMap.class), any(BotMovementProfile.class)))
+                    .thenReturn(graph);
+            for (boolean climbing : new boolean[]{false, true}) {
+                e.followTravelTargetMapId = target;
+                e.followTravelNextHopMapId = 240030200;
+                e.followTravelFromMapId = dragonForest;
+                e.followTravelPortalId = east00.getId();
+                e.followTravelDeadlineMs = System.currentTimeMillis() + 30_000L;
+                e.inAir = !climbing;
+                e.climbing = climbing;
+                when(f.bot().getPosition()).thenReturn(climbing ? onRope : midJump);
+
+                assertTrue(BotTravelManager.tickTravel(e, f.bot(), target, 30, true, false));
+                assertEquals(east00.getId(), e.followTravelPortalId, climbing ? "on the rope" : "mid jump");
+                assertEquals(east00.getPosition(), movement.steps.get(movement.steps.size() - 1));
+            }
+        }
+    }
+
+    @Test
     void shouldNotUseGroundReachabilityToRejectSwimMapPortal() {
         int forkedRoadWestSea = 230010400;
         int westSea = 230010300;
