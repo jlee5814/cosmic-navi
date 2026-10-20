@@ -3951,6 +3951,13 @@ public class BotManager {
             target = null;
         }
         long now = System.currentTimeMillis();
+        if (target != null && BotCombatManager.noteGrindTargetStalled(entry, bot, target, now)) {
+            log.info("grind-stall: {} dropped {} (oid {}) at {},{} on map {}: no HP lost in {} s, skipping it {} s",
+                    bot.getName(), target.getId(), target.getObjectId(), target.getPosition().x, target.getPosition().y,
+                    bot.getMapId(), (now - entry.grindProgressSinceMs) / 1000, BotCombatManager.cfg.GRIND_STALL_SKIP_MS / 1000);
+            target = null;
+            entry.grindTargetCommitUntilMs = 0L;
+        }
         BotCombatManager.AttackPlan attackPlan =
                 BotCombatManager.planAttackCadenced(entry, bot, target, runAiTick);
         // Validate cached loot target

@@ -2014,6 +2014,82 @@ class BotCombatManagerTest {
         assertEquals(crow, BotCombatManager.findGrindTarget(entry, bot));
     }
 
+    @Test
+    void shouldNotPlanAShotAHopelessBossWouldAbsorb() {
+        MapleMap map = mock(MapleMap.class);
+        Character bot = mockBot(new Point(100, 200), map, 20_000, null);
+        BotEntry entry = new BotEntry(bot, null, null);
+        // Encounter with the Buddha: Black Crow stands between the bot and the Dreamy Ghost it targets.
+        Monster crow = mockBossMob(new Point(260, 200), 9400014, 35_000_000);
+        Monster ghost = mockMob(new Point(390, 200), 9400013);
+        // A forward shot: the projectile box starts in front of the bot, so it hits the first mob in its path.
+        BotAttackExecutionProvider.BasicAttackData shot = new BotAttackExecutionProvider.BasicAttackData(
+                new Rectangle(110, 150, 400, 100), 0, 30, 0, "shoot1",
+                0, 4, 100, 600, BotCombatManager.AttackRoute.RANGED);
+
+        try (MockedStatic<BotAttackExecutionProvider> attackExecution =
+                     Mockito.mockStatic(BotAttackExecutionProvider.class, Mockito.CALLS_REAL_METHODS)) {
+            attackExecution.when(() -> BotAttackExecutionProvider.getEquippedWeaponType(bot)).thenReturn(WeaponType.BOW);
+            attackExecution.when(() -> BotAttackExecutionProvider.buildBasicAttackData(eq(bot), any(Point.class)))
+                    .thenReturn(shot);
+
+            doReturn(List.of(ghost, crow)).when(map).getAllMonsters();
+            assertNull(BotCombatManager.planAttack(entry, bot, ghost));
+
+            // With the Crow gone, the same shot lands on the ghost.
+            doReturn(List.of(ghost)).when(map).getAllMonsters();
+            assertEquals(ghost, BotCombatManager.planAttack(entry, bot, ghost).targets.get(0));
+
+            // A boss the bot kills in seconds still takes the shot, as it would from a player.
+            Monster weakBoss = mockBossMob(new Point(260, 200), 2220000, 10_000);
+            doReturn(List.of(ghost, weakBoss)).when(map).getAllMonsters();
+            assertEquals(weakBoss, BotCombatManager.planAttack(entry, bot, ghost).targets.get(0));
+        }
+    }
+
+    @Test
+    void shouldDropAndSkipAGrindTargetThatNeverLosesHp() {
+        MapleMap realMap = new MapleMap(910009061, 0, 0, 910009061, 1.0f);
+        server.maps.FootholdTree footholds = new server.maps.FootholdTree(new Point(-2000, -2000), new Point(2000, 2000));
+        footholds.insert(new Foothold(new Point(-400, 100), new Point(400, 100), 1));
+        realMap.setFootholds(footholds);
+        BotNavigationGraphProvider.rebuildGraph(realMap);
+        MapleMap map = spy(realMap);
+        Character bot = mockBot(new Point(100, 100), map, 20_000, null);
+        BotEntry entry = new BotEntry(bot, null, null);
+        Monster ghost = mockMob(new Point(300, 100), 9400013);
+        Monster other = mockMob(new Point(-300, 100), 9400012);
+        AtomicInteger hp = new AtomicInteger(68_000);
+        when(ghost.getHp()).thenAnswer(invocation -> hp.get());
+        doReturn(List.of(ghost, other)).when(map).getAllMonsters();
+        BotCombatManager.Config cfg = BotCombatManager.cfg;
+        long limit = cfg.GRIND_STALL_MS + cfg.GRIND_STALL_JITTER_MS;
+        long t = System.currentTimeMillis();
+
+        // HP dropping is progress, however long the kill takes.
+        for (long end = t + 2 * limit; t < end; t += 2_000L) {
+            hp.addAndGet(-100);
+            assertFalse(BotCombatManager.noteGrindTargetStalled(entry, bot, ghost, t));
+        }
+        // Time away from the target (a break, an errand) restarts the window.
+        t += 10 * limit;
+        assertFalse(BotCombatManager.noteGrindTargetStalled(entry, bot, ghost, t));
+
+        // No HP lost for a whole window: dropped once, then skipped for a while.
+        long since = t;
+        boolean stalled = false;
+        while (!stalled && t <= since + limit) {
+            t += 2_000L;
+            stalled = BotCombatManager.noteGrindTargetStalled(entry, bot, ghost, t);
+        }
+        assertTrue(stalled);
+        assertTrue(t - since >= cfg.GRIND_STALL_MS);
+        assertTrue(BotCombatManager.isSkippedGrindTarget(entry, bot, ghost, t));
+        assertFalse(BotCombatManager.isSkippedGrindTarget(entry, bot, other, t));
+        assertFalse(BotCombatManager.isSkippedGrindTarget(entry, bot, ghost, t + cfg.GRIND_STALL_SKIP_MS));
+        assertEquals(other, BotCombatManager.findGrindTarget(entry, bot));
+    }
+
     private static Monster mockBossMob(Point position, int id, int maxHp) {
         Monster mob = mockMob(position, id);
         MonsterStats stats = mock(MonsterStats.class);

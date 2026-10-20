@@ -34,6 +34,13 @@ Fleet: 98.8 h online, 56.0 h grinding (57%). Freezes and stalls flagged by fleet
   candidates now skip a boss whose solo kill time (`BotGrindAdvisor.killProfile`) is over 5 min, outside event
   instances (`BotCombatManager.isHopelessBossTarget`). For the next unexplained freeze on a grind map, grep the
   grind target log for long `holdMs` with a tiny `mobHpDrop` first.
+- Same map after that fix (SipsBuddy2, Oct 19, 8 rescues and parked again): the pick was now a Dreamy Ghost at
+  x 1479, but the Crow stands at x 1366 between it and the bot (x about 1068). Projectiles hit the first mob in
+  their path (`resolveEffectivePrimary`), so every Magic Claw landed on the Crow: 5.1M Crow damage while EXP
+  stood still, ghost HP never moved, MP cycling 6.5k to 3.3k. A 5 s read only `/api/botdebug?id=` sampler
+  (pos, mp, exp, `nearMobs` with HP) caught it. Planners now return no plan when the shot would land on a
+  hopeless boss (`isShotAbsorbedByHopelessBoss`), and a progress watchdog (`noteGrindTargetStalled`) drops any
+  grind target whose HP has not dropped for 40 to 55 s and skips it 3 min, logged as `grind-stall:`.
 - Snowy Hill, about 11 h (SipsBuddy26, Oct 17, after this window): the en route attack aimed past the Jr. Pepe in
   the lane and the bot was knocked back on every approach; fixed ([[kb_bot_en_route_attack_reach]]). Possibly the
   El Nath stall above too, since Snowy Hill is the only walking way out.

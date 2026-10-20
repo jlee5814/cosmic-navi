@@ -202,6 +202,11 @@ class BotCombatManager {
         // approaching it (out of attack range), so the bot doesn't flip between far mobs every retarget
         // tick as re-scoring shifts the "best" pick. Broken early only if the target dies/vanishes.
         public int   GRIND_TARGET_COMMIT_MS = 3000;
+        // Progress watchdog (noteGrindTargetStalled): a grind target whose HP has not dropped for STALL_MS
+        // plus up to STALL_JITTER_MS is dropped, and that monster is skipped for STALL_SKIP_MS.
+        public long  GRIND_STALL_MS = 40_000L;
+        public long  GRIND_STALL_JITTER_MS = 15_000L;
+        public long  GRIND_STALL_SKIP_MS = 180_000L;
         // Fresh picks (no live target) sometimes take the 2nd or 3rd candidate when its cost is within
         // this band of the best: humanlike variety, and the spread the learned target scorer trains on
         // (docs/bot/learned-grind-target.md). 0 turns it off.
@@ -1212,7 +1217,7 @@ class BotCombatManager {
                 }
             }
 
-            AttackPlan basicAttack = planBasicAttack(bot, target);
+            AttackPlan basicAttack = planBasicAttack(entry, bot, target);
             if (basicAttack != null) {
                 candidates.add(basicAttack);
             }
@@ -1354,9 +1359,12 @@ class BotCombatManager {
         return skillIds;
     }
 
-    private static AttackPlan planBasicAttack(Character bot, Monster target) {
+    private static AttackPlan planBasicAttack(BotEntry entry, Character bot, Monster target) {
         BotAttackExecutionProvider.BasicAttackData basicAttackData = buildBasicAttackData(bot, target);
         Monster effective = resolveEffectivePrimary(bot, target, basicAttackData.hitBox());
+        if (isShotAbsorbedByHopelessBoss(entry, bot, target, effective)) {
+            return null;
+        }
         if (effective != target) {
             basicAttackData = buildBasicAttackData(bot, effective);
         }
@@ -1365,7 +1373,7 @@ class BotCombatManager {
             // scans the forward hemisphere, so a closer mob on the other side would have
             // been ignored. If one exists, pivot to it.
             Monster pivoted = findReachableOnOppositeFacing(bot, target);
-            if (pivoted == null) {
+            if (pivoted == null || isShotAbsorbedByHopelessBoss(entry, bot, target, pivoted)) {
                 return null;
             }
             basicAttackData = buildBasicAttackData(bot, pivoted);
@@ -1833,7 +1841,11 @@ class BotCombatManager {
         }
 
         if (!isStrikePointAnchoredAoeSkill(skillId)) {
-            primaryTarget = resolveEffectivePrimary(bot, primaryTarget, hitBox);
+            Monster effective = resolveEffectivePrimary(bot, primaryTarget, hitBox);
+            if (isShotAbsorbedByHopelessBoss(entry, bot, primaryTarget, effective)) {
+                return null;
+            }
+            primaryTarget = effective;
         }
         if (!doesHitBoxIntersectMonster(hitBox, primaryTarget)) {
             return null;
@@ -2159,9 +2171,11 @@ class BotCombatManager {
 
     private static List<Monster> aliveMonstersInRange(BotEntry entry, Character bot, Point botPos, double rangeSq) {
         List<Monster> candidates = new ArrayList<>();
+        long now = System.currentTimeMillis();
         for (Monster m : bot.getMap().getAllMonsters()) {
             if (isHostileLivingMonster(m) && m.getPosition().distanceSq(botPos) <= rangeSq
-                    && !isHopelessBossTarget(entry, bot, m)) {
+                    && !isHopelessBossTarget(entry, bot, m)
+                    && !isSkippedGrindTarget(entry, bot, m, now)) {
                 candidates.add(m);
             }
         }
@@ -2184,6 +2198,66 @@ class BotCombatManager {
         }
         double[] kill = BotGrindAdvisor.killProfile(entry, bot, mob);
         return kill == null || kill[0] > MAX_BOSS_GRIND_KILL_SECONDS;
+    }
+
+    /**
+     * The shot meant for {@code intended} would land on a hopeless boss instead: a projectile hits the first
+     * monster in its path ({@link #resolveEffectivePrimary}), so on Encounter with the Buddha every Magic Claw
+     * SipsBuddy2 cast at the Dreamy Ghosts at x 1479 hit Black Crow, standing between them at x 1366, and the
+     * ghosts never lost HP (5.1M Crow damage over a night of 20 minute freezes). Such a plan is no plan: the
+     * planner returns null so the bot moves or retargets instead of feeding the boss.
+     */
+    static boolean isShotAbsorbedByHopelessBoss(BotEntry entry, Character bot, Monster intended, Monster effective) {
+        return effective != null && effective != intended && isHopelessBossTarget(entry, bot, effective);
+    }
+
+    /** Gap between watchdog calls that means the bot stopped grinding this target (break, errand,
+     *  rest) and restarts its window, so time spent away never counts as no progress. */
+    private static final long GRIND_STALL_RESET_GAP_MS = 5_000L;
+
+    /**
+     * Grind target progress watchdog, called every grind tick with the current target. Returns true once the
+     * target's HP has not dropped below its lowest seen value for {@link Config#GRIND_STALL_MS} plus up to
+     * {@link Config#GRIND_STALL_JITTER_MS}, and skips that monster for {@link Config#GRIND_STALL_SKIP_MS}
+     * ({@link #isSkippedGrindTarget}). Damage from anyone counts as progress, so a partner's kill never trips it.
+     * It catches every way a bot can hold a target it never hurts (a shot absorbed by another mob, a spot it
+     * can't reach), which otherwise only ended when fleet ops rescued the bot after 20 frozen minutes.
+     */
+    static boolean noteGrindTargetStalled(BotEntry entry, Character bot, Monster target, long now) {
+        int hp = target.getHp();
+        if (target.getObjectId() != entry.grindProgressOid || now - entry.grindProgressSeenMs > GRIND_STALL_RESET_GAP_MS) {
+            entry.grindProgressOid = target.getObjectId();
+            entry.grindProgressHp = hp;
+            entry.grindProgressSinceMs = now;
+            entry.grindProgressLimitMs = cfg.GRIND_STALL_MS
+                    + (cfg.GRIND_STALL_JITTER_MS > 0 ? ThreadLocalRandom.current().nextLong(cfg.GRIND_STALL_JITTER_MS + 1) : 0L);
+        }
+        entry.grindProgressSeenMs = now;
+        if (hp < entry.grindProgressHp) {
+            entry.grindProgressHp = hp;
+            entry.grindProgressSinceMs = now;
+            return false;
+        }
+        if (now - entry.grindProgressSinceMs < entry.grindProgressLimitMs) {
+            return false;
+        }
+        if (entry.grindSkipMapId != bot.getMapId()) {
+            entry.grindSkipUntilByOid.clear();
+            entry.grindSkipMapId = bot.getMapId();
+        }
+        entry.grindSkipUntilByOid.values().removeIf(until -> until <= now);
+        entry.grindSkipUntilByOid.put(target.getObjectId(), now + cfg.GRIND_STALL_SKIP_MS);
+        entry.grindProgressOid = 0;
+        return true;
+    }
+
+    /** A monster the progress watchdog dropped on this map and is still skipping. */
+    static boolean isSkippedGrindTarget(BotEntry entry, Character bot, Monster mob, long now) {
+        if (entry == null || entry.grindSkipUntilByOid.isEmpty() || entry.grindSkipMapId != bot.getMapId()) {
+            return false;
+        }
+        Long until = entry.grindSkipUntilByOid.get(mob.getObjectId());
+        return until != null && until > now;
     }
 
     private static boolean isLocalCombatTarget(GrindGraphContext context,
