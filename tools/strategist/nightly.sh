@@ -18,6 +18,12 @@ python3 strategist.py "runs/nightly/snapshot-$TS.json" "runs/nightly/plan-$TS" -
 # Rank training bots by the EXP lost on them, so the next fix is the costliest bug, not the latest one seen.
 python3 lost_exp.py "runs/nightly/snapshot-$TS.json" --hours 24 >> "runs/nightly/plan-$TS/report.md" 2>&1 \
   || echo "- the lost EXP ranking failed" >> "runs/nightly/plan-$TS/report.md"
+# Retrain the learned grind target scorer; it serves only a model that beats the rule and the served one.
+{
+  echo; echo "## Learned grind target retrain"; echo; echo '```'
+  ../learned/retrain.sh trees 2>&1 | tail -6 || echo "the retrain failed"
+  echo '```'
+} >> "runs/nightly/plan-$TS/report.md"
 ln -sfn "plan-$TS" runs/nightly/latest
 # Keep two weeks of runs.
 python3 - <<'EOF'

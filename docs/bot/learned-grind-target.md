@@ -115,7 +115,8 @@ Built Oct 19.
 
 ## Keeping it honest
 
-- **Who retrains:** `tools/learned/retrain.sh`, on the whole log. Run it by hand or nightly.
+- **Who retrains:** `tools/learned/retrain.sh`, on the whole log, every night as a step of
+  `tools/strategist/nightly.sh`; its last lines go in the nightly report.
 - **What it must beat:** the rule on held out time (the gate: a 90% interval above zero), and the served
   model, the champion (`--champion`), in expectation on the same held out rows. The rule bar is the safety
   bar; the champion bar stops a retrain from replacing a better model with a worse one. A pass swaps the
