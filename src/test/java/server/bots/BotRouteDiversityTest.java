@@ -2,6 +2,7 @@ package server.bots;
 
 import org.junit.jupiter.api.Test;
 import server.maps.MapleMap;
+import testutil.RequiresWz;
 
 import java.awt.Point;
 import java.nio.file.Path;
@@ -17,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Per-bot seeds must fan 60 bots across many routes for the same start/target on map 10000 so they
  * don't single-file. Calibrated knobs: BotNavigationManager.JITTER_FRAC / EPSILON_SPAN.
  */
+@RequiresWz
 class BotRouteDiversityTest {
 
     // Mirror BotNavigationManager.routeSeed(bot) so seeds match what real consecutive-id bots get.

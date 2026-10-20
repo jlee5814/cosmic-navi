@@ -13,6 +13,7 @@ import server.ShopFactory;
 import server.life.NPC;
 import server.maps.MapleMap;
 import testutil.Items;
+import testutil.RequiresWz;
 
 import java.awt.*;
 import java.lang.reflect.Method;
@@ -419,6 +420,7 @@ class BotShopManagerTest {
         return bot;
     }
 
+    @RequiresWz
     @Test
     void zipangusCoffeeMilkCountsAsANearestTownScrollFromTheRealWzData() {
         // #48: Zipangu shops sell no 2030000, only Coffee Milk (warps to the nearest town) and fixed town

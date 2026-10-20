@@ -2,6 +2,7 @@ package server.bots;
 
 import org.junit.jupiter.api.Test;
 import server.maps.MapleMap;
+import testutil.RequiresWz;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -11,6 +12,7 @@ import java.lang.reflect.Modifier;
  * -Dtest=GraphGenBenchmarkTest when tuning build performance.
  * Prints the per-phase build profile for a big map (Ellinia).
  */
+@RequiresWz
 class GraphGenBenchmarkTest {
 
     @Test

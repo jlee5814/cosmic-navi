@@ -2,6 +2,7 @@ package server.bots;
 
 import org.junit.jupiter.api.Test;
 import server.maps.MapleMap;
+import testutil.RequiresWz;
 
 import java.awt.Point;
 import java.nio.file.Path;
@@ -21,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * every tick. If someone splits r11 into two regions (also valid), this scenario changes — update
  * the test then. The invariant we lock: same start/target region must still yield a non-empty path.
  */
+@RequiresWz
 class BotSameRegionDetourTest {
 
     @Test

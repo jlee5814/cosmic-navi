@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import server.maps.Foothold;
 import server.maps.MapleMap;
 import server.maps.Rope;
+import testutil.RequiresWz;
 
 import java.awt.*;
 import java.util.List;
@@ -92,6 +93,7 @@ class BotMovementSimulationLabTest {
         assertEquals(-8, entry.airVelX);
     }
 
+    @RequiresWz
     @Test
     void shouldResolveSlashRopeOscillationDumpByRefreshingPendingExitEdge() {
         MapleMap map = BotNavigationMapLoader.loadMapGeometry(103000000);
@@ -129,6 +131,7 @@ class BotMovementSimulationLabTest {
                 "stale rope exit should not keep the bot oscillating for a full second");
     }
 
+    @RequiresWz
     @Test
     void shouldResolveBashRopeOscillationDumpByExecutingImmediatelyFromRopeAnchorWindow() {
         MapleMap map = BotNavigationMapLoader.loadMapGeometry(103000800);
@@ -159,6 +162,7 @@ class BotMovementSimulationLabTest {
                 "bot should not oscillate around the rope anchor before the exit jump");
     }
 
+    @RequiresWz
     @Test
     void shouldCommitJohnSecondJumpOnTheNextAiTickAfterLanding() {
         MapleMap map = BotNavigationMapLoader.loadMapGeometry(101020001);
@@ -195,6 +199,7 @@ class BotMovementSimulationLabTest {
                 "bot should not drop navigation and enter an uncommitted fall between chained jumps");
     }
 
+    @RequiresWz
     @Test
     void shouldUsePetWalkingRoadLocalWalkOffDrop() {
         MapleMap map = BotNavigationMapLoader.loadMapGeometry(100000202);
@@ -250,6 +255,7 @@ class BotMovementSimulationLabTest {
                 "bot should land in the destination region after walking off the ledge");
     }
 
+    @RequiresWz
     @Test
     void shouldRecoverFromStaleElNathDropEdgeWindowJustOutsideBot() {
         // pathlog-Leroy-2026-06-12T141517: El Nath ice (fs=0.2). The bot parked 2px OUTSIDE
@@ -287,6 +293,7 @@ class BotMovementSimulationLabTest {
                         + String.join("\n", lab.formatRecentTrace("LEROY", 12)));
     }
 
+    @RequiresWz
     @Test
     void shouldCreepIntoTightSlipperyJumpLaunchWindowFromRest() {
         // pathlog-Leroy-2026-06-12T140609: El Nath ice (fs=0.2), JUMP edge (72,-409)->(192,-97)

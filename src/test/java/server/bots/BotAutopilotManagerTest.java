@@ -7,6 +7,7 @@ import org.mockito.MockedStatic;
 import server.bots.BotGrindPlanner.MobCandidate;
 import server.bots.BotGrindPlanner.Recommendation;
 import server.maps.MapleMap;
+import testutil.RequiresWz;
 
 import java.awt.Point;
 import java.util.ArrayList;
@@ -279,6 +280,7 @@ class BotAutopilotManagerTest {
         }
     }
 
+    @RequiresWz
     @Test
     void shouldStayPutAndSaySoWhenNothingIsReachable() {
         Fixture f = fixture(TOWN);

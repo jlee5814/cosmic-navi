@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import server.maps.Foothold;
 import server.maps.MapleMap;
+import testutil.RequiresWz;
 
 import java.awt.Point;
 import java.nio.file.Path;
@@ -34,6 +35,7 @@ import static org.mockito.Mockito.when;
  * map's collision boundary to cover the full foothold extent, so no walkable pixel sits outside
  * the side wall.
  */
+@RequiresWz
 class BotCornerFallThroughTest {
 
     private static final int MAP_ID = 261020500;
