@@ -134,6 +134,16 @@ public class BotEntry {
     // retarget tick as the bot moves, so without this it never commits to reach any of them. Broken
     // early only if the target dies/vanishes. See BotManager.shouldSearchForGrindTarget.
     long grindTargetCommitUntilMs = 0L;
+    // Grind target progress watchdog (BotCombatManager.noteGrindTargetStalled): the target being timed, its
+    // lowest HP seen, when that HP last dropped, the last call and this window's jittered limit. A stalled
+    // target goes in grindSkipUntilByOid (mob oid -> skip until ms) for monsters on grindSkipMapId.
+    int grindProgressOid = 0;
+    int grindProgressHp = 0;
+    long grindProgressSinceMs = 0L;
+    long grindProgressSeenMs = 0L;
+    long grindProgressLimitMs = 0L;
+    int grindSkipMapId = -1;
+    final Map<Integer, Long> grindSkipUntilByOid = new HashMap<>();
     int attackCooldownMs = 0;
     int moveWindowMs = 0;    // movement-only gap after attack animation; attacks blocked, walking allowed
     // AI-cadence attack planning (see Config.COMBAT_PLAN_EVERY_TICK): the plan built on the last AI tick,
