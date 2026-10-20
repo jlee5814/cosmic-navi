@@ -1976,8 +1976,24 @@ final class BotPhysicsEngine {
         }
         if (landing.type() != AirCollisionType.NONE && landing.progress() < best.progress()) {
             best = landing;
+        } else if (landing.type() != AirCollisionType.NONE && landing.progress() == best.progress()
+                && best.type() == AirCollisionType.WALL && spansX(landing.foothold(), best.point().x)) {
+            // The step met a wall and a floor at the same moment, and the floor runs on under the bot's side of the
+            // wall: the bot touched the floor it stands on, so it lands there, against the wall. A bot on the end
+            // pixel of a floor that meets a wall, pushed into the wall with no lift, met both in the first column;
+            // the wall won, left it hanging at the floor's height, and the straight fall after that probes from a
+            // pixel below the floor and dropped it through (Helios Tower 99F 222020200: the floor at y 2040
+            // between walls at x -265 and 265 hides a sealed pit at y 2342 that froze SipsBuddy3). A floor that
+            // only reaches the wall from its far side still loses to the wall.
+            best = new AirCollision(AirCollisionType.LAND, new Point(best.point().x, landing.point().y),
+                    landing.foothold(), landing.progress());
         }
         return best;
+    }
+
+    private static boolean spansX(Foothold foothold, int x) {
+        return foothold != null && !foothold.isWall()
+                && Math.min(foothold.getX1(), foothold.getX2()) <= x && x <= Math.max(foothold.getX1(), foothold.getX2());
     }
 
     private static void launchAirborne(BotEntry entry,
