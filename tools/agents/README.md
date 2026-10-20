@@ -18,6 +18,9 @@ Everything shared lives on the Mac in `~/Library/Application Support/cosmic-agen
    the GitHub issue also gets the `claimed` label and a comment. A claim lasts 2 hours; `refresh ID` extends it.
 3. **Watching bots live?** Claim them with `--watch`. Deploys refuse while a watch claim is live, and the navi
    responder leaves any claimed bot alone (no rescue, no park) until the claim ends.
+   Fleet ops in the server skips a claimed bot's auto rescue the same way; it reads the claims through a read
+   only mount, a line in the local `compose.localonly.yaml` under the maplestory service's volumes:
+   `- "${HOME}/Library/Application Support/cosmic-agents:/opt/server/agents:ro"`.
 4. **Deploy only through** `tools/agents/deploy.sh --session NAME`. It takes the deploy lock, refuses during a
    watch (`--force` overrides and says so in the journal), records the bots online, merges origin/main,
    rebuilds and restarts, respawns those bots, and writes the deploy to the journal.
