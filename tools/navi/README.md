@@ -52,8 +52,22 @@ The service runs on the host, outside the game server. It holds the email creden
 | `navi park <bot>` | Parks a roster bot: stores rosterActive=false and logs it out |
 | `navi llm` / `navi llm stats` | Bot LLM calls over the last hour: count and success rate, latency p50, p95, p99 and max, output tokens per second, and how much of the prompt the prefix cache served |
 | `navi` | Lists what Navi can do |
+| `navi yes` | Runs the rescue or park Navi asked about, within a minute of asking |
 
 `<bot>` is a full name or the number at its end: `26` for SipsBuddy26. The fleet commands run inside the game server (`BotFleetOps`), need no service call, and see only the bots registered to you.
+
+### Plain words
+
+With bot chat on an OpenAI compatible server (`BOT_LLM_BACKEND=openai`), a navi whisper that matches none of the commands above goes to the model (`server.bots.llm.NaviRouter`), so `navi did anyone email me` and `navi whats 26 up to` work too. The commands above never reach the model.
+
+- The model only picks: one tool from a fixed list (email, fleet, why, rescue, park, llm, or none) and a bot name, under a JSON schema. Code turns that into the matching command and runs it, so ownership, name lookup and the work itself are the same as typing the command.
+- Rescue and park change a bot, so when the model picks one Navi asks first (`rescue 12? whisper navi yes within a minute to go ahead`). Typing `navi rescue 12` yourself still runs at once.
+- Anything the model can't place, like `navi send an email to vera`, gets the command list.
+- Routing runs on a thread of its own, so it never waits for, or takes, a chat permit (`BOT_LLM_MAX_CONCURRENT`). If it takes longer than `NaviRouter.ACK_AFTER_MS` (1 second), the bot whispers an ack first; set it from the `navi_route` p99 that `navi llm` reports.
+- The model sees only your request. Nothing is logged but the tool it picked, and each call is recorded in LLM stats as kind `navi_route`.
+- On MLX, the schema needs SGLang started with `--mlx-enable-sampling`. A server that refuses the schema turns routing off until restart, and unmatched requests get the command list as before.
+
+Accuracy on phrasings the commands miss is measured against the live model by `tools/llm-bench/bot_eval/navi_route.py`.
 
 Navi also whispers you first, once per incident, when one of your bots stands still for 10 minutes while it means to grind or travel, starts a third errand to the same map within 45 minutes, or stays busy for 30 minutes without gaining EXP (a bot touring shops with a full bag moves but never fights). A once a minute sampler in the game server keeps 90 minutes of history per bot for this and saves it to `cache/fleet-ops/samples.tsv`, so a restart keeps the history and does not repeat a whisper for an incident already reported.
 
