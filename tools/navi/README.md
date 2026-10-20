@@ -79,6 +79,8 @@ Navi also rescues on its own, the same way `navi rescue` does, when a bot stays 
 
 Each call is also appended to `cache/llm-stats/calls.tsv` (columns: `at_ms`, `backend`, `model`, `kind`, `outcome`, `latency_ms`, `prompt_tokens`, `completion_tokens`, `cached_tokens`; `-1` when the server did not say). The cache column uses the same field as the bench, `usage.prompt_tokens_details.cached_tokens`, which SGLang sends only when started with `--enable-cache-report`.
 
+The TSV doubles as a workload trace: `tools/llm-bench/trace_replay.py` replays an evening of it against any server, open loop at the recorded arrival times. See [Replaying live traffic](../llm-bench/RESULTS.md#replaying-live-traffic).
+
 To revoke access, delete the app password in your Google account or run `security delete-generic-password -s navi-gmail`.
 
 ## Tests

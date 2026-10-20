@@ -81,10 +81,32 @@ Upstream fix, in `hardware_backend/mlx/model_runner.py`: size the per request bu
 small and rely on `_grow`), bound `_cache_pool`, and release a request's cache when it finishes rather than on
 the next decode batch.
 
+## Replaying live traffic
+
+The game server logs every bot LLM call to `cache/llm-stats/calls.tsv` (`navi llm` summarizes it).
+`trace_replay.py` replays that log open loop: each call is sent at its recorded arrival time (completion
+stamp minus latency) whatever is still in flight, with prompts padded to the recorded token count and output
+held to the recorded length (`ignore_eos`). `run_matrix.sh` runs it on a fresh guarded server when `TRACE` is
+set, so the same evening of play can be put to the stock and the patched server:
+
+```sh
+docker compose cp maplestory:/opt/server/cache/llm-stats/calls.tsv /tmp/calls.tsv   # if cache/ isn't mounted
+TRACE=/tmp/calls.tsv TRACE_ARGS="--busiest 10" tools/llm-bench/run_matrix.sh out/replay-stock
+TRACE=/tmp/calls.tsv TRACE_ARGS="--busiest 10" MLX_PATCH_INIT_SEQ=256 MLX_PATCH_POOL_MAX=8 \
+  MLX_PATCH_CACHE_LIMIT_GB=1 tools/llm-bench/run_matrix.sh out/replay-patched
+```
+
+Each `wave-trace.json` reports completed and failed calls (and when failures began, which is when the guard
+stopped the server), latency and TTFT percentiles, peak calls in flight next to the live peak, and output
+tokens per second; `memory.log` and `memlog-trace/` hold the footprint. `--speed 2` replays the same pattern
+twice as fast. A replay doesn't carry the original prompt text or the JSON schema of structured calls, so take
+prefix cache hits from `navi llm`, not from the replay. Tests: `python3 -m unittest tools/llm-bench/test_trace_replay.py`.
+
 ## Files
 
 - `bot_chat_bench.py`: the load generator (two layouts, streaming TTFT, cached token accounting)
-- `run_matrix.sh`: one fresh server per wave with the memory guard
+- `run_matrix.sh`: one fresh server per wave with the memory guard; with `TRACE` set, one replay wave
+- `trace_replay.py`: open loop replay of live game traffic (`cache/llm-stats/calls.tsv`)
 - `run_bench.sh`: single server run with a footprint monitor
 - `shape_growth_probe.py`: sequential growth probe (identical versus varied prompt lengths)
 - `mlx_memlog/sitecustomize.py`: per second MLX memory log for the scheduler, plus the `MLX_PATCH_*` experiment knobs
