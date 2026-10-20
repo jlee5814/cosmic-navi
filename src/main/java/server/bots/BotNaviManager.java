@@ -36,6 +36,7 @@ public final class BotNaviManager {
     private static final Pattern NAVI_PATTERN = Pattern.compile("^navi\\b\\s*(.*)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern EMAIL_PATTERN = Pattern.compile(
             "^(?:(?:check|read|any)\\s+)?(?:(?:my|new)\\s+)*(?:e-?mails?|inbox|mail)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern LLM_PATTERN = Pattern.compile("^llm(?:\\s+stats)?$", Pattern.CASE_INSENSITIVE);
     static final String EMAIL_TOOL = "/v1/email";
     static final int MAX_LINES = 5;
 
@@ -68,6 +69,11 @@ public final class BotNaviManager {
         }
         String request = m.group(1).replaceAll("^[\\p{Punct}\\s]+|[\\p{Punct}\\s]+$", "");
         return EMAIL_PATTERN.matcher(request).matches() ? EMAIL_TOOL : null;
+    }
+
+    /** {@code navi llm}: latency, throughput and prefix cache stats for bot LLM calls. */
+    static boolean isLlmRequest(String request) {
+        return request != null && LLM_PATTERN.matcher(request).matches();
     }
 
     /** Lines to whisper for a finished service call. Never echoes exception text. */
@@ -103,6 +109,12 @@ public final class BotNaviManager {
     /** Whisper entry point. The caller has already checked the speaker is the registered owner. */
     static void handleWhisper(BotEntry entry, Character owner, String message) {
         Character bot = entry.bot;
+        // LLM serving stats are the game server's own measurements; no service call either.
+        if (isLlmRequest(requestOf(message))) {
+            whisperLater(bot, owner, server.bots.llm.LlmStats.report(System.currentTimeMillis()),
+                    BotManager.randMs(400, 800));
+            return;
+        }
         // Fleet ops answer from the game server's own state; no service call, no token needed.
         List<String> fleet = BotFleetOps.handle(owner, requestOf(message));
         if (fleet != null) {

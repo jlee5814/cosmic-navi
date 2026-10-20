@@ -38,6 +38,15 @@ class BotNaviManagerTest {
     }
 
     @Test
+    void shouldRouteLlmStatsWithoutTheService() {
+        assertTrue(BotNaviManager.isLlmRequest(BotNaviManager.requestOf("navi llm")));
+        assertTrue(BotNaviManager.isLlmRequest(BotNaviManager.requestOf("Navi, LLM stats?")));
+        assertFalse(BotNaviManager.isLlmRequest(BotNaviManager.requestOf("navi llm off")));
+        assertFalse(BotNaviManager.isLlmRequest(BotNaviManager.requestOf("navi email")));
+        assertNull(BotNaviManager.toolFor("navi llm"));
+    }
+
+    @Test
     void shouldWhisperServiceLinesCappedAndTrimmed() {
         String body = "4 unread in primary, newest first:\n a: one \n\nb: two\nc: three\nd: four\ne: five\n";
         assertEquals(List.of("4 unread in primary, newest first:", "a: one", "b: two", "c: three", "d: four"),
