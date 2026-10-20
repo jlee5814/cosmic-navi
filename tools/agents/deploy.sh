@@ -17,12 +17,14 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$SESSION" ] || { echo "need --session NAME"; exit 2; }
 API=http://localhost:8089
-AG="python3 tools/agents/agents.py"
+ag() { python3 tools/agents/agents.py "$@"; }  # a function: zsh does not split a command held in a variable
 
-$AG lock deploy --session "$SESSION" --minutes 20 || { echo "another deploy is running; try again later"; exit 1; }
-trap '$AG unlock deploy --session "$SESSION" >/dev/null' EXIT
+if ! ag lock deploy --session "$SESSION" --minutes 20; then
+  echo "another deploy is running; try again later"; exit 1
+fi
+trap 'ag unlock deploy --session "$SESSION" >/dev/null' EXIT
 
-WATCHES=$($AG list | grep ' watch by ' | grep -v " by $SESSION " || true)
+WATCHES=$(ag list | grep ' watch by ' | grep -v " by $SESSION " || true)
 if [ -n "$WATCHES" ] && [ $FORCE -eq 0 ]; then
   echo "agents are watching bots; a restart would cut them off:"; echo "$WATCHES"
   echo "ask them, wait for the claims to end, or pass --force"
@@ -55,5 +57,5 @@ else
 fi
 MSG="deployed $BEFORE..$AFTER ${COMMITS:-(no new PRs)}; bots $RESULT"
 [ -n "$WATCHES" ] && MSG="$MSG; forced past watches: $(echo "$WATCHES" | cut -d' ' -f1 | tr '\n' ' ')"
-$AG note --session "$SESSION" "$MSG"
+ag note --session "$SESSION" "$MSG"
 echo "$MSG"
