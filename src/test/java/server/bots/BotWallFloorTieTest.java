@@ -5,6 +5,7 @@ import constants.game.CharacterStance;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import server.maps.MapleMap;
+import testutil.RequiresWz;
 
 import java.awt.Point;
 import java.nio.file.Path;
@@ -26,6 +27,7 @@ import static org.mockito.Mockito.when;
  * into the wall with no lift met the wall and the floor in the same column; the wall won, the bot hung at the
  * floor's height and the straight fall after it dropped through the floor into the pit (SipsBuddy3 froze there).
  */
+@RequiresWz
 class BotWallFloorTieTest {
     private static final int HELIOS_99F = 222020200;
     private static final int FLOOR_Y = 2040;

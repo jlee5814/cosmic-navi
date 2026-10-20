@@ -5,6 +5,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import server.maps.Foothold;
 import server.maps.MapleMap;
+import testutil.RequiresWz;
 
 import java.nio.file.Path;
 
@@ -17,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Shrine 800000000 fh 252 under a roof (39 edges from it landed elsewhere in the sweep).
  */
 class BotPhantomRegionTest {
+    @RequiresWz
     @ParameterizedTest
     @CsvSource({"220000100,25", "800000000,252"})
     void noRegionIsBuiltFromAFootholdDrawnRightToLeft(int mapId, int footholdId) {

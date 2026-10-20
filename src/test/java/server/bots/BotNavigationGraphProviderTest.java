@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import server.maps.Foothold;
 import server.maps.MapleMap;
 import server.maps.Rope;
+import testutil.RequiresWz;
 
 import java.awt.*;
 import java.io.IOException;
@@ -107,6 +108,7 @@ class BotNavigationGraphProviderTest {
         return out;
     }
 
+    @RequiresWz
     @Test
     void shouldGenerateWellFormedTeleportEdges() {
         List<BotNavigationGraph.Edge> teleports = new ArrayList<>();
@@ -138,6 +140,7 @@ class BotNavigationGraphProviderTest {
         assertTrue(sawWindow, "expected at least one teleport edge to carry a non-degenerate launch window");
     }
 
+    @RequiresWz
     @Test
     void shouldGenerateFlashJumpEdges() {
         List<BotNavigationGraph.Edge> fjEdges = new ArrayList<>();
@@ -159,6 +162,7 @@ class BotNavigationGraphProviderTest {
         assertTrue(sawWindow, "expected at least one flash-jump edge to carry a non-degenerate launch window");
     }
 
+    @RequiresWz
     @Test
     void walkOnlyPathExcludesSkillEdges() {
         // The default findPath runs the walk-only search (skillsEnabled=false): even though teleport/
@@ -171,6 +175,7 @@ class BotNavigationGraphProviderTest {
         }
     }
 
+    @RequiresWz
     @Test
     void committedRouteIsFollowedForwardToGoalWithoutFlipFlop() {
         // GearArrow root cause: the best first hop out of a region is position-dependent, but the
@@ -208,6 +213,7 @@ class BotNavigationGraphProviderTest {
         assertEquals(goalRegion, region, "committed route reaches the goal region");
     }
 
+    @RequiresWz
     @Test
     void committedBestEffortRouteDoesNotCycleWhenPortalRegionSearchCaps() {
         // pathlog-DecembeR-2026-06-26T034055: target portal region r1 is far above the bot in
@@ -257,6 +263,7 @@ class BotNavigationGraphProviderTest {
         }
     }
 
+    @RequiresWz
     @Test
     void shouldKeepHenesysLowerTownStreetInOneMergedRegion() {
         int firstRegionId = henesysGraph().findRegionId(henesys(), new Point(990, 334));
@@ -266,6 +273,7 @@ class BotNavigationGraphProviderTest {
         assertTrue(firstRegionId > 0);
     }
 
+    @RequiresWz
     @Test
     void shouldGenerateDirectHenesysJumpEdgeFromBelowToFoothold315() {
         Point start = new Point(1080, 334);
@@ -289,6 +297,7 @@ class BotNavigationGraphProviderTest {
      * stops on the narrow ledges) and need no runway: a directional jump launch snaps to
      * ±walkSpeed regardless of ground speed.
      */
+    @RequiresWz
     @Test
     void shouldChainElNathTrickyJumpFootholdsWithConsecutiveJumpEdges() {
         int[] chain = {171, 262, 264, 267, 277, 278, 279};
@@ -306,6 +315,7 @@ class BotNavigationGraphProviderTest {
 
     /** Same capture session: foothold 258 (x 351..366, y -28) is reachable from BELOW by
      *  jumping (user-verified in the real client at speed100/jump100, no snowshoes). */
+    @RequiresWz
     @Test
     void shouldReachElNathFoothold258FromBelowByJumping() {
         int targetRegionId = elNathGraph().regionIdByFootholdId.getOrDefault(258, -1);
@@ -318,6 +328,7 @@ class BotNavigationGraphProviderTest {
         assertTrue(reachableFromBelow, "foothold 258 must have a JUMP edge launched from below it");
     }
 
+    @RequiresWz
     @Test
     void shouldFindSingleJumpPathFromHenesysStreetToUpperPlatform() {
         Point start = new Point(1080, 334);
@@ -332,6 +343,7 @@ class BotNavigationGraphProviderTest {
         assertJumpEdgeLandsInRegion(henesysGraph(), henesys(), path.getFirst(), targetRegionId);
     }
 
+    @RequiresWz
     @Test
     void shouldFindSingleJumpPathFromHenesysStreetToLeftUpperPlatform() {
         int targetRegionId = henesysGraph().findRegionId(henesys(), new Point(938, 274));
@@ -343,6 +355,7 @@ class BotNavigationGraphProviderTest {
         assertJumpEdgeLandsInRegion(henesysGraph(), henesys(), path.getFirst(), targetRegionId);
     }
 
+    @RequiresWz
     @Test
     void shouldNotLaunchHenesysLeftPlatformJumpFromWallBlockedBoundary() {
         Point blockedStart = new Point(939, 334);
@@ -362,6 +375,7 @@ class BotNavigationGraphProviderTest {
                 "jumping from the blocked boundary should not be treated as a valid upper-platform launch");
     }
 
+    @RequiresWz
     @Test
     void shouldGenerateLocalHenesysJumpEdgesNearRightWall() {
         int lowerRegionId = henesysGraph().findRegionId(henesys(), new Point(3711, 454));
@@ -372,6 +386,7 @@ class BotNavigationGraphProviderTest {
         assertHasHenesysJumpEdge(middleRegionId, upperRegionId);
     }
 
+    @RequiresWz
     @Test
     void shouldGenerateKpqRopeTransferPathToRightUpperPlatform() {
         int leftRopeRegionId = kpqS1Graph().findRopeRegionId(new Point(-437, -892));
@@ -394,6 +409,7 @@ class BotNavigationGraphProviderTest {
         assertEquals(targetRegionId, path.getLast().toRegionId);
     }
 
+    @RequiresWz
     @Test
     void shouldResolveOwnerToUpperPlatformWhenPositionHasSubpixelRounding() {
         // Regression: pathlog-SLASH-2026-04-02T125933 — owner at (2596,1696), bot at (2573,1935),
@@ -408,6 +424,7 @@ class BotNavigationGraphProviderTest {
         assertNotEquals(ownerRegionId, botRegionId, "Owner on upper platform and bot on lower platform must be in different regions");
     }
 
+    @RequiresWz
     @Test
     void shouldCaptureGraphBuildReportForRebuild() {
         BotNavigationGraph graph = BotNavigationGraphProvider.rebuildGraph(kpqS1());
@@ -420,6 +437,7 @@ class BotNavigationGraphProviderTest {
         assertTrue(report.totalEdgeCount > 0);
     }
 
+    @RequiresWz
     @Test
     void shouldPrecomputeLaunchWindowForKerningConstructionSlopeJump() {
         List<BotNavigationGraph.Edge> path = findPath(kpqS1Graph(), kpqS1(),
@@ -621,6 +639,7 @@ class BotNavigationGraphProviderTest {
                 graph, map, dropCase.earlyStart(), dropCase.edge()));
     }
 
+    @RequiresWz
     @Test
     void shouldAllowJumpExecutionFromAlternativeStartWhenLandingRegionMatches() {
         AlternativeJumpCase jumpCase = findJumpCaseWithAlternativeStart(henesysGraph(), henesys());
@@ -748,6 +767,7 @@ class BotNavigationGraphProviderTest {
                 "expected a CLIMB entry onto the rope so the bot can still descend without the phantom DROP");
     }
 
+    @RequiresWz
     @Test
     void bumpyKerningSwampIsSameRegion() {
         assertEquals(swamp1Graph().findRegionId(swamp1(), new Point(1378, 123)), swamp1Graph().findRegionId(swamp1(), new Point(-1723, 118)));
@@ -780,6 +800,7 @@ class BotNavigationGraphProviderTest {
         assertEquals(ownerRegionId, path.getFirst().toRegionId);
     }
 
+    @RequiresWz
     @Test
     void shouldTrimJumpWindowAtInvalidInteriorWallBoundary() {
         MapleMap map = BotNavigationMapLoader.loadMapGeometry(100000202);
@@ -818,6 +839,7 @@ class BotNavigationGraphProviderTest {
         }
     }
 
+    @RequiresWz
     @Test
     void shouldTrimJumpWindowThatFallsOffLandingPlatformWithMomentum() {
         MapleMap map = BotNavigationMapLoader.loadMapGeometry(100000202);
@@ -855,6 +877,7 @@ class BotNavigationGraphProviderTest {
                 "jump launch windows must exclude launches that immediately walk off the landing platform");
     }
 
+    @RequiresWz
     @Test
     void shouldNotGenerateKerningPharmacyJumpIntoBlockedUnderside() {
         BotMovementProfile profile = new BotMovementProfile(105, 100);
@@ -879,6 +902,7 @@ class BotNavigationGraphProviderTest {
                 "jump window must exclude launches that hit the pharmacy box underside");
     }
 
+    @RequiresWz
     @Test
     void shouldNotGenerateMushroomShrineJumpIntoDoughnutUnderside() {
         BotMovementProfile profile = new BotMovementProfile(110, 100);
@@ -904,6 +928,7 @@ class BotNavigationGraphProviderTest {
                 "jump window must exclude launches that hit the doughnut underside");
     }
 
+    @RequiresWz
     @Test
     void shouldNotPathThroughRopeOscillationLoop() {
         // Regression: pathlog-Leroy-2026-05-07T081138 — bot grounded on a foothold (r=31)
@@ -932,6 +957,7 @@ class BotNavigationGraphProviderTest {
                         + " r" + first.fromRegionId + "->r" + first.toRegionId);
     }
 
+    @RequiresWz
     @Test
     void shouldAssignNonZeroCostToSnapClimbEdges() {
         BotNavigationGraph graph = kerningGraph();
@@ -946,6 +972,7 @@ class BotNavigationGraphProviderTest {
                         + " never ties the direct path with a useless rope detour");
     }
 
+    @RequiresWz
     @Test
     void shouldDiscoverJumpEdgesAcrossWideIntermediatePlatform() {
         // Regression: pathlog-Clawer-2026-05-07T062632 — at base profile (100%) the bot at
@@ -992,6 +1019,7 @@ class BotNavigationGraphProviderTest {
     // Regression: a stuck-follower report (pathlog-Leroy/Preston, Orbis station 200000000) showed
     // bots stranded on lower ledges with "no path found" up to the party on the main platform.
     // Those regions must stay connected; this pins the route both ways.
+    @RequiresWz
     @Test
     void shouldConnectOrbisStationLowerLedgesToUpperPlatform() {
         MapleMap map = BotNavigationMapLoader.loadMapGeometry(200000000);
@@ -1017,6 +1045,7 @@ class BotNavigationGraphProviderTest {
     // beside the ladder) must get a jump-grab CLIMB edge onto it. The grab was missing because the
     // reach model only counted the jump arc back to launch height; a rope that extends below the
     // ledge lets the bot drift through the descent and catch it ~96px out (vs the 81px gap here).
+    @RequiresWz
     @Test
     void shouldJumpGrabOrbisLadderMidwayFromAdjacentLedge() {
         MapleMap map = BotNavigationMapLoader.loadMapGeometry(200000000);

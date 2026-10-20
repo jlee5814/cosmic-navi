@@ -1,6 +1,7 @@
 package server.bots;
 
 import org.junit.jupiter.api.Test;
+import testutil.RequiresWz;
 
 import java.util.List;
 import java.util.Map;
@@ -140,6 +141,7 @@ class BotQuestIndexTest {
      * Quest.isAutoStart()/isAutoComplete() flag. (The original scout's "29" was a miscount.)
      * Quest 1019 completes at NPC 12100 by killing Green Snail (100100) x10, start NPC 2005.
      */
+    @RequiresWz
     @org.junit.jupiter.api.Test
     void shouldBuildRealIndexFromWz() {
         BotQuestIndex.Index index = BotQuestIndex.get();
@@ -169,6 +171,7 @@ class BotQuestIndexTest {
      * indexed with talk=true. 1035 Todd's Hunting Method kills Jr. Sentinel 9300018 and hands in item
      * 4031802 — a FETCH quest (obtain mob-drop, deliver), now bot-runnable and indexed with that item.
      */
+    @RequiresWz
     @org.junit.jupiter.api.Test
     void shouldIndexTheTutorialTalkQuests() {
         BotQuestIndex.Index index = BotQuestIndex.get();

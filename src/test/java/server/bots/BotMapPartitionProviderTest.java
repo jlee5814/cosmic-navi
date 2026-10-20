@@ -2,6 +2,7 @@ package server.bots;
 
 import org.junit.jupiter.api.Test;
 import server.maps.MapManager;
+import testutil.RequiresWz;
 
 import java.nio.file.Path;
 
@@ -18,6 +19,7 @@ import static org.mockito.Mockito.when;
  * thread (a WZ parse that also spawns its monsters stalled ticks for up to a second); its partition is
  * derived from geometry in the background instead.
  */
+@RequiresWz
 class BotMapPartitionProviderTest {
     @Test
     void anUnloadedMapIsNeverLoadedOnTheCallersThreadAndItsPartitionArrivesLater() throws InterruptedException {

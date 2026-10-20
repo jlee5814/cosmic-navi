@@ -2,12 +2,14 @@ package server.bots;
 
 import org.junit.jupiter.api.Test;
 import server.bots.combat.BotMobHitboxProvider;
+import testutil.RequiresWz;
 
 import java.awt.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+@RequiresWz
 class BotMobHitboxProviderTest {
     @Test
     void shouldUseStandZeroBoundsForRightFacingMob() {

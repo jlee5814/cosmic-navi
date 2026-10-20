@@ -4,6 +4,7 @@ import client.Character;
 import org.junit.jupiter.api.Test;
 import server.maps.FieldLimit;
 import server.maps.MapleMap;
+import testutil.RequiresWz;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -50,6 +51,7 @@ class BotMovementProfileTest {
         assertEquals(BotMovementProfile.base(), profile);
     }
 
+    @RequiresWz
     @Test
     void shouldLoadPetWalkingRoadMovementSkillLimit() {
         MapleMap map = BotNavigationMapLoader.loadMapGeometry(100000202);
