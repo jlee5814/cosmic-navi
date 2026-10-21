@@ -78,8 +78,8 @@ class BotMapChangePhysicsTest {
             BotManager.getInstance().runCommonTickSystemsForTest(entry, bot, null, false);
         }
 
-        assertEquals(HELIOS_99F, entry.lastMapId, "the map change reset ran");
         assertTrue(bot.getPosition().y <= ELEVATOR_FLOOR_Y, "fell into the pit from 100F's coordinates: " + bot.getPosition());
+        assertEquals(HELIOS_99F, entry.lastMapId, "the map change reset ran");
     }
 
     private static BotEntry fallingCaster(Character bot, int lastMapId) {
