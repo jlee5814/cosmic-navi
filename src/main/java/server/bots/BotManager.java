@@ -3605,6 +3605,46 @@ public class BotManager {
         boolean perf = BotPerformanceMonitor.enabled();
         clearFollowActionMoveWindowIfSettled(entry, botPos, targetSnapshot);
 
+        // On any map change (legacy warp landing, travel portal hop, NPC-triggered portal):
+        // rebuild footholds, reset physics, and snap to ground BEFORE anything steps physics or
+        // decides — none of those may act on stale footholds or a half-landed position. The
+        // physics integrator carries the old map's coordinates until spawnIntoMap resets it, so
+        // an action-locked or idle bot stepped before this replayed them on the new map
+        // (SipsBuddy1 fell into Helios 100F's under portal mid-cast and landed in 99F's sealed pit).
+        if (entry.lastMapId != bot.getMapId()) {
+            if (!perf) {
+                entry.lastMapId = bot.getMapId();
+                BotPhysicsEngine.spawnIntoMap(entry, bot); // snap, or fall-by-gravity if dropped above the floor
+                BotMovementManager.resetEntryStateAfterTeleport(entry);
+                BotNavigationGraphProvider.warmGraphAsync(bot.getMap(), entry.movementProfile);
+                BotMovementManager.broadcastMovement(entry);
+                if (BotPqHooks.requiresGrind(entry, bot)) { issueGrind(entry); }
+                else if (BotPqHooks.requiresFollow(entry, bot) && entry.owner != bot) { issueFollowOwner(entry); }
+                else { entry.kpq.stage5Claimed = false; } // left KPQ — reset for next run
+                BotShopManager.onMapChange(entry, bot);
+                armPostWarpQuiet(entry);
+                BotChatManager.checkBotStatus(entry, bot);
+            } else {
+                long tMapChange = System.nanoTime();
+                try {
+                    entry.lastMapId = bot.getMapId();
+                    BotPhysicsEngine.spawnIntoMap(entry, bot); // snap, or fall-by-gravity if dropped above the floor
+                    BotMovementManager.resetEntryStateAfterTeleport(entry);
+                    BotNavigationGraphProvider.warmGraphAsync(bot.getMap(), entry.movementProfile);
+                    BotMovementManager.broadcastMovement(entry);
+                    if (BotPqHooks.requiresGrind(entry, bot)) { issueGrind(entry); }
+                    else if (BotPqHooks.requiresFollow(entry, bot) && entry.owner != bot) { issueFollowOwner(entry); }
+                    else { entry.kpq.stage5Claimed = false; } // left KPQ — reset for next run
+                    BotShopManager.onMapChange(entry, bot);
+                    armPostWarpQuiet(entry);
+                    BotChatManager.checkBotStatus(entry, bot);
+                } finally {
+                    BotPerformanceMonitor.record("tick-map-change", System.nanoTime() - tMapChange);
+                }
+            }
+            return;
+        }
+
         // These run in all modes (idle, follow, grind)
         long tCommonTrace = BotPerformanceMonitor.startStallPhase();
         if (runCommonTickSystems(entry, bot, owner, runAiTick)) {
@@ -3650,43 +3690,6 @@ public class BotManager {
             if (idleConsumed) {
                 return;
             }
-        }
-
-        // On any map change (legacy warp landing, travel portal hop, NPC-triggered portal):
-        // rebuild footholds, reset physics, and snap to ground BEFORE any follow/warp/recovery
-        // decision runs — none of those may act on stale footholds or a half-landed position.
-        if (entry.lastMapId != bot.getMapId()) {
-            if (!perf) {
-                entry.lastMapId = bot.getMapId();
-                BotPhysicsEngine.spawnIntoMap(entry, bot); // snap, or fall-by-gravity if dropped above the floor
-                BotMovementManager.resetEntryStateAfterTeleport(entry);
-                BotNavigationGraphProvider.warmGraphAsync(bot.getMap(), entry.movementProfile);
-                BotMovementManager.broadcastMovement(entry);
-                if (BotPqHooks.requiresGrind(entry, bot)) { issueGrind(entry); }
-                else if (BotPqHooks.requiresFollow(entry, bot) && entry.owner != bot) { issueFollowOwner(entry); }
-                else { entry.kpq.stage5Claimed = false; } // left KPQ — reset for next run
-                BotShopManager.onMapChange(entry, bot);
-                armPostWarpQuiet(entry);
-                BotChatManager.checkBotStatus(entry, bot);
-            } else {
-                long tMapChange = System.nanoTime();
-                try {
-                    entry.lastMapId = bot.getMapId();
-                    BotPhysicsEngine.spawnIntoMap(entry, bot); // snap, or fall-by-gravity if dropped above the floor
-                    BotMovementManager.resetEntryStateAfterTeleport(entry);
-                    BotNavigationGraphProvider.warmGraphAsync(bot.getMap(), entry.movementProfile);
-                    BotMovementManager.broadcastMovement(entry);
-                    if (BotPqHooks.requiresGrind(entry, bot)) { issueGrind(entry); }
-                    else if (BotPqHooks.requiresFollow(entry, bot) && entry.owner != bot) { issueFollowOwner(entry); }
-                    else { entry.kpq.stage5Claimed = false; } // left KPQ — reset for next run
-                    BotShopManager.onMapChange(entry, bot);
-                    armPostWarpQuiet(entry);
-                    BotChatManager.checkBotStatus(entry, bot);
-                } finally {
-                    BotPerformanceMonitor.record("tick-map-change", System.nanoTime() - tMapChange);
-                }
-            }
-            return;
         }
 
         // Logging out: retreat to a safe town and stand at a random spot until the linger deadline,
@@ -5571,8 +5574,11 @@ public class BotManager {
         if (perf) t = System.nanoTime();
         // Collision/pit portals (WZ pt=3) the client would auto-fire: warp if the bot is sitting on one
         // (climbed/walked onto it, or got knocked into a pit) - runs in every mode, intent-independent.
-        BotTravelManager.tickCollisionPortal(entry, bot);
+        boolean warped = BotTravelManager.tickCollisionPortal(entry, bot);
         if (perf) BotPerformanceMonitor.record("common-collision-portal", System.nanoTime() - t);
+        if (warped) {
+            return true; // the warp ends the tick: the map change reset runs before physics steps again
+        }
         if (perf) t = System.nanoTime();
         // Ad-hoc party-up: a solo autopilot bot may offer to party a co-located solo bot (self-gated cooldown).
         BotSocialManager.tick(entry, bot);
