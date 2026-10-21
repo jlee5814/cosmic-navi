@@ -75,7 +75,7 @@ class BotMapChangePhysicsTest {
         entry.physY = UNDER01.y;
 
         for (int tick = 0; tick < 40; tick++) {
-            BotManager.getInstance().runTickForTest(entry);
+            BotManager.getInstance().runCommonTickSystemsForTest(entry, bot, null, false);
         }
 
         assertEquals(HELIOS_99F, entry.lastMapId, "the map change reset ran");
