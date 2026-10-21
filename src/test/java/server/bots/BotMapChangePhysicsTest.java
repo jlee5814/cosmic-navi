@@ -92,6 +92,8 @@ class BotMapChangePhysicsTest {
         entry.attackCooldownMs = 600; // mid-cast: the action lock steps physics
         entry.lastMapId = lastMapId;
         entry.lastHeartbeatAtMs = System.currentTimeMillis();
+        entry.spawnWarmupMs = 0; // past the login idle
+        entry.skipDelayMs = 0;
         return entry;
     }
 
