@@ -113,4 +113,24 @@ class BotPersonalityTest {
         assertTrue(hardcore.isHardcore());
         assertTrue(hardcore.engagementMultiplier(200) >= 0.6, "hardcore barely decays");
     }
+
+    @Test
+    void avoidMapsRoundTripAndSurviveCopies() {
+        BotPersonality p = BotPersonality.random(77L).withAvoidMaps(java.util.Set.of(200081600, 200081500));
+        String blob = p.serialize();
+        assertTrue(blob.endsWith(";avoidMaps=200081500,200081600"), blob);
+        assertEquals(java.util.Set.of(200081500, 200081600), BotPersonality.parse(blob).avoidMapIds());
+        // parking and owner career saves rewrite the whole blob; the list must ride along
+        assertEquals(p.avoidMapIds(), p.withRosterActive(false).avoidMapIds());
+        assertEquals(p.avoidMapIds(), p.withPlannedJobs(null, null).avoidMapIds());
+    }
+
+    @Test
+    void noAvoidMapsLeavesTheBlobUnchanged() {
+        BotPersonality p = BotPersonality.random(77L);
+        assertTrue(p.avoidMapIds().isEmpty());
+        assertTrue(!p.serialize().contains("avoidMaps"), "existing blobs keep their exact form");
+        assertTrue(BotPersonality.parse("v=1;avoidMaps=12,x").avoidMapIds().isEmpty(), "garbled list reads as none");
+        assertTrue(BotPersonality.parse("v=1;avoidMaps=-5").avoidMapIds().isEmpty());
+    }
 }

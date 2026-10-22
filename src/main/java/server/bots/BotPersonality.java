@@ -35,8 +35,24 @@ public record BotPersonality(
         int ownerJobTargetId,       // terminal job; -1 reads the legacy Bishop plan
         int trainingLevelTarget,   // 0 = keep farming; otherwise stop training once reached
         String rosterRole,         // nonempty = owner roster
-        boolean rosterActive       // restore this owner roster character at server boot
+        boolean rosterActive,      // restore this owner roster character at server boot
+        java.util.Set<Integer> avoidMapIds // owner set maps this bot never routes into (a trap its nav can't pass)
 ) {
+    public BotPersonality {
+        avoidMapIds = avoidMapIds == null ? java.util.Set.of() : java.util.Set.copyOf(avoidMapIds);
+    }
+
+    public BotPersonality(long seed, double daysActiveRatio, int[] hourWeights, int sessionLenMeanMin,
+                          double farmIdleRatio, double breakFreqPerHour, int breakLenMeanMin,
+                          double sociability, double chattiness, double riskTolerance, Archetype career,
+                          int careerLenDays, int plannedFirstJobId, int plannedSecondJobId, boolean ownerJobPlan,
+                          int ownerJobTargetId, int trainingLevelTarget, String rosterRole, boolean rosterActive) {
+        this(seed, daysActiveRatio, hourWeights, sessionLenMeanMin, farmIdleRatio, breakFreqPerHour,
+                breakLenMeanMin, sociability, chattiness, riskTolerance, career, careerLenDays,
+                plannedFirstJobId, plannedSecondJobId, ownerJobPlan, ownerJobTargetId, trainingLevelTarget,
+                rosterRole, rosterActive, java.util.Set.of());
+    }
+
     /** Career arc: how long a bot stays interested before it "leaves". HARDCORE never retires (capped count). */
     public enum Archetype { TOURIST, CASUAL, REGULAR, HARDCORE }
 
@@ -133,7 +149,7 @@ public record BotPersonality(
         return new BotPersonality(seed, daysActiveRatio, hourWeights, sessionLenMeanMin, farmIdleRatio,
                 breakFreqPerHour, breakLenMeanMin, sociability, chattiness, riskTolerance, career, careerLenDays,
                 first == null ? 0 : first.getId(), second == null ? 0 : second.getId(), ownerJobPlan,
-                ownerJobTargetId, trainingLevelTarget, rosterRole, rosterActive);
+                ownerJobTargetId, trainingLevelTarget, rosterRole, rosterActive, avoidMapIds);
     }
 
     public BotPersonality withOwnerPlannedJobs(client.Job first, client.Job second) {
@@ -146,14 +162,21 @@ public record BotPersonality(
         return new BotPersonality(seed, daysActiveRatio, hourWeights, sessionLenMeanMin, farmIdleRatio,
                 breakFreqPerHour, breakLenMeanMin, sociability, chattiness, riskTolerance, career, careerLenDays,
                 plan.first() == null ? 0 : plan.first().getId(), plan.second() == null ? 0 : plan.second().getId(),
-                true, plan.goal().getId(), Math.max(0, targetLevel), role, rosterActive);
+                true, plan.goal().getId(), Math.max(0, targetLevel), role, rosterActive, avoidMapIds);
     }
 
     BotPersonality withRosterActive(boolean active) {
         return new BotPersonality(seed, daysActiveRatio, hourWeights, sessionLenMeanMin, farmIdleRatio,
                 breakFreqPerHour, breakLenMeanMin, sociability, chattiness, riskTolerance, career, careerLenDays,
                 plannedFirstJobId, plannedSecondJobId, ownerJobPlan, ownerJobTargetId, trainingLevelTarget,
-                rosterRole, active);
+                rosterRole, active, avoidMapIds);
+    }
+
+    BotPersonality withAvoidMaps(java.util.Set<Integer> maps) {
+        return new BotPersonality(seed, daysActiveRatio, hourWeights, sessionLenMeanMin, farmIdleRatio,
+                breakFreqPerHour, breakLenMeanMin, sociability, chattiness, riskTolerance, career, careerLenDays,
+                plannedFirstJobId, plannedSecondJobId, ownerJobPlan, ownerJobTargetId, trainingLevelTarget,
+                rosterRole, rosterActive, maps);
     }
 
     client.Job ownerJobGoal() {
@@ -345,7 +368,9 @@ public record BotPersonality(
                 + ";trainingLevel=" + trainingLevelTarget
                 + ";rosterRole=" + java.util.Base64.getUrlEncoder().withoutPadding()
                     .encodeToString(rosterRole.getBytes(java.nio.charset.StandardCharsets.UTF_8))
-                + ";rosterActive=" + rosterActive;
+                + ";rosterActive=" + rosterActive
+                + (avoidMapIds.isEmpty() ? "" : ";avoidMaps=" + avoidMapIds.stream().sorted()
+                    .map(String::valueOf).collect(java.util.stream.Collectors.joining(",")));
     }
 
     /** Parse a saved blob; any missing/garbled field falls back to {@link #defaults()} (forward-compatible). */
@@ -363,6 +388,7 @@ public record BotPersonality(
         boolean rosterActive = true;
         int ownerJobTarget = -1, trainingLevel = 0;
         String rosterRole = "";
+        java.util.Set<Integer> avoidMaps = java.util.Set.of();
         int[] hours = d.hourWeights;
         Archetype career = d.career;
         for (String part : blob.split(";")) {
@@ -390,6 +416,7 @@ public record BotPersonality(
                     case "ownerJobTarget" -> ownerJobTarget = Integer.parseInt(v);
                     case "trainingLevel" -> trainingLevel = Math.max(0, Integer.parseInt(v));
                     case "rosterActive" -> rosterActive = Boolean.parseBoolean(v);
+                    case "avoidMaps" -> avoidMaps = parseMapIds(v);
                     case "rosterRole" -> rosterRole = new String(java.util.Base64.getUrlDecoder().decode(v),
                             java.nio.charset.StandardCharsets.UTF_8);
                     default -> { /* unknown key: ignore (forward-compat) */ }
@@ -399,7 +426,19 @@ public record BotPersonality(
             }
         }
         return new BotPersonality(seed, days, hours, sess, farm, bfreq, blen, soc, chat, risk, career, clen,
-                pj1, pj2, ownerJobPlan, ownerJobTarget, trainingLevel, rosterRole, rosterActive);
+                pj1, pj2, ownerJobPlan, ownerJobTarget, trainingLevel, rosterRole, rosterActive, avoidMaps);
+    }
+
+    /** {@code avoidMaps=200081600,200081500}: positive map ids; a garbled list falls back to none. */
+    private static java.util.Set<Integer> parseMapIds(String v) {
+        java.util.Set<Integer> out = new java.util.TreeSet<>();
+        for (String part : v.split(",")) {
+            if (part.isBlank()) continue;
+            int id = Integer.parseInt(part.trim());
+            if (id <= 0) throw new NumberFormatException("map id " + id);
+            out.add(id);
+        }
+        return out;
     }
 
     private static int[] parseHours(String v, int[] fallback) {

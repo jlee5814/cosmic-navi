@@ -167,8 +167,20 @@ final class BotAutopilotManager {
      * empty gate (no pruning).
      */
     static IntPredicate routeBlockFor(Character bot) {
-        return m -> isDangerRegionBlocked(bot, m) || isDangerRegionBlocked(bot, BotWorldGraph.returnMapOf(m));
+        java.util.Set<Integer> avoid = persistedAvoidMaps.apply(bot);
+        return m -> avoid.contains(m)
+                || isDangerRegionBlocked(bot, m) || isDangerRegionBlocked(bot, BotWorldGraph.returnMapOf(m));
     }
+
+    /** The owner's standing avoid list ({@code avoidMaps} in bot_config, {@link BotPersonality#avoidMapIds}): maps
+     *  this bot never routes into, for a trap its navigation can't pass. SipsBuddy29 climbed Orbis Tower 6F's rope
+     *  into a Leatty camped at the exit, fell, and climbed again for a day; each rescue scrolled it to El Nath, back
+     *  under the same rope. Unlike the death loop and unreachable avoids this one persists across restarts. A route
+     *  only refuses to enter a blocked map, so a bot standing on one still walks out. Test seam. */
+    static java.util.function.Function<Character, java.util.Set<Integer>> persistedAvoidMaps = bot -> {
+        BotEntry entry = bot == null ? null : BotManager.getInstance().getEntryByBotCharId(bot.getId());
+        return entry == null || entry.personality == null ? java.util.Set.of() : entry.personality.avoidMapIds();
+    };
 
     /** Maps a grind plan may send this bot to: {@link #reachableForBot}'s danger gate plus the maps it is avoiding
      *  (a death loop, or a target travel found no way to). Solo, farm and party decisions all read this one set. */
