@@ -271,6 +271,10 @@ independent owned bot back into your companion group using the existing recruitm
 An inactive storage character can be summoned for one session with `@spawnbot SipsBuddy61`;
 this does not change its saved startup preference. Set `rosterActive=true` in its saved profile
 to restore automatic login. SipsBuddy61–100 are parked offline in the recorded roster.
+A saved `avoidMaps=<mapId>,<mapId>` keeps a bot from routing into those maps (travel and the grind or
+scroll hunt plan both skip them) for a trap its navigation can't pass; unlike the death loop avoid it
+survives restarts. A bot standing on an avoided map still walks out. Edit the profile with the bot offline
+(or restart after), since the profile loads at spawn.
 
 Quest roles use the existing automatic quest system. Market, logistics, and storage roles are
 assignments for manual workflows: the roster does not implement market pricing, player-shop
