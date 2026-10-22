@@ -1470,4 +1470,18 @@ class BotAutopilotManagerTest {
             assertEquals(1, seams.replies.size());
         }
     }
+
+    @Test
+    void routeBlockForRefusesTheOwnersAvoidMaps() {
+        Character bot = mock(Character.class);
+        org.mockito.Mockito.when(bot.getLevel()).thenReturn(49);
+        var saved = BotAutopilotManager.persistedAvoidMaps;
+        try {
+            BotAutopilotManager.persistedAvoidMaps = b -> java.util.Set.of(200081600);
+            assertTrue(BotAutopilotManager.routeBlockFor(bot).test(200081600),
+                    "Orbis Tower 6F, the rope SipsBuddy29 kept falling off, is never routed into");
+        } finally {
+            BotAutopilotManager.persistedAvoidMaps = saved;
+        }
+    }
 }
