@@ -87,7 +87,12 @@ def bot_line(b):
             f"party {b['party'] or 'none'} | now: {b['advisor_status']}")
     w = b.get("weapon")
     if w:
-        line += f"\n    weapon: {w['name']} (level {w['req_level']}, attack {w['attack']}, {w['levels_below_bot']} levels below the bot)"
+        line += (f"\n    weapon: {w['name']} (level {w['req_level']}, {w.get('attack_kind', 'attack')} {w['attack']}, "
+                 f"{w['levels_below_bot']} levels below the bot)")
+    up = b.get("weapon_upgrade")
+    if up:
+        line += (f"\n    best affordable weapon it can wear now: {up['weapon']} ({w.get('attack_kind', 'attack')} "
+                 f"{up['attack']}, {up['price']:,} mesos from {up['npc']})")
     if b.get("flags"):
         line += f"\n    flags: {', '.join(b['flags'])}"
     m = b.get("motion")
@@ -127,8 +132,11 @@ def chat(url, system, user, schema, name, max_tokens):
 
 
 def buyable(bot):
-    """Item names the bot's options offer to buy, e.g. 'Zeco' from 'buy Zeco (225,000 mesos from Scott)'."""
-    return {o["weapon"][4:].split(" (")[0] for o in bot.get("options", []) if o["weapon"].startswith("buy ")}
+    """Item names the bot may buy: its weapon_upgrade plus any 'buy Zeco (225,000 mesos from Scott)' option."""
+    names = {o["weapon"][4:].split(" (")[0] for o in bot.get("options", []) if o["weapon"].startswith("buy ")}
+    if bot.get("weapon_upgrade"):
+        names.add(str(bot["weapon_upgrade"]["weapon"]))
+    return names
 
 
 def check(plan, bot, snap):

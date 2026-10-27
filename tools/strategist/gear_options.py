@@ -5,8 +5,9 @@ came with EXP per second worked out (tools/strategist/runs/reading-test). This m
 server's physical damage formulas (Character.calculateMaxBaseDamage, CombatFormulaProvider defense,
 BotGrindAdvisor's 0.72 s attack cycle) closely enough to rank options. It is an estimate: it assumes
 every hit lands, about 1 s of walking per kill and no other bots on the map, caps kills at what the
-spawn points refill, and skips magicians (magic damage is different). A shop weapon counts only if the
-bot meets its level, job and stat requirements today.
+spawn points refill, and gives no EXP per second for magicians (magic damage is different). Every bot,
+magicians included, still gets its best affordable shop weapon (by magic attack for wands and staves).
+A shop weapon counts only if the bot meets its level, job and stat requirements today.
 """
 import subprocess
 import xml.etree.ElementTree as ET
@@ -43,7 +44,7 @@ def weapon_info(item_id):
         return None
     info = _values(_children(ET.parse(path).getroot())["info"])
     num = lambda k: int(info.get(k, 0) or 0)  # noqa: E731
-    return {"req_level": num("reqLevel"), "attack": num("incPAD"), "req_job": num("reqJob"),
+    return {"req_level": num("reqLevel"), "attack": num("incPAD"), "magic_attack": num("incMAD"), "req_job": num("reqJob"),
             "req": {"str": num("reqSTR"), "dex": num("reqDEX"), "int": num("reqINT"), "luk": num("reqLUK")}}
 
 
@@ -134,13 +135,13 @@ def exp_per_second(category, job, d, total_watk, m, pct, lines, mob, bot_level):
 
 
 def worn_weapons(ids):
-    """char id -> (item id, scrolled weapon attack) of the equipped weapon."""
-    sql = ("SELECT i.characterid, i.itemid, e.watk FROM cosmic.inventoryitems i JOIN cosmic.inventoryequipment e "
+    """char id -> (item id, scrolled weapon attack, scrolled magic attack) of the equipped weapon."""
+    sql = ("SELECT i.characterid, i.itemid, e.watk, e.matk FROM cosmic.inventoryitems i JOIN cosmic.inventoryequipment e "
            "ON e.inventoryitemid = i.inventoryitemid WHERE i.inventorytype = -1 AND i.position = -11 "
            f"AND i.characterid IN ({','.join(str(int(i)) for i in ids)})")
     out = subprocess.run(["docker", "exec", "cosmic-local-db-1", "mysql", "-uroot", "-pcosmic-local", "-N", "-e", sql],
                          capture_output=True, text=True).stdout
-    return {int(c): (int(i), int(w)) for c, i, w in (line.split() for line in out.splitlines())}
+    return {int(c): (int(i), int(w), int(m)) for c, i, w, m in (line.split() for line in out.splitlines())}
 
 
 def shop_weapons(npc_names):
@@ -171,16 +172,21 @@ def enrich(bot_debug, fleet_entry, maps, eqp_names, worn, shop):
     flags = fleet_entry.setdefault("flags", [])
     if bot_debug["id"] not in worn:
         return
-    item, scrolled = worn[bot_debug["id"]]
+    item, watk, matk = worn[bot_debug["id"]]
     info = weapon_info(item)
     if info is None:
         return
     category = (item // 10000) % 100
+    # Wands and staves are ranked by magic attack; everything else by weapon attack.
+    magic = category in MAGIC
+    atk_key = "magic_attack" if magic else "attack"
+    scrolled = matk if magic else watk
     fleet_entry["weapon"] = {"name": eqp_names.get(item, f"item {item}"), "req_level": info["req_level"],
-                             "attack": scrolled, "levels_below_bot": level - info["req_level"]}
+                             "attack": scrolled, "attack_kind": "magic attack" if magic else "attack",
+                             "levels_below_bot": level - info["req_level"]}
     if level - info["req_level"] >= GAP_LEVELS and d["meso"] >= GAP_MIN_MESO:
         flags.append("weapon_gap")
-    if category in MAGIC or category not in WEAPON_MULT or fleet_entry.get("cap_reached"):
+    if not magic and category not in WEAPON_MULT:
         return
     # Same weapon category as the worn one stands in for the bot's preferred weapon type.
     upgrades = []
@@ -188,25 +194,31 @@ def enrich(bot_debug, fleet_entry, maps, eqp_names, worn, shop):
         ci = weapon_info(cand)
         if (cand // 10000) % 100 != category or ci is None or price > d["meso"] or not wearable(ci, level, job, d):
             continue
-        if ci["attack"] > scrolled:
-            upgrades.append((ci["attack"], -price, cand, price, npc))
+        if ci[atk_key] > scrolled:
+            upgrades.append((ci[atk_key], -price, cand, price, npc))
     best_buy = max(upgrades) if upgrades else None
+    if best_buy:
+        att, _, cand, price, npc = best_buy
+        fleet_entry["weapon_upgrade"] = {"weapon": eqp_names.get(cand, cand), "attack": att, "price": price, "npc": npc}
     # The best weapon it could afford and has the level and job for, but not the stats: points at an AP
     # build that never raised the stat the next weapons need (the bandits sat at 25 to 30 DEX).
     blocked = []
     for cand, (price, npc) in shop.items():
         ci = weapon_info(cand)
-        if (cand // 10000) % 100 != category or ci is None or price > d["meso"] or ci["attack"] <= scrolled:
+        if (cand // 10000) % 100 != category or ci is None or price > d["meso"] or ci[atk_key] <= scrolled:
             continue
         bit = JOB_BIT.get(job // 100, 0)
         if ci["req_level"] <= level and (ci["req_job"] == 0 or ci["req_job"] & bit) and not wearable(ci, level, job, d):
-            blocked.append((ci["attack"], -price, cand, price, ci))
+            blocked.append((ci[atk_key], -price, cand, price, ci))
     if blocked and (not best_buy or max(blocked)[0] > best_buy[0]):
         att, _, cand, price, ci = max(blocked)
         fleet_entry["upgrade_blocked_by_stats"] = {
             "weapon": eqp_names.get(cand, cand), "attack": att, "price": price,
             "needs": {k: v for k, v in ci["req"].items() if v and d.get(k, 0) < v},
             "has": {k: d.get(k, 0) for k, v in ci["req"].items() if v and d.get(k, 0) < v}}
+    # EXP per second options mirror the physical damage formula only, and idle capped bots get none.
+    if magic or fleet_entry.get("cap_reached"):
+        return
     m = mastery(d.get("skills", {}))
     pct, lines = attack_profile(d, bot_debug.get("atk") or 0)
     weapons = [("current " + fleet_entry["weapon"]["name"], d["watk"], None)]
