@@ -2485,11 +2485,22 @@ class BotInventoryManager {
         static final Map<Integer, Integer> MAX_PER_RECIPE = BotCraftManager.craftingPartsMaxPerRecipe();
     }
 
-    /** The ETC shelf, lowest value first (sold first): NPC meso of the whole stack, then the smaller stack. */
+    /**
+     * The ETC shelf, sold first to last: an item's extra stacks (all but its largest), then one stack of each
+     * kind; within each, lowest NPC meso of the whole stack first, then the smaller stack. Ranking only by stack
+     * value kept a hoard of full stacks forever and sold each fresh single drop instead, so a cramped tab never
+     * freed for long: SipsBuddy1 (2026-11-03) held 23 stacks of Teddy's Yellow Ribbon and went back to town
+     * every few minutes.
+     */
     static List<Item> etcShelf(Character bot) {
         List<Item> shelf = new ArrayList<>();
         collectFromBag(bot, shelf, InventoryType.ETC, item -> onEtcShelf(bot, item.getItemId()));
-        shelf.sort(Comparator.<Item>comparingInt(it -> sellPrice.price(it.getItemId(), it.getQuantity()))
+        Map<Integer, Item> largest = new HashMap<>();
+        for (Item item : shelf) {
+            largest.merge(item.getItemId(), item, (a, b) -> b.getQuantity() > a.getQuantity() ? b : a);
+        }
+        shelf.sort(Comparator.<Item, Boolean>comparing(it -> largest.get(it.getItemId()) == it)
+                .thenComparingInt(it -> sellPrice.price(it.getItemId(), it.getQuantity()))
                 .thenComparingInt(Item::getQuantity));
         return shelf;
     }
