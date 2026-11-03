@@ -48,6 +48,18 @@ class StuckTrackerTest(unittest.TestCase):
         out = st.sightings_from(snap)
         self.assertEqual([(o["bot"], o["x"], o["y"]) for o in out], [("a", 5, 6)])
 
+    def test_frozen_rescues_become_sightings_that_recur(self):
+        # SipsBuddy38: scrolled out of Dangerous Sea Gorge I over and over, never frozen at snapshot time.
+        lines = ["1793600000000\t291\tSipsBuddy38\t230040000\tDangerous Sea Gorge I\t412\t-85\tfrozen 20 min",
+                 "1793603600000\t291\tSipsBuddy38\t230040000\tDangerous Sea Gorge I\t420\t-85\tfrozen 27 min",
+                 "1793607200000\t281\tSipsBuddy28\t230040000\tDangerous Sea Gorge I\t0\t0\tbusy 45 min with no EXP",
+                 "bad line"]
+        out = st.rescue_sightings(lines)
+        self.assertEqual([(o["bot"], o["x"], o["flag"]) for o in out],
+                         [("SipsBuddy38", 412, "frozen"), ("SipsBuddy38", 420, "frozen")])
+        self.assertEqual(len(st.spots(out)), 1)
+        self.assertTrue(st.recurs(st.spots(out)[0]), "the same bot an hour apart")
+
 
 if __name__ == "__main__":
     unittest.main()
