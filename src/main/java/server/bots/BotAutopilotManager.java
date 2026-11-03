@@ -2294,6 +2294,7 @@ final class BotAutopilotManager {
             entry.huntMapId = -1;
             return;
         }
+        entry.huntItemId = wanted.itemId(); // the claim other hunters read, current even when the map stays
         if (entry.huntMapId == rec.pick().mapId()) {
             return;
         }

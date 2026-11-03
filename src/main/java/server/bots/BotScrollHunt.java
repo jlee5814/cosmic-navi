@@ -27,9 +27,12 @@ final class BotScrollHunt {
     /** Per scroll id the fleet lacks, its weight: copies short times the expected gain of one use. Scrolls of one
      *  gear type that grant the same stats are substitutes (a 10%, a 60% and a 100% weapon attack scroll fill the same
      *  slots), so they share one shortfall: the most members any of them suits, less every copy of any of them the
-     *  fleet holds. Pure over the snapshot and the item rules. */
+     *  fleet holds. Each other hunter of the fleet already on a kind ({@code claimedByKind}) claims one copy of its
+     *  shortfall, so the hunters spread over the fleet's wants instead of all farming the top one (six hunters
+     *  were on one helmet DEF scroll, 2026-11-03). Pure over the snapshot, the claims and the item rules. */
     static Map<Integer, Double> wanted(BotStorageMuleManager.Directory dir, int hunterId,
-                                       BotOfferManager.ScrollRules rules, Set<Integer> candidates) {
+                                       BotOfferManager.ScrollRules rules, Set<Integer> candidates,
+                                       Map<String, Integer> claimedByKind) {
         Integer owner = dir == null ? null : dir.ownerOf().get(hunterId);
         List<BotStorageMuleManager.Member> fleet = owner == null ? List.of()
                 : dir.membersByOwner().getOrDefault(owner, List.of());
@@ -64,7 +67,8 @@ final class BotScrollHunt {
         Map<Integer, Double> out = new HashMap<>();
         evById.forEach((sid, ev) -> {
             String kind = substituteKind(rules, sid);
-            int shortBy = takersByKind.getOrDefault(kind, 0) - heldByKind.getOrDefault(kind, 0);
+            int shortBy = takersByKind.getOrDefault(kind, 0) - heldByKind.getOrDefault(kind, 0)
+                    - claimedByKind.getOrDefault(kind, 0);
             if (shortBy > 0) {
                 out.put(sid, shortBy * ev);
             }
@@ -90,8 +94,31 @@ final class BotScrollHunt {
 
     /** What the fleet wants this bot to hunt now, from the live snapshot. */
     static Map<Integer, Double> wanted(Character bot) {
-        return wanted(BotStorageMuleManager.directory(System.currentTimeMillis()), bot.getId(), BotOfferManager.rules(),
-                BotGrindAdvisor.droppedScrollIds());
+        BotStorageMuleManager.Directory dir = BotStorageMuleManager.directory(System.currentTimeMillis());
+        BotOfferManager.ScrollRules rules = BotOfferManager.rules();
+        return wanted(dir, bot.getId(), rules, BotGrindAdvisor.droppedScrollIds(),
+                claimedByKind(dir, bot.getId(), rules, BotManager.getInstance().allEntries()));
+    }
+
+    /** Per substitute kind, how many other hunters of this hunter's fleet are hunting it now. */
+    static Map<String, Integer> claimedByKind(BotStorageMuleManager.Directory dir, int hunterId,
+                                              BotOfferManager.ScrollRules rules, Iterable<BotEntry> entries) {
+        Integer owner = dir == null ? null : dir.ownerOf().get(hunterId);
+        Map<String, Integer> out = new HashMap<>();
+        if (owner == null) {
+            return out;
+        }
+        for (BotEntry e : entries) {
+            if (e.bot == null || e.bot.getId() == hunterId || !e.scrollHunt || e.huntMapId == -1 || e.huntItemId == 0
+                    || !owner.equals(dir.ownerOf().get(e.bot.getId()))) {
+                continue;
+            }
+            String kind = substituteKind(rules, e.huntItemId);
+            if (kind != null) {
+                out.merge(kind, 1, Integer::sum);
+            }
+        }
+        return out;
     }
 
     /** The hunt plan for a capped bot: the farm of the fleet's shortfall, or null when nothing is wanted or farmable. */
