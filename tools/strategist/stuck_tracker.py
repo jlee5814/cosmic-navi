@@ -1,6 +1,7 @@
 """Turn stuck spots that keep coming back into fix tasks.
 
-Each snapshot's falling and frozen bots go into a history file. A spot is one map, one flag and one
+Each snapshot's falling and frozen bots go into a history file, and so does every frozen bot fleet ops
+scrolled out since (its rescue log), since most freezes happen between two nightly snapshots. A spot is one map, one flag and one
 place on the map (within SPOT_RADIUS_PX; a falling column matches on x alone). A spot recurs once two
 bots were stuck there, or one bot was stuck there in snapshots at least RECUR_GAP_MIN apart. A
 recurring spot opens a GitHub issue labeled stuck-spot with every sighting, a path trace of each bot
@@ -29,6 +30,8 @@ STUCK_FLAGS = ("frozen", "falling")
 SPOT_RADIUS_PX = 150
 RECUR_GAP_MIN = 30
 TRACE_WAIT_S = 7  # the path recorder keeps the last 120 ticks, about 6 s
+CONTAINER = "cosmic-local-maplestory-1"
+RESCUES = "/opt/server/cache/fleet-ops/rescues.tsv"
 MARKER = re.compile(r"<!-- stuck-spot map=(\d+) flag=(\w+) x=(-?\d+) y=(-?\d+) -->")
 
 
@@ -45,6 +48,26 @@ def sightings_from(snapshot):
                             "x": pos[0], "y": pos[1], "heading_to": b.get("heading_to"),
                             "status": b.get("advisor_status", "")})
     return out
+
+
+def rescue_sightings(lines):
+    """Frozen bots fleet ops scrolled out (cache/fleet-ops/rescues.tsv), as history records. A bot frozen
+    between two nightly snapshots shows up here and nowhere else."""
+    out = []
+    for line in lines:
+        f = line.rstrip("\n").split("\t")
+        if len(f) < 8 or not f[7].startswith("frozen"):
+            continue
+        out.append({"taken_at": time.strftime("%Y-%m-%d %H:%M", time.localtime(int(f[0]) / 1000)), "bot": f[2],
+                    "bot_id": int(f[1]), "map": int(f[3]), "map_name": f[4], "flag": "frozen", "x": int(f[5]),
+                    "y": int(f[6]), "heading_to": None, "status": f"auto rescued, {f[7]}", "source": "rescue"})
+    return out
+
+
+def read_rescues():
+    """The fleet ops rescue log, read from the server container; empty when the server is down."""
+    r = subprocess.run(["docker", "exec", CONTAINER, "cat", RESCUES], capture_output=True, text=True)
+    return r.stdout.splitlines() if r.returncode == 0 else []
 
 
 def same_spot(a, b):
@@ -151,7 +174,7 @@ def gh(*args):
 def main():
     snap_path, dry = sys.argv[1], "--dry-run" in sys.argv
     snapshot = json.loads(Path(snap_path).read_text())
-    new = sightings_from(snapshot)
+    new = sightings_from(snapshot) + rescue_sightings(read_rescues())
     history = [json.loads(l) for l in HISTORY.read_text().splitlines() if l.strip()] if HISTORY.exists() else []
     seen = {(s["taken_at"], s["bot"], s["flag"]) for s in history}
     new = [s for s in new if (s["taken_at"], s["bot"], s["flag"]) not in seen]
@@ -179,7 +202,9 @@ def main():
         title = (f"Stuck spot: {anchor['map_name']} ({anchor['map']}) near x {anchor['x']}"
                  + ("" if anchor["flag"] == "falling" else f", y {anchor['y']}") + f", {anchor['flag']}")
         issue = matching_issue(anchor, issues)
-        traces = {} if dry else {s["bot"]: capture_trace(s["bot_id"], s["bot"]) for s in fresh}
+        # A rescued bot has left the spot, so only a bot stuck in this snapshot has a trace worth taking.
+        traces = {} if dry else {s["bot"]: capture_trace(s["bot_id"], s["bot"]) for s in fresh
+                                 if s.get("source") != "rescue"}
         if issue and issue["state"] == "OPEN":
             comment = "Seen again.\n\n" + sighting_rows(fresh) + ("\n\n" + trace_blocks(traces) if traces else "")
             if not dry:

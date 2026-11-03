@@ -45,13 +45,13 @@ class BotScrollHuntTest {
         var dir = new BotStorageMuleManager.Directory(Map.of(1, 9, 2, 9, 3, 9, 4, 9, 5, 9), Map.of(), Map.of(),
                 Map.of(9, List.of(farmer, support, holder, hunter, mule)), 0L);
 
-        Map<Integer, Double> want = BotScrollHunt.wanted(dir, 4, RULES, Set.of(WAND_MATK, CAPE_INT, BW_ATT, WHITE));
+        Map<Integer, Double> want = BotScrollHunt.wanted(dir, 4, RULES, Set.of(WAND_MATK, CAPE_INT, BW_ATT, WHITE), Map.of());
 
         // Two mages could use a wand scroll and the fleet holds one: one short. 103 cape scrolls cover both mages.
         // Nobody uses a blunt weapon scroll; the white scroll is never routed.
         assertEquals(Set.of(WAND_MATK), want.keySet());
         assertTrue(want.get(WAND_MATK) > 0);
-        assertEquals(Map.of(), BotScrollHunt.wanted(dir, 77, RULES, Set.of(WAND_MATK))); // a bot with no fleet
+        assertEquals(Map.of(), BotScrollHunt.wanted(dir, 77, RULES, Set.of(WAND_MATK), Map.of())); // a bot with no fleet
     }
 
     @Test
@@ -62,7 +62,42 @@ class BotScrollHuntTest {
         var holder = member(3, 222, Set.of(), Map.of(BW_ATT, 150));
         var dir = new BotStorageMuleManager.Directory(Map.of(1, 9, 2, 9, 3, 9, 4, 9), Map.of(), Map.of(),
                 Map.of(9, List.of(fighter1, fighter2, holder)), 0L);
-        assertEquals(Map.of(), BotScrollHunt.wanted(dir, 4, RULES, Set.of(BW_ATT, BW_ATT_60)));
+        assertEquals(Map.of(), BotScrollHunt.wanted(dir, 4, RULES, Set.of(BW_ATT, BW_ATT_60), Map.of()));
         assertEquals(BotScrollHunt.substituteKind(RULES, BW_ATT), BotScrollHunt.substituteKind(RULES, BW_ATT_60));
+    }
+
+    private static BotEntry hunting(int id, int scrollId) {
+        client.Character bot = org.mockito.Mockito.mock(client.Character.class);
+        org.mockito.Mockito.when(bot.getId()).thenReturn(id);
+        BotEntry e = new BotEntry(bot, null, null);
+        e.scrollHunt = true;
+        e.huntMapId = 104000100;
+        e.huntItemId = scrollId;
+        return e;
+    }
+
+    @Test
+    void otherHuntersOnAScrollClaimItsShortfall() {
+        // Live 2026-11-03: six capped hunters all farmed one helmet DEF scroll while the fleet lacked others too.
+        var mage1 = member(1, 222, Set.of(WAND, CAPE), Map.of());
+        var mage2 = member(2, 231, Set.of(WAND, CAPE), Map.of());
+        var hunters = List.of(member(4, 110, Set.of(), Map.of()), member(5, 110, Set.of(), Map.of()),
+                member(6, 110, Set.of(), Map.of()), member(7, 110, Set.of(), Map.of()));
+        var stranger = member(8, 110, Set.of(), Map.of()); // another owner's hunter claims nothing here
+        var members = new java.util.ArrayList<>(List.of(mage1, mage2));
+        members.addAll(hunters);
+        var dir = new BotStorageMuleManager.Directory(Map.of(1, 9, 2, 9, 4, 9, 5, 9, 6, 9, 7, 9, 8, 3), Map.of(),
+                Map.of(), Map.of(9, members, 3, List.of(stranger)), 0L);
+        Set<Integer> candidates = Set.of(WAND_MATK, CAPE_INT);
+        assertEquals(candidates, BotScrollHunt.wanted(dir, 4, RULES, candidates, Map.of()).keySet(), "alone: both");
+
+        // Hunters 5 and 6 are on the wand scroll (two short), 7 is idle, 8 is not this fleet's, 4 is the asker.
+        BotEntry idle = hunting(7, WAND_MATK);
+        idle.huntMapId = -1;
+        var claims = BotScrollHunt.claimedByKind(dir, 4, RULES,
+                List.of(hunting(4, WAND_MATK), hunting(5, WAND_MATK), hunting(6, WAND_MATK), idle, hunting(8, WAND_MATK)));
+        assertEquals(Map.of(BotScrollHunt.substituteKind(RULES, WAND_MATK), 2), claims);
+        assertEquals(Set.of(CAPE_INT), BotScrollHunt.wanted(dir, 4, RULES, candidates, claims).keySet(),
+                "the wand shortfall is covered, so the fourth hunter takes the cape scroll");
     }
 }

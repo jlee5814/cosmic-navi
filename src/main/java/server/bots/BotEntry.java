@@ -313,6 +313,7 @@ public class BotEntry {
     volatile int huntKills = 0;
     volatile double huntChancePerKill = 0.0;
     volatile String huntItemName = "";
+    volatile int huntItemId = 0;        // the named scroll's id: other hunters leave its shortfall to this one
     volatile BotGrindPlanner.MobCandidate autopilotPlanPick = null; // the plan's map candidate (kill time, exp): gear payback reads it
     long autopilotNextDecisionAtMs = 0L; // when to re-run the grind advisor
     // Post-mortem for "idle in town overnight": the LAST decision the advisor resolved and when, so

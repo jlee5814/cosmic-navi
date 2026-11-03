@@ -395,4 +395,23 @@ class BotFleetOpsTest {
             BotFleetOps.store = previousStore;
         }
     }
+
+    @Test
+    void eachAutoRescueAppendsWhereTheBotWas(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        // The nightly stuck tracker only saw freezes inside its one minute snapshot; SipsBuddy38 was scrolled out of
+        // Dangerous Sea Gorge I ten times in a day and no stuck spot was ever recorded.
+        java.nio.file.Path previous = BotFleetOps.rescueLog;
+        BotFleetOps.rescueLog = dir.resolve("fleet-ops").resolve("rescues.tsv");
+        try {
+            BotFleetOps.recordRescue(1_000L, 291, "SipsBuddy38", 230040000, "Dangerous Sea Gorge I", 412, -85, "frozen 20 min");
+            BotFleetOps.recordRescue(2_000L, 281, "SipsBuddy28", 230040000, "Dangerous Sea Gorge I", 398, -85,
+                    "busy 45 min with no EXP");
+            assertEquals(List.of(
+                    "1000\t291\tSipsBuddy38\t230040000\tDangerous Sea Gorge I\t412\t-85\tfrozen 20 min",
+                    "2000\t281\tSipsBuddy28\t230040000\tDangerous Sea Gorge I\t398\t-85\tbusy 45 min with no EXP"),
+                    java.nio.file.Files.readAllLines(BotFleetOps.rescueLog));
+        } finally {
+            BotFleetOps.rescueLog = previous;
+        }
+    }
 }

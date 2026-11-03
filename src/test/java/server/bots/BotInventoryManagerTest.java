@@ -1263,6 +1263,29 @@ class BotInventoryManagerTest {
     }
 
     @Test
+    void aCrampedEtcTabSellsAnItemsExtraStacksBeforeAnotherKindsOnlyStack() throws Exception {
+        // SipsBuddy1 (2026-11-03): 23 full stacks of Teddy's Yellow Ribbon stayed while every fresh single drop sold,
+        // so the tab was cramped again a few kills later and the bot went back to town every few minutes.
+        Character bot = mock(Character.class);
+        when(bot.getLevel()).thenReturn(111);
+        Inventory etc = new Inventory(bot, InventoryType.ETC, (byte) 24);
+        etc.addItem(Items.itemWithQuantity(4010001, 100)); // Steel Ore, three full stacks
+        etc.addItem(Items.itemWithQuantity(4010001, 100));
+        etc.addItem(Items.itemWithQuantity(4010001, 60));
+        etc.addItem(Items.itemWithQuantity(4007006, 1)); // Magic Powder (Red), a fresh single drop
+        when(bot.getInventory(InventoryType.ETC)).thenReturn(etc);
+        BotInventoryManager.SellPriceLookup price = (id, qty) -> id == 4010001 ? 100 * qty : qty;
+        try (AutoCloseable sell = withSellSeams(price, id -> -1, id -> 600000);
+             AutoCloseable quest = withQuestSeams(id -> false, id -> List.of(), status(Set.of(), Set.of()))) {
+            List<Item> sales = BotInventoryManager.collectCrampedEtcSales(bot, 3, null);
+            assertEquals(List.of(4010001, 4010001, 4007006), sales.stream().map(Item::getItemId).toList(),
+                    "the extra Steel Ore stacks go first, then the cheapest kind");
+            assertEquals(List.of(60, 100), sales.subList(0, 2).stream().map(it -> (int) it.getQuantity()).toList(),
+                    "one full Steel Ore stack stays");
+        }
+    }
+
+    @Test
     void staleUntradeableQuestItemRespectsUntradeableConfig() throws Exception {
         // A stale quest item flagged untradeable (info/tradeBlock=1, ~26% of quest ETC items).
         // Whether it sells depends on the server's UNTRADEABLE_ITEMS_TRADEABLE config, the same

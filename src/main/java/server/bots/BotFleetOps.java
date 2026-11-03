@@ -82,6 +82,8 @@ final class BotFleetOps {
 
     /** Seam: where samples survive a restart (the server-cache volume outlives a rebuild). */
     static Path store = Path.of("cache", "fleet-ops", "samples.tsv");
+    /** Seam: every auto rescue, one line each, so the nightly stuck tracker sees freezes between its snapshots. */
+    static Path rescueLog = Path.of("cache", "fleet-ops", "rescues.tsv");
 
     static final Pattern FLEET = Pattern.compile("^(?:fleet|status|bots)$", Pattern.CASE_INSENSITIVE);
     static final Pattern ACTION = Pattern.compile("^(why|rescue|unstick|park)\\s+(\\S+)$", Pattern.CASE_INSENSITIVE);
@@ -845,14 +847,31 @@ final class BotFleetOps {
         }
         String from = mapName(bot.getMapId());
         String name = bot.getName();
-        if (scrollOut(entry, System.currentTimeMillis())) {
+        int fromMapId = bot.getMapId();
+        java.awt.Point at = new java.awt.Point(bot.getPosition()); // a copy: the warp moves the bot's own point
+        long now = System.currentTimeMillis();
+        if (scrollOut(entry, now)) {
             log.info("fleet ops: auto rescued {} ({}) from {} by return scroll", name, why, from);
+            recordRescue(now, bot.getId(), name, fromMapId, from, at.x, at.y, why);
             notifyOwner(entry, bot, List.of(clip(name + " was " + why + " at " + from + "; navi scrolled it to "
                     + mapName(bot.getMapId()))));
         } else {
             log.info("fleet ops: couldn't auto rescue {} ({}) at {}: no usable return scroll", name, why, from);
             notifyOwner(entry, bot, List.of(clip(name + " is " + why + " at " + from
                     + " with no usable return scroll. navi rescue " + shortName(name))));
+        }
+    }
+
+    /** Appends one auto rescue to {@link #rescueLog}: epoch ms, bot id, name, map id, map name, x, y, why. */
+    static void recordRescue(long t, int botId, String name, int mapId, String mapName, int x, int y, String why) {
+        String line = String.join("\t", Long.toString(t), Integer.toString(botId), name, Integer.toString(mapId),
+                mapName.replace('\t', ' '), Integer.toString(x), Integer.toString(y), why) + "\n";
+        try {
+            Files.createDirectories(rescueLog.getParent());
+            Files.writeString(rescueLog, line, StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+        } catch (IOException | RuntimeException e) {
+            log.debug("fleet ops: recording a rescue failed", e);
         }
     }
 
