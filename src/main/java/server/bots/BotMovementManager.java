@@ -652,15 +652,22 @@ class BotMovementManager {
         if (currentRegion == null || currentRegion.isRopeRegion) {
             return targetPos;
         }
+        return grindSafePoint(currentRegion, targetPos);
+    }
 
-        int safeLeft = currentRegion.minX + cfg.GRIND_EDGE_MARGIN;
-        int safeRight = currentRegion.maxX - cfg.GRIND_EDGE_MARGIN;
+    /**
+     * Where a grinding bot steers for {@code targetPos} on a ground region: x held GRIND_EDGE_MARGIN in from
+     * each edge, or the target unchanged when the region is too narrow for that margin. SSOT for the steering
+     * clamp and the wander pick, so a wander spot is always one the steering can reach (a spot inside the
+     * margin was clamped short of it, the bot stopped there and never re-picked: #588).
+     */
+    static Point grindSafePoint(BotNavigationGraph.Region region, Point targetPos) {
+        int safeLeft = region.minX + cfg.GRIND_EDGE_MARGIN;
+        int safeRight = region.maxX - cfg.GRIND_EDGE_MARGIN;
         if (safeLeft >= safeRight) {
             return targetPos;
         }
-
-        int clampedX = Math.max(safeLeft, Math.min(safeRight, targetPos.x));
-        return currentRegion.pointAt(clampedX);
+        return region.pointAt(Math.max(safeLeft, Math.min(safeRight, targetPos.x)));
     }
 
     private static MoveAction planGroundAction(BotEntry entry, Foothold currentFh, Point botPos, Point targetPos) {

@@ -2974,15 +2974,7 @@ final class BotNavigationManager {
         if (targetRegion == null || targetRegion.isRopeRegion) {
             return rawTargetPos;
         }
-
-        int safeLeft = targetRegion.minX + BotMovementManager.cfg.GRIND_EDGE_MARGIN;
-        int safeRight = targetRegion.maxX - BotMovementManager.cfg.GRIND_EDGE_MARGIN;
-        if (safeLeft >= safeRight) {
-            return rawTargetPos;
-        }
-
-        int clampedX = Math.max(safeLeft, Math.min(safeRight, rawTargetPos.x));
-        return targetRegion.pointAt(clampedX);
+        return BotMovementManager.grindSafePoint(targetRegion, rawTargetPos);
     }
 
     private static int landingRegionId(BotNavigationGraph graph, BotPhysicsEngine.JumpLanding landing) {
