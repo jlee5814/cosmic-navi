@@ -169,6 +169,7 @@ final class BotTravelManager {
             return false;
         }
         bot.gainMeso(-edge.fare(), false);
+        BotShopManager.logSpend(bot, edge.fare(), "the fare to map " + destMapId);
         if (spinel && destMapId == BotWorldGraph.MUSHROOM_SHRINE) {
             bot.saveLocation("WORLDTOUR"); // inbound ride: remember the origin for the return leg
         }

@@ -263,6 +263,14 @@ final class BotStorageMuleManager {
         return d;
     }
 
+    /** Both are bots registered to the same owner, the roster fleet. Roster bots own themselves while they
+     *  run, so an entry's owner can't answer this; the directory can. False until it has loaded. */
+    static boolean sameFleet(int botA, int botB) {
+        Directory dir = directory(System.currentTimeMillis());
+        Integer owner = dir == null ? null : dir.ownerOf().get(botA);
+        return owner != null && owner.equals(dir.ownerOf().get(botB));
+    }
+
     static void setDirectoryForTest(Directory d) {
         directory = d;
         DEMAND.clear();
