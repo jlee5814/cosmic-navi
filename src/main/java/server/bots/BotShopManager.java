@@ -134,7 +134,7 @@ final class BotShopManager {
     static void onMapChange(BotEntry entry, Character bot) {
         clearShopState(entry);
 
-        boolean wantsSellTrash = shouldAutoSellTrash(entry, bot);
+        boolean wantsSellTrash = entry.sellTrashErrand || shouldAutoSellTrash(entry, bot);
         // A map can hold several shop NPCs, and the purchase runs at one of them: visit the one selling
         // the gear trip's piece, else the first that has anything needed. (SipsBuddy32 walked to New Leaf
         // City for a better spear and bought pants from the first NPC that matched.)
@@ -168,6 +168,7 @@ final class BotShopManager {
 
         if (wantsSellTrash) {
             entry.shopSellTrashPending = true;
+            entry.sellTrashErrand = false;
         }
 
         long distSq = (long) bot.getPosition().distanceSq(match.npcPos);
@@ -248,32 +249,45 @@ final class BotShopManager {
                 entry.shopVisitPending, entry.autopilotErrandMapId);
     }
 
-    static void requestSellTrashVisit(BotEntry entry, Character bot) {
+    /** Sell junk at a shop on this map, or, for an autopilot bot on a map without one, walk to the nearest
+     *  shop map and sell there. Returns what the bot did, for the caller's log. (The navi responder sent
+     *  SipsBuddy1 to sell from Perion Street Corner, a field with no shop, and it stayed broke.) */
+    static String requestSellTrashVisit(BotEntry entry, Character bot) {
         if (entry == null || bot == null || bot.getMap() == null) {
-            return;
+            return "did nothing";
         }
         boolean nothingToSell = BotInventoryManager.collectSellTrashItems(entry, bot).isEmpty()
                 && !(isCramped(bot, InventoryType.USE) && BotInventoryManager.crampedUseSalesAvailable(bot))
                 && !(isCramped(bot, InventoryType.ETC) && BotInventoryManager.crampedEtcSalesAvailable(bot));
         if (nothingToSell) {
             BotManager.getInstance().botReply(entry, "no junk worth selling");
-            return;
+            return "had no junk worth selling";
         }
 
         entry.shopSellTrashPending = true;
         if (entry.shopVisitPending) {
-            return;
+            return "is selling trash";
         }
 
         NpcShopMatch match = findBestShop(entry, bot, true);
         if (match == null) {
             entry.shopSellTrashPending = false;
-            BotManager.getInstance().botReply(entry, "can't find a shop here");
-            return;
+            Integer shopMap = BotAutopilotManager.isActive(entry) ? findNearestShopMap(bot, true) : null;
+            if (shopMap == null || shopMap == bot.getMapId()) {
+                BotManager.getInstance().botReply(entry, "can't find a shop here");
+                return "found no shop in reach";
+            }
+            entry.sellTrashErrand = true;
+            if (entry.autopilotErrandMapId == -1) {
+                entry.autopilotErrandMapId = shopMap;
+            }
+            BotManager.getInstance().botReply(entry, "no shop here, gonna sell the junk in town");
+            return "is walking to " + BotGrindAdvisor.mapName(shopMap) + " to sell trash";
         }
 
         BotManager.getInstance().botReply(entry, "ok gonna sell the junk");
         startShopVisit(entry, bot, match);
+        return "is selling trash";
     }
 
     private static void startShopVisit(BotEntry entry, Character bot, NpcShopMatch match) {

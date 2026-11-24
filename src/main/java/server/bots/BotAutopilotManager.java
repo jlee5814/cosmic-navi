@@ -892,6 +892,7 @@ final class BotAutopilotManager {
                     BotShopManager.markShopMapUnreachable(entry, bot.getMapId(), System.currentTimeMillis());
                 }
                 entry.autopilotErrandMapId = -1;
+                entry.sellTrashErrand = false;
                 entry.autopilotReturningFromErrand = true;
                 reply.accept(entry, "restocked, heading back");
                 return false;

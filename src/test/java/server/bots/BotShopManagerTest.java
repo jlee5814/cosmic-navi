@@ -237,6 +237,69 @@ class BotShopManagerTest {
     }
 
     @Test
+    void aSellRequestOnAMapWithoutAShopWalksToTheNearestShopMap() {
+        // The navi responder told SipsBuddy1 to sell junk on Perion Street Corner, a field with no shop NPC;
+        // it answered there is no shop and stayed broke for a day.
+        Character bot = mock(Character.class);
+        MapleMap map = mock(MapleMap.class);
+        BotEntry entry = new BotEntry(bot, null, null);
+        entry.autopilotMapId = 101040000;
+
+        when(bot.getMap()).thenReturn(map);
+        when(bot.getMapId()).thenReturn(101040000);
+        when(map.getMapObjectsInRange(any(Point.class), anyDouble(), any())).thenReturn(List.of());
+
+        String outcome;
+        try (MockedStatic<BotInventoryManager> inventories = mockStatic(BotInventoryManager.class);
+             MockedStatic<BotShopManager> shops = mockStatic(BotShopManager.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            inventories.when(() -> BotInventoryManager.collectSellTrashItems(entry, bot))
+                    .thenReturn(List.of(mock(Item.class)));
+            shops.when(() -> BotShopManager.findNearestShopMap(bot, true)).thenReturn(102000000);
+
+            outcome = BotShopManager.requestSellTrashVisit(entry, bot);
+        }
+
+        assertFalse(entry.shopVisitPending);
+        assertTrue(entry.sellTrashErrand);
+        assertEquals(102000000, entry.autopilotErrandMapId);
+        assertTrue(outcome.startsWith("is walking to"), outcome);
+    }
+
+    @Test
+    void aSellErrandSellsAtTheShopItReachesWithoutACrampedBag() {
+        Character bot = mock(Character.class);
+        MapleMap map = mock(MapleMap.class);
+        BotEntry entry = new BotEntry(bot, null, null);
+        entry.sellTrashErrand = true;
+        NPC npc = shopNpc(new Point(20, 0));
+        Shop shop = mock(Shop.class);
+
+        when(bot.getMap()).thenReturn(map);
+        when(bot.getPosition()).thenReturn(new Point(0, 0));
+        when(bot.getInventory(InventoryType.USE)).thenReturn(new Inventory(bot, InventoryType.USE, (byte) 24));
+        when(bot.getBuffedValue(any(BuffStat.class))).thenReturn(null);
+        when(map.getMapObjectsInRange(any(Point.class), anyDouble(), any())).thenReturn(List.of(npc));
+        when(shop.getItems()).thenReturn(List.of());
+
+        try (MockedStatic<BotAttackExecutionProvider> attacks =
+                     mockStatic(BotAttackExecutionProvider.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+             MockedStatic<BotPotionManager> potions = mockStatic(BotPotionManager.class);
+             MockedStatic<ShopFactory> shops = mockStatic(ShopFactory.class)) {
+            ShopFactory factory = mock(ShopFactory.class);
+            shops.when(ShopFactory::getInstance).thenReturn(factory);
+            when(factory.getShopForNPC(npc.getId())).thenReturn(shop);
+            attacks.when(() -> BotAttackExecutionProvider.getEquippedWeaponType(bot)).thenReturn(WeaponType.CLAW);
+            potions.when(() -> BotPotionManager.countPotions(bot)).thenReturn(new int[]{9999, 9999});
+
+            BotShopManager.onMapChange(entry, bot);
+        }
+
+        assertTrue(entry.shopVisitPending);
+        assertTrue(entry.shopSellTrashPending);
+        assertFalse(entry.sellTrashErrand);
+    }
+
+    @Test
     void shouldAutoTriggerSellTrashVisitWhenEtcTabIsCramped() {
         Character bot = mock(Character.class);
         MapleMap map = mock(MapleMap.class);

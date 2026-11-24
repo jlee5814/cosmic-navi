@@ -251,6 +251,9 @@ public class BotEntry {
     long shopVisitStartedAtMs = 0L;
     long shopSequenceStartedAtMs = 0L;
     boolean shopSellTrashPending = false;
+    // A sell request (owner or navi responder) made on a map without a shop became an errand to the nearest
+    // shop map; the map change that reaches a shop sells. Outlives clearShopState, unlike shopSellTrashPending.
+    boolean sellTrashErrand = false;
     // True once the shop approach point was picked WITH a nav graph (reachability-filtered).
     // Shop visits trigger on map change, racing the async graph warmup — an unvalidated pick
     // is re-done as soon as a graph is available.

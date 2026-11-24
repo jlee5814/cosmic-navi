@@ -1057,10 +1057,7 @@ final class BotFleetOps {
                 holdErrands(entry, now, minutes);
                 yield "holds errands for " + minutes + " min and goes back to grinding";
             }
-            case "sell_trash" -> {
-                BotShopManager.requestSellTrashVisit(entry, bot);
-                yield entry.shopVisitPending ? "is selling trash at " + from : "found no shop or nothing to sell at " + from;
-            }
+            case "sell_trash" -> BotShopManager.requestSellTrashVisit(entry, bot) + " (was at " + from + ")";
             case "park" -> BotTrainingPlan.park(entry, bot, "parked by the navi responder: " + why)
                     ? "parked and logging out" : "couldn't be parked";
             default -> "did nothing";
