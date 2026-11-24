@@ -1357,7 +1357,7 @@ final class BotShopManager {
             }
         }
         if (bestItemId != -1
-                && shop.buyDirect(bot, bestShopSlot, bestItemId, (short) 1) == Shop.TransactionResult.SUCCESS) {
+                && buy(shop, bot, bestShopSlot, bestItemId, (short) 1) == Shop.TransactionResult.SUCCESS) {
             sequence.bought().add(resolveItemName(bestItemId, "gear"));
         }
         return sequence;
@@ -1369,7 +1369,7 @@ final class BotShopManager {
         if (needed == null) {
             return sequence;
         }
-        if (shop.buyDirect(bot, needed.slot(), needed.shopItem.getItemId(), (short) 1) == Shop.TransactionResult.SUCCESS) {
+        if (buy(shop, bot, needed.slot(), needed.shopItem.getItemId(), (short) 1) == Shop.TransactionResult.SUCCESS) {
             sequence.bought().add(resolveItemName(needed.shopItem.getItemId(), "weapon"));
             BotEquipManager.autoEquip(bot, sequence.entry().owner, null, true);
             return sequence;
@@ -1484,7 +1484,7 @@ final class BotShopManager {
         if (upgrade == null) {
             return sequence;
         }
-        if (shop.buyDirect(bot, upgrade.slot(), upgrade.shopItem.getItemId(), (short) 1) == Shop.TransactionResult.SUCCESS) {
+        if (buy(shop, bot, upgrade.slot(), upgrade.shopItem.getItemId(), (short) 1) == Shop.TransactionResult.SUCCESS) {
             sequence.bought().add(resolveItemName(upgrade.shopItem.getItemId(), "gear"));
             BotEquipManager.autoEquip(bot, sequence.entry().owner, null, true);
             sequence.entry().gearTripCheckAtMs = 0L; // search again from the new gear
@@ -1796,7 +1796,7 @@ final class BotShopManager {
         while (totalBought < desiredQuantity) {
             int remaining = desiredQuantity - totalBought;
             short qty = (short) Math.min(remaining, batchSize);
-            Shop.TransactionResult result = shop.buyDirect(bot, item.slot, item.shopItem.getItemId(), qty);
+            Shop.TransactionResult result = buy(shop, bot, item.slot, item.shopItem.getItemId(), qty);
             if (result == Shop.TransactionResult.SUCCESS) {
                 totalBought += qty;
                 continue;
@@ -1805,7 +1805,7 @@ final class BotShopManager {
                 reason = ShortfallReason.NO_MESO;
                 int affordable = price > 0 ? Math.min(remaining, bot.getMeso() / price) : 0;
                 if (affordable > 0) {
-                    Shop.TransactionResult partial = shop.buyDirect(bot, item.slot, item.shopItem.getItemId(), (short) affordable);
+                    Shop.TransactionResult partial = buy(shop, bot, item.slot, item.shopItem.getItemId(), (short) affordable);
                     if (partial == Shop.TransactionResult.SUCCESS) {
                         totalBought += affordable;
                     } else if (partial == Shop.TransactionResult.NO_SPACE) {
@@ -1836,6 +1836,24 @@ final class BotShopManager {
                     ? "couldn't afford any " + itemName + " this trip"
                     : "could only afford " + got + " " + itemName + " out of " + want;
         };
+    }
+
+    /** Every shop purchase goes through here so the log shows what a bot paid for. SipsBuddy1 went from
+     *  150M meso to none in two weeks and nothing recorded where it went. */
+    private static Shop.TransactionResult buy(Shop shop, Character bot, short slot, int itemId, short quantity) {
+        int before = bot.getMeso();
+        Shop.TransactionResult result = shop.buyDirect(bot, slot, itemId, quantity);
+        if (result == Shop.TransactionResult.SUCCESS) {
+            logSpend(bot, before - bot.getMeso(), quantity + "x " + resolveItemName(itemId, "item " + itemId));
+        }
+        return result;
+    }
+
+    /** One line per meso a bot pays (shop buys, fares, tickets, craft fees): grep "bot-spend:". */
+    static void logSpend(Character bot, long cost, String what) {
+        if (cost > 0) {
+            log.info("bot-spend: {} paid {} meso for {}, {} left", bot.getName(), cost, what, bot.getMeso());
+        }
     }
 
     private static String resolveItemName(int itemId, String fallbackName) {

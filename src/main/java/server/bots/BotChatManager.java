@@ -504,6 +504,11 @@ public class BotChatManager {
             "\\b" + MESO_CMD_VERB + "\\s+" + TRANSFER_RECIPIENT
             + "(?:(all)|(" + MESO_AMOUNT_TOKEN + "))[?!.,]?\\s*$",
             Pattern.CASE_INSENSITIVE);
+    // "give SipsBuddy1 50m mesos": hand mesos to another bot by name. Never me, us or a quantity word.
+    private static final Pattern GIVE_BOT_MESOS_PATTERN = Pattern.compile(
+            "^\\s*(?:trade|give|pass)\\s+(?!(?:me|us|all|your|ur|my)\\b)([a-z][a-z0-9]{3,12})\\s+("
+            + MESO_AMOUNT_TOKEN + ")\\s*" + MESO_WORDS + "\\s*[?!.,]*\\s*$",
+            Pattern.CASE_INSENSITIVE);
     private static final Pattern TRADE_SCROLLS_COMMAND_PATTERN = Pattern.compile(
             "\\b" + TRADE_CMD_VERB + "\\s+" + TRANSFER_RECIPIENT + TRANSFER_OWNER + SCROLL_WORDS + "\\b",
             Pattern.CASE_INSENSITIVE);
@@ -1003,6 +1008,12 @@ public class BotChatManager {
                 entry.proactiveUpgradeOffers = true;
                 BotManager.getInstance().botReply(entry, "ok, proactive upgrade offers on");
             });
+            return;
+        }
+        String[] mesoGift = matchMesoGift(message);
+        if (mesoGift != null && BotManager.getInstance().findSpawnedBotByName(mesoGift[0]) != null) {
+            BotManager.after(BotManager.randMs(500, 700), () -> BotInventoryManager.startMesoGift(
+                    mesoGift[0], parseMesoAmount(mesoGift[1]), entry, entry.bot));
             return;
         }
         if (SELF_SCROLL_DEBUG_PATTERN.matcher(message).find()) {
@@ -3224,6 +3235,12 @@ public class BotChatManager {
             case "me", "here", "pls", "please", "now" -> null;
             default -> target.trim();
         };
+    }
+
+    /** {recipient name, amount token} of "give <bot> <amount> mesos", or null. */
+    static String[] matchMesoGift(String message) {
+        Matcher matcher = GIVE_BOT_MESOS_PATTERN.matcher(message);
+        return matcher.find() ? new String[] {matcher.group(1), matcher.group(2)} : null;
     }
 
     private static String matchTradeMesoCategory(String message) {
