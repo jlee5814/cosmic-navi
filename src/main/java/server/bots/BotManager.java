@@ -3552,6 +3552,10 @@ public class BotManager {
                 }
                 if (entry.operatorCmd != null
                         && tickOperatorCommand(entry, bot, bot.getPosition(), nowMs, runAiTick)) {
+                    // A held command (idle, fidget, a MOVE parked in a town) owns the movement, not the rest of
+                    // the bot: it still trades, drinks potions and takes hits. SipsBuddy1, held in Free
+                    // Market<7>, never joined the trade SipsBuddy6 opened to fund it.
+                    runCommonTickSystems(entry, bot, owner, runAiTick);
                     return;
                 }
             }
