@@ -728,6 +728,7 @@ final class BotCraftManager {
             cm.gainItem(m.itemId(), (short) -(m.qty() * n));
         }
         bot.gainMeso(-r.fee() * n);
+        BotShopManager.logSpend(bot, (long) r.fee() * n, "the fee to craft " + n + "x item " + r.outputId());
         if (r.gear()) {
             for (int i = 0; i < n; i++) {
                 cm.gainItem(r.outputId(), (short) 1); // random stats, like the script's gainItem

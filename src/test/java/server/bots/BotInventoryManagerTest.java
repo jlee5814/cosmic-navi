@@ -116,6 +116,131 @@ class BotInventoryManagerTest {
         }
     }
 
+    /** A self-owned roster bot holding a trade another bot opened with it. */
+    private static BotEntry invitedRosterBot(int botId, int partnerId) {
+        Character bot = mock(Character.class);
+        BotEntry entry = new BotEntry(bot, bot, null); // roster bots own themselves
+        Character partnerChr = mock(Character.class);
+        Trade trade = mock(Trade.class);
+        Trade partner = mock(Trade.class);
+        when(bot.getId()).thenReturn(botId);
+        when(bot.getTrade()).thenReturn(trade);
+        when(trade.getPartner()).thenReturn(partner);
+        when(trade.getNumber()).thenReturn((byte) 1);
+        when(partner.getChr()).thenReturn(partnerChr);
+        when(partnerChr.getId()).thenReturn(partnerId);
+        when(partnerChr.getClient()).thenReturn(mock(client.BotClient.class));
+        return entry;
+    }
+
+    private static void fleets(Map<Integer, Integer> ownerOf) {
+        BotStorageMuleManager.setDirectoryForTest(new BotStorageMuleManager.Directory(
+                ownerOf, Map.of(), Map.of(), System.currentTimeMillis()));
+    }
+
+    @Test
+    void aRosterBotJoinsATradeAnotherBotOfItsFleetOpened() {
+        BotEntry entry = invitedRosterBot(254, 259);
+        Character donor = entry.bot.getTrade().getPartner().getChr();
+        fleets(Map.of(254, 252, 259, 252));
+        try (MockedStatic<Trade> trades = mockStatic(Trade.class);
+             MockedStatic<BotOwnershipService> owners = mockStatic(BotOwnershipService.class)) {
+            owners.when(BotOwnershipService::getInstance).thenReturn(mock(BotOwnershipService.class)); // no DB
+            for (int i = 0; i < 40; i++) {
+                BotInventoryManager.tickManualTrade(entry, entry.bot);
+            }
+            trades.verify(() -> Trade.visitTrade(entry.bot, donor), org.mockito.Mockito.atLeastOnce());
+        } finally {
+            BotStorageMuleManager.setDirectoryForTest(null);
+        }
+    }
+
+    @Test
+    void aRosterBotIgnoresATradeFromABotOfAnotherFleet() {
+        BotEntry entry = invitedRosterBot(254, 900);
+        fleets(Map.of(254, 252, 900, 7));
+        try (MockedStatic<Trade> trades = mockStatic(Trade.class);
+             MockedStatic<BotOwnershipService> owners = mockStatic(BotOwnershipService.class)) {
+            owners.when(BotOwnershipService::getInstance).thenReturn(mock(BotOwnershipService.class)); // no DB
+            for (int i = 0; i < 40; i++) {
+                BotInventoryManager.tickManualTrade(entry, entry.bot);
+            }
+            trades.verify(() -> Trade.visitTrade(any(), any()), times(0));
+        } finally {
+            BotStorageMuleManager.setDirectoryForTest(null);
+        }
+    }
+
+    /** startMesoGift from donor 259 to a bot named SipsBuddy1 (254); returns what the donor said, or null. */
+    private static String giftReply(BotEntry donorEntry, Character recipient, int mesos) {
+        BotManager manager = spy(BotManager.getInstance());
+        String[] said = new String[1];
+        doAnswer(inv -> said[0] = inv.getArgument(1)).when(manager).botReply(eq(donorEntry), anyString());
+        doReturn(new BotEntry(recipient, recipient, null)).when(manager).findSpawnedBotByName("SipsBuddy1");
+        try (MockedStatic<BotManager> botManagers = mockStatic(BotManager.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+             MockedStatic<Trade> trades = mockStatic(Trade.class)) {
+            botManagers.when(BotManager::getInstance).thenReturn(manager);
+            BotInventoryManager.startMesoGift("SipsBuddy1", mesos, donorEntry, donorEntry.bot);
+            if (donorEntry.pendingTradeCategory != null) {
+                trades.verify(() -> Trade.inviteTrade(donorEntry.bot, recipient));
+            }
+        } finally {
+            BotStorageMuleManager.setDirectoryForTest(null);
+        }
+        return said[0];
+    }
+
+    private static BotEntry donor(int meso, int mapId) {
+        Character bot = mock(Character.class);
+        when(bot.getId()).thenReturn(259);
+        when(bot.getMeso()).thenReturn(meso);
+        when(bot.getMapId()).thenReturn(mapId);
+        MapleMap map = mock(MapleMap.class);
+        when(bot.getMap()).thenReturn(map);
+        return new BotEntry(bot, bot, null);
+    }
+
+    private static Character recipient(BotEntry donorEntry, int mapId) {
+        Character recipient = mock(Character.class);
+        when(recipient.getId()).thenReturn(254);
+        when(recipient.getName()).thenReturn("SipsBuddy1");
+        when(recipient.getMapId()).thenReturn(mapId);
+        when(donorEntry.bot.getMap().getCharacterById(254)).thenReturn(recipient);
+        return recipient;
+    }
+
+    @Test
+    void aMesoGiftOpensATradeWithTheFleetBotOnTheSameMap() {
+        BotEntry donorEntry = donor(31_000_000, 910000007);
+        Character recipient = recipient(donorEntry, 910000007);
+        fleets(Map.of(254, 252, 259, 252));
+
+        giftReply(donorEntry, recipient, 25_000_000);
+
+        assertEquals("mesos:25000000", donorEntry.pendingTradeCategory);
+        assertEquals(254, donorEntry.pendingTradeRecipientId);
+        assertEquals(25_000_000, donorEntry.pendingTradeMeso);
+    }
+
+    @Test
+    void aMesoGiftIsRefusedOutsideTheFleetOffTheMapOrPastThePurse() {
+        BotEntry stranger = donor(31_000_000, 910000007);
+        fleets(Map.of(254, 7, 259, 252));
+        assertEquals("i only hand mesos to bots on our roster",
+                giftReply(stranger, recipient(stranger, 910000007), 25_000_000));
+        assertNull(stranger.pendingTradeCategory);
+
+        BotEntry away = donor(31_000_000, 910000007);
+        fleets(Map.of(254, 252, 259, 252));
+        assertEquals("SipsBuddy1 isn't on my map", giftReply(away, recipient(away, 100000000), 25_000_000));
+        assertNull(away.pendingTradeCategory);
+
+        BotEntry poor = donor(1_000, 910000007);
+        fleets(Map.of(254, 252, 259, 252));
+        assertTrue(giftReply(poor, recipient(poor, 910000007), 25_000_000).startsWith("i only have 1,000 mesos"));
+        assertNull(poor.pendingTradeCategory);
+    }
+
     @Test
     void shouldDescribeAutoSellStackablesWithSellQuantity() {
         // Equips delegate to BotOfferManager.formatItemSpecifier (needs live ii, not unit-testable);

@@ -437,6 +437,7 @@ final class BotFerryManager {
             return false;
         }
         bot.gainMeso(-route.ticketCost(), false);
+        BotShopManager.logSpend(bot, route.ticketCost(), "a ferry ticket (item " + route.ticketItemId() + ")");
         InventoryManipulator.addById(bot.getClient(), route.ticketItemId(), (short) 1);
         return true;
     };
@@ -552,6 +553,7 @@ final class BotFerryManager {
                     }
                     if (route.ticketCost() > 0) {
                         bot.gainMeso(-route.ticketCost(), false);
+                        BotShopManager.logSpend(bot, route.ticketCost(), "a ride from map " + bot.getMapId());
                     }
                     return true;
                 });
@@ -562,6 +564,7 @@ final class BotFerryManager {
                     return false;
                 }
                 bot.gainMeso(-route.ticketCost(), false);
+                BotShopManager.logSpend(bot, route.ticketCost(), "a ride from map " + bot.getMapId());
                 bot.changeMap(ride);
                 return true;
             });

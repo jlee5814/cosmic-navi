@@ -238,6 +238,7 @@ Verbs: `trade [me] <type/name>`, `give [me] <type/name>`, `drop <type/name>`, `p
 | `trade use` | Trade all use-tab items |
 | `trade etc` | Trade etc/junk items |
 | `trade 100k` / `give mesos` | Trade mesos |
+| `give SipsBuddy1 50m mesos` | Trade mesos to another roster bot on the same map |
 | `trade <item name>` | Trade a named item |
 | `trade <slot>` | Unequip then trade the item ex. `trade hat`, `trade gloves` |
 | `drop <category>` | Drop category to ground (same syntax as trading, but drop instead, requires confirmation) |

@@ -293,10 +293,11 @@ class BotInventoryManager {
     }
 
     /** A peer bot may auto-join an incoming trade from another bot it shares a stable with: same human
-     *  owner (owned stable) OR same crew. Crew bots are SELF-owned (owner == self), so the owner check
-     *  fails for them — the crewGroupId is the SSOT relationship. Without the crew arm, crewmate-to-
-     *  crewmate trades stalled: the recipient never joined and the donor timed out. See
-     *  {@link BotManager#crewMatesOnMap} and kb_bot_self_owned_owner_assumptions. */
+     *  owner (owned stable) OR same crew OR same roster fleet. Crew and roster bots are SELF-owned
+     *  (owner == self), so the owner check fails for them — the crewGroupId and the fleet directory are the
+     *  SSOT relationships. Without the crew arm, crewmate-to-crewmate trades stalled: the recipient never
+     *  joined and the donor timed out. See {@link BotManager#crewMatesOnMap} and
+     *  kb_bot_self_owned_owner_assumptions. */
     private static boolean isPeerTradePartner(BotEntry entry, Character partnerBot) {
         if (entry.owner != null
                 && BotOwnershipService.getInstance().isAuthorizedOwner(partnerBot.getId(), entry.owner.getId())) {
@@ -304,9 +305,11 @@ class BotInventoryManager {
         }
         if (entry.crewGroupId != null) {
             BotEntry partnerEntry = BotManager.getInstance().getEntryByBotCharId(partnerBot.getId());
-            return partnerEntry != null && entry.crewGroupId.equals(partnerEntry.crewGroupId);
+            if (partnerEntry != null && entry.crewGroupId.equals(partnerEntry.crewGroupId)) {
+                return true;
+            }
         }
-        return false;
+        return BotStorageMuleManager.sameFleet(entry.bot.getId(), partnerBot.getId());
     }
 
     static void tickManualTrade(BotEntry entry, Character bot) {
@@ -1021,6 +1024,33 @@ class BotInventoryManager {
         }
 
         startTradeSequence(category, owner, List.of(), requestedMesos > 0 ? requestedMesos : currentMesos, true, entry, bot);
+    }
+
+    /** An owner order to hand mesos to another roster bot on the same map ("give SipsBuddy1 50m mesos"),
+     *  for a bot that ran dry while the fleet sits on plenty. A trade, like a player's: one meso drop caps at
+     *  50,000. The other bot joins through the peer arm of {@link #tickManualTrade}. */
+    static void startMesoGift(String recipientName, int mesos, BotEntry entry, Character bot) {
+        BotManager mgr = BotManager.getInstance();
+        BotEntry to = mgr.findSpawnedBotByName(recipientName);
+        Character recipient = to == null ? null : to.bot;
+        if (recipient == null || recipient == bot
+                || !BotStorageMuleManager.sameFleet(bot.getId(), recipient.getId())) {
+            mgr.botReply(entry, "i only hand mesos to bots on our roster");
+            return;
+        }
+        if (recipient.getMapId() != bot.getMapId()) {
+            mgr.botReply(entry, recipient.getName() + " isn't on my map");
+            return;
+        }
+        if (bot.getTrade() != null || entry.pendingTradeCategory != null || recipient.getTrade() != null) {
+            mgr.botReply(entry, "cant open a trade rn, ask again in a bit");
+            return;
+        }
+        if (mesos <= 0 || bot.getMeso() < mesos) {
+            mgr.botReply(entry, notEnoughMesosReply(mesos, bot.getMeso()));
+            return;
+        }
+        startTradeSequence("mesos:" + mesos, recipient, List.of(), mesos, true, entry, bot);
     }
 
     // ─── Item collection helpers ──────────────────────────────────────────────

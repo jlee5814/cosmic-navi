@@ -28,6 +28,18 @@ class BotChatManagerTest {
     }
 
     @Test
+    void aMesoGiftNamesAnotherBotAndNeverTheOwner() {
+        assertEquals(List.of("SipsBuddy1", "50m"), List.of(BotChatManager.matchMesoGift("give SipsBuddy1 50m mesos")));
+        assertEquals("sipsbuddy12", BotChatManager.matchMesoGift("trade sipsbuddy12 25,000,000 meso")[0]);
+        assertNull(BotChatManager.matchMesoGift("give me 5m mesos"));
+        assertNull(BotChatManager.matchMesoGift("trade all your mesos"));
+        assertNull(BotChatManager.matchMesoGift("trade 10m mesos"));
+        assertNull(BotChatManager.matchMesoGift("give SipsBuddy1 your wand"));
+        // The owner trade parser must not read a gift as "trade me mesos".
+        assertNull(BotChatManager.matchTradeCategory("give SipsBuddy1 50m mesos"));
+    }
+
+    @Test
     void shouldParseTradeMesosWithExplicitAmounts() {
         assertEquals("mesos:1000000", BotChatManager.matchTradeCategory("trade 1m mesos"));
         assertEquals("mesos:1250000", BotChatManager.matchTradeCategory("trade 1,250,000 mesos"));
