@@ -42,6 +42,7 @@ class BotQuestManagerTest {
     private final BotQuestManager.ItemQuantity prevItemQty = BotQuestManager.itemQuantity;
     private final BotQuestManager.ItemDroppers prevDroppers = BotQuestManager.itemDroppers;
     private final BotQuestManager.ExpRateRatio prevExpRatio = BotQuestManager.expRateRatio;
+    private final BotQuestManager.HopelessMob prevHopeless = BotQuestManager.hopelessMob;
     private final List<String> replies = new ArrayList<>();
 
     {
@@ -65,6 +66,7 @@ class BotQuestManagerTest {
     void restore() {
         BotManager.dwellInstant = false;
         BotQuestManager.gate = prevGate;
+        BotQuestManager.hopelessMob = prevHopeless;
         BotQuestManager.hopCount = prevHops;
         BotQuestManager.mapMobs = prevMobs;
         BotQuestManager.grindExpBaseline = prevBaseline;
@@ -193,6 +195,29 @@ class BotQuestManagerTest {
         BotQuestManager.itemDroppers = itemId -> itemId == 4000000 ? List.of(111, 222) : List.of();
         var q = fetchQuest(5000, 100, 200, 50, Map.of(4000000, 30));
         assertEquals(java.util.Set.of(111, 222), BotQuestManager.effectiveTargetMobs(q));
+    }
+
+    @Test
+    void stillNeededMobsLeavesOutAMobTheBotCannotKillAlone() {
+        // Ace of Heart's Secret Ability on Encounter with the Buddha: the Sabots drop only from Black Crow
+        // (35M HP boss). A quest the bot can't progress must not pull it to that map or onto that target.
+        RecordingGate g = new RecordingGate();
+        g.started = true;
+        g.progress = Map.of();
+        BotQuestManager.gate = g;
+        BotQuestManager.itemQuantity = (bot, itemId) -> 0;
+        BotQuestManager.itemDroppers = itemId -> itemId == 4000224 ? List.of(9400014) : List.of(100);
+        var q = fetchQuest(8206, 100, 200, 50, Map.of(4000224, 2, 4000000, 5));
+
+        BotQuestManager.hopelessMob = (entry, bot, mobId) -> mobId == 9400014;
+        assertEquals(java.util.Set.of(100),
+                BotQuestManager.stillNeededMobs(null, mock(Character.class), List.of(q)),
+                "the boss the bot can't solo is dropped; the killable dropper stays");
+
+        BotQuestManager.hopelessMob = (entry, bot, mobId) -> false;
+        assertEquals(java.util.Set.of(100, 9400014),
+                BotQuestManager.stillNeededMobs(null, mock(Character.class), List.of(q)),
+                "once the bot can kill the boss it counts again");
     }
 
     @Test
