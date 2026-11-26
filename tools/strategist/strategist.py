@@ -89,6 +89,8 @@ def bot_line(b):
     if w:
         line += (f"\n    weapon: {w['name']} (level {w['req_level']}, {w.get('attack_kind', 'attack')} {w['attack']}, "
                  f"{w['levels_below_bot']} levels below the bot)")
+        if w.get("shop_sells_better") is False:
+            line += "; no NPC shop sells a stronger one, only drops could"
     up = b.get("weapon_upgrade")
     if up:
         line += (f"\n    best affordable weapon it can wear now: {up['weapon']} ({w.get('attack_kind', 'attack')} "
@@ -103,7 +105,7 @@ def bot_line(b):
     if blocked:
         needs = ", ".join(f"{k.upper()} {v} (has {blocked['has'][k]})" for k, v in blocked["needs"].items())
         line += (f"\n    best affordable weapon it cannot wear: {blocked['weapon']} (attack {blocked['attack']}, "
-                 f"{blocked['price']:,} mesos), needs {needs}")
+                 f"{blocked['price']:,} mesos), needs {needs}, {blocked['ap_cost']} AP")
     for o in b.get("options", []):
         line += (f"\n    option: {o['weapon']} on map {o['map']} ({o['mob']}): "
                  f"{o['attacks_per_kill']} attacks per kill, {o['exp_per_s']} EXP/s")

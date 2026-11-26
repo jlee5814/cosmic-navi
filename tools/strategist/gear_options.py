@@ -7,7 +7,9 @@ BotGrindAdvisor's 0.72 s attack cycle) closely enough to rank options. It is an 
 every hit lands, about 1 s of walking per kill and no other bots on the map, caps kills at what the
 spawn points refill, and gives no EXP per second for magicians (magic damage is different). Every bot,
 magicians included, still gets its best affordable shop weapon (by magic attack for wands and staves).
-A shop weapon counts only if the bot meets its level, job and stat requirements today.
+A shop weapon counts only if the bot meets its level, job and stat requirements today. A weapon it has
+the level and job for but not the stats is reported with the AP those stats would cost; a wand or staff
+only when the magic attack it adds beats that AP put into INT, since otherwise it is no upgrade.
 """
 import subprocess
 import xml.etree.ElementTree as ET
@@ -183,7 +185,11 @@ def enrich(bot_debug, fleet_entry, maps, eqp_names, worn, shop):
     scrolled = matk if magic else watk
     fleet_entry["weapon"] = {"name": eqp_names.get(item, f"item {item}"), "req_level": info["req_level"],
                              "attack": scrolled, "attack_kind": "magic attack" if magic else "attack",
-                             "levels_below_bot": level - info["req_level"]}
+                             "levels_below_bot": level - info["req_level"],
+                             # False: no NPC shop sells a stronger weapon of this kind at any price, so only
+                             # drops can upgrade it and an empty option list is no tooling gap.
+                             "shop_sells_better": any((weapon_info(c) or {}).get(atk_key, 0) > scrolled
+                                                      for c in shop if (c // 10000) % 100 == category)}
     if level - info["req_level"] >= GAP_LEVELS and d["meso"] >= GAP_MIN_MESO:
         flags.append("weapon_gap")
     if not magic and category not in WEAPON_MULT:
@@ -209,13 +215,17 @@ def enrich(bot_debug, fleet_entry, maps, eqp_names, worn, shop):
             continue
         bit = JOB_BIT.get(job // 100, 0)
         if ci["req_level"] <= level and (ci["req_job"] == 0 or ci["req_job"] & bit) and not wearable(ci, level, job, d):
-            blocked.append((ci[atk_key], -price, cand, price, ci))
+            needs = {k: v for k, v in ci["req"].items() if v and d.get(k, 0) < v}
+            ap_cost = sum(v - d.get(k, 0) for k, v in needs.items())
+            # A mage's AP in INT raises total magic one for one (Character.reapplyLocalStats), so a wand that
+            # adds less magic attack than the AP its LUK costs is a downgrade (Mystic Cane: +4 for 36 LUK).
+            if not magic or ci[atk_key] - scrolled > ap_cost:
+                blocked.append((ci[atk_key], -price, cand, price, needs, ap_cost))
     if blocked and (not best_buy or max(blocked)[0] > best_buy[0]):
-        att, _, cand, price, ci = max(blocked)
+        att, _, cand, price, needs, ap_cost = max(blocked)
         fleet_entry["upgrade_blocked_by_stats"] = {
-            "weapon": eqp_names.get(cand, cand), "attack": att, "price": price,
-            "needs": {k: v for k, v in ci["req"].items() if v and d.get(k, 0) < v},
-            "has": {k: d.get(k, 0) for k, v in ci["req"].items() if v and d.get(k, 0) < v}}
+            "weapon": eqp_names.get(cand, cand), "attack": att, "price": price, "ap_cost": ap_cost,
+            "needs": needs, "has": {k: d.get(k, 0) for k in needs}}
     # EXP per second options mirror the physical damage formula only, and idle capped bots get none.
     if magic or fleet_entry.get("cap_reached"):
         return
