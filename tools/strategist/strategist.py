@@ -87,7 +87,14 @@ def bot_line(b):
             f"party {b['party'] or 'none'} | now: {b['advisor_status']}")
     w = b.get("weapon")
     if w:
-        line += f"\n    weapon: {w['name']} (level {w['req_level']}, attack {w['attack']}, {w['levels_below_bot']} levels below the bot)"
+        line += (f"\n    weapon: {w['name']} (level {w['req_level']}, {w.get('attack_kind', 'attack')} {w['attack']}, "
+                 f"{w['levels_below_bot']} levels below the bot)")
+        if w.get("shop_sells_better") is False:
+            line += "; no NPC shop sells a stronger one, only drops could"
+    up = b.get("weapon_upgrade")
+    if up:
+        line += (f"\n    best affordable weapon it can wear now: {up['weapon']} ({w.get('attack_kind', 'attack')} "
+                 f"{up['attack']}, {up['price']:,} mesos from {up['npc']})")
     if b.get("flags"):
         line += f"\n    flags: {', '.join(b['flags'])}"
     m = b.get("motion")
@@ -98,7 +105,7 @@ def bot_line(b):
     if blocked:
         needs = ", ".join(f"{k.upper()} {v} (has {blocked['has'][k]})" for k, v in blocked["needs"].items())
         line += (f"\n    best affordable weapon it cannot wear: {blocked['weapon']} (attack {blocked['attack']}, "
-                 f"{blocked['price']:,} mesos), needs {needs}")
+                 f"{blocked['price']:,} mesos), needs {needs}, {blocked['ap_cost']} AP")
     for o in b.get("options", []):
         line += (f"\n    option: {o['weapon']} on map {o['map']} ({o['mob']}): "
                  f"{o['attacks_per_kill']} attacks per kill, {o['exp_per_s']} EXP/s")
@@ -127,8 +134,11 @@ def chat(url, system, user, schema, name, max_tokens):
 
 
 def buyable(bot):
-    """Item names the bot's options offer to buy, e.g. 'Zeco' from 'buy Zeco (225,000 mesos from Scott)'."""
-    return {o["weapon"][4:].split(" (")[0] for o in bot.get("options", []) if o["weapon"].startswith("buy ")}
+    """Item names the bot may buy: its weapon_upgrade plus any 'buy Zeco (225,000 mesos from Scott)' option."""
+    names = {o["weapon"][4:].split(" (")[0] for o in bot.get("options", []) if o["weapon"].startswith("buy ")}
+    if bot.get("weapon_upgrade"):
+        names.add(str(bot["weapon_upgrade"]["weapon"]))
+    return names
 
 
 def check(plan, bot, snap):
