@@ -444,13 +444,21 @@ final class BotQuestManager {
 
     /** Mob ids the bot still needs to kill for any STARTED indexed quest (counts not yet met). The
      *  SSOT for "what mobs is this bot committed to" - used by both the grind map-bias and the combat
-     *  target-bias. Cheap (a handful of indexed quests). */
-    static java.util.Set<Integer> activeQuestMobIds(Character bot) {
+     *  target-bias. Cheap (a handful of indexed quests). A mob the bot can't kill alone
+     *  ({@link #hopelessMob}) is left out: on Encounter with the Buddha the 1.6 map bias for Ace of
+     *  Heart's Sabots, which only the 35M HP Black Crow drops, held SipsBuddy2 at half its pace elsewhere
+     *  for weeks. Re-checked every scan, so the mob counts again once the bot can kill it. */
+    static java.util.Set<Integer> activeQuestMobIds(BotEntry entry, Character bot) {
         if (bot == null) {
             return java.util.Set.of();
         }
+        return stillNeededMobs(entry, bot, BotQuestIndex.get().byId().values());
+    }
+
+    static java.util.Set<Integer> stillNeededMobs(BotEntry entry, Character bot,
+                                                  java.util.Collection<BotQuestIndex.QuestMeta> quests) {
         java.util.Set<Integer> out = new java.util.HashSet<>();
-        for (BotQuestIndex.QuestMeta q : BotQuestIndex.get().byId().values()) {
+        for (BotQuestIndex.QuestMeta q : quests) {
             if (!gate.isStarted(bot, q.id()) || (q.mobs().isEmpty() && q.items().isEmpty())) {
                 continue;
             }
@@ -469,14 +477,31 @@ final class BotQuestManager {
                 }
             }
         }
+        out.removeIf(mobId -> hopelessMob.test(entry, bot, mobId));
         return out;
     }
+
+    /** A mob the bot can't kill alone, by the combat SSOT {@link BotCombatManager#isHopelessBossTarget}
+     *  (a boss whose solo kill takes over {@link BotCombatManager#MAX_BOSS_GRIND_KILL_SECONDS}). Seam for tests. */
+    interface HopelessMob {
+        boolean test(BotEntry entry, Character bot, int mobId);
+    }
+
+    static HopelessMob hopelessMob = (entry, bot, mobId) -> {
+        server.life.Monster mob;
+        try {
+            mob = server.life.LifeFactory.getMonster(mobId);
+        } catch (RuntimeException ex) {
+            return false;
+        }
+        return mob != null && BotCombatManager.isHopelessBossTarget(entry, bot, mob);
+    };
 
     /** Refresh the bot's cached still-needed quest-mob set (read O(1) by combat target selection). */
     static void refreshActiveQuestMobs(BotEntry entry, Character bot) {
         if (entry != null) {
             long t0 = BotPerformanceMonitor.start();
-            entry.activeQuestMobIds = activeQuestMobIds(bot);
+            entry.activeQuestMobIds = activeQuestMobIds(entry, bot);
             BotPerformanceMonitor.recordSince("quest-active-mobs", t0);
         }
     }
