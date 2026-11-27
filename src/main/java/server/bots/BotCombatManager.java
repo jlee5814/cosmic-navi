@@ -1033,10 +1033,26 @@ class BotCombatManager {
 
     /** The reachable grind candidates, best first by the rules (one per region on the graph); empty if none. */
     static List<ScoredGrindTarget> rankGrindTargets(BotEntry entry, Character bot) {
+        return rankGrindTargets(entry, bot, (double) cfg.GRIND_SEEK_RANGE * cfg.GRIND_SEEK_RANGE);
+    }
+
+    /**
+     * The best reachable mob anywhere on the map when the seek range holds none the ranking accepts, else null.
+     * A grinding bot with nothing in range walks toward it instead of pacing its own region: SipsBuddy1 on the
+     * small ledge at Twisted Time 220060301 (x -719..-638, y 1927) otherwise stood there until fleet ops rescued it (#588).
+     */
+    static Monster findGrindTargetBeyondSeekRange(BotEntry entry, Character bot) {
+        if (!rankGrindTargets(entry, bot).isEmpty()) {
+            return null;
+        }
+        List<ScoredGrindTarget> ranked = rankGrindTargets(entry, bot, Double.POSITIVE_INFINITY);
+        return ranked.isEmpty() ? null : ranked.getFirst().monster();
+    }
+
+    private static List<ScoredGrindTarget> rankGrindTargets(BotEntry entry, Character bot, double rangeSq) {
         long startedAt = System.nanoTime();
         try {
             Point botPos = bot.getPosition();
-            double rangeSq = (double) BotCombatManager.cfg.GRIND_SEEK_RANGE * BotCombatManager.cfg.GRIND_SEEK_RANGE;
             Foothold botFoothold = findGroundFoothold(botPos, bot);
             List<Monster> candidates = aliveMonstersInRange(entry, bot, botPos, rangeSq);
             if (candidates.isEmpty()) return List.of();

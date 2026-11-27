@@ -1921,6 +1921,52 @@ class BotCombatManagerTest {
         }
     }
 
+    @Test
+    void noGrindWanderSpotStaysWhereTheGrindSteeringCanReach() {
+        // #588: a wander spot inside GRIND_EDGE_MARGIN was clamped short by the steering; the bot stopped at
+        // the clamp, more than STOP_DIST from the spot, and never picked a new one.
+        MapleMap map = new MapleMap(910009061, 0, 0, 910009061, 1.0f);
+        server.maps.FootholdTree footholds = new server.maps.FootholdTree(new Point(-2000, -2000), new Point(2000, 2000));
+        footholds.insert(new Foothold(new Point(0, 100), new Point(200, 100), 1));
+        map.setFootholds(footholds);
+        BotNavigationGraphProvider.rebuildGraph(map);
+        Character bot = mockBot(new Point(100, 100), map, 20_000, null);
+        BotEntry entry = new BotEntry(bot, null, null);
+        entry.grinding = true;
+        int margin = BotMovementManager.cfg.GRIND_EDGE_MARGIN;
+
+        for (int i = 0; i < 200; i++) {
+            entry.patrolWanderTarget = null;
+            Point wander = BotManager.resolveNoGrindTargetPosition(entry, bot.getPosition());
+            assertTrue(wander.x >= margin && wander.x <= 200 - margin, "wander x " + wander.x);
+        }
+    }
+
+    @Test
+    void grindingBotWithNothingInSeekRangeWandersTowardTheNearestReachableMob() {
+        // #588: SipsBuddy1 stood on a small Twisted Time ledge with every mob beyond seek range, wandering
+        // only inside the ledge, until fleet ops rescued it.
+        MapleMap realMap = new MapleMap(910009062, 0, 0, 910009062, 1.0f);
+        server.maps.FootholdTree footholds = new server.maps.FootholdTree(new Point(-2000, -2000), new Point(3000, 2000));
+        footholds.insert(new Foothold(new Point(0, 100), new Point(2000, 100), 1));
+        realMap.setFootholds(footholds);
+        BotNavigationGraphProvider.rebuildGraph(realMap);
+        MapleMap map = spy(realMap);
+        Character bot = mockBot(new Point(100, 100), map, 20_000, null);
+        Monster far = mockMob(new Point(1500, 100), 100100);
+        doReturn(List.of(far)).when(map).getAllMonsters();
+        BotEntry entry = new BotEntry(bot, null, null);
+        entry.grinding = true;
+
+        assertNull(BotCombatManager.findGrindTarget(entry, bot));
+        assertEquals(far, BotCombatManager.findGrindTargetBeyondSeekRange(entry, bot));
+        assertEquals(new Point(1500, 100), BotManager.resolveNoGrindTargetPosition(entry, bot.getPosition()));
+
+        Monster near = mockMob(new Point(400, 100), 100100);
+        doReturn(List.of(far, near)).when(map).getAllMonsters();
+        assertNull(BotCombatManager.findGrindTargetBeyondSeekRange(entry, bot));
+    }
+
     private static Character mockBot(Point startPosition, MapleMap map, int startingHp, Integer stancePercent) {
         Character bot = mock(Character.class);
         Inventory equipped = mock(Inventory.class);

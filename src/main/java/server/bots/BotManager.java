@@ -3141,8 +3141,10 @@ public class BotManager {
         if (region != null && !region.isRopeRegion && region.width() > 0) {
             Point wander = entry.patrolWanderTarget;
             if (wander == null || isNear(botPos, wander, BotMovementManager.cfg.STOP_DIST)) {
-                int x = ThreadLocalRandom.current().nextInt(region.minX, region.maxX + 1);
-                wander = region.pointAt(x);
+                wander = seekWanderPoint(entry, graph, map);
+                if (wander == null) {
+                    wander = randomGrindWanderPoint(region);
+                }
                 entry.patrolWanderTarget = wander;
             }
             return wander;
@@ -3153,6 +3155,30 @@ public class BotManager {
             entry.wanderDirection = ThreadLocalRandom.current().nextBoolean() ? 1 : -1;
         }
         return new Point(botPos.x + entry.wanderDirection * 200, botPos.y);
+    }
+
+    /** A random spot on {@code region} the grinding steering can reach (inside its edge margin). */
+    private static Point randomGrindWanderPoint(BotNavigationGraph.Region region) {
+        int x = ThreadLocalRandom.current().nextInt(region.minX, region.maxX + 1);
+        return BotMovementManager.grindSafePoint(region, region.pointAt(x));
+    }
+
+    /** Nothing to grind in seek range: a spot by the best reachable mob on the map, or null to wander locally. */
+    private static Point seekWanderPoint(BotEntry entry, BotNavigationGraph graph, MapleMap map) {
+        Character bot = entry.bot;
+        if (bot == null || bot.getMap() != map) {
+            return null;
+        }
+        Monster mob = BotCombatManager.findGrindTargetBeyondSeekRange(entry, bot);
+        if (mob == null) {
+            return null;
+        }
+        Point mobPos = mob.getPosition();
+        BotNavigationGraph.Region region = graph.getRegion(graph.findRegionId(map, mobPos));
+        if (region == null || region.isRopeRegion || region.width() <= 0) {
+            return null;
+        }
+        return BotMovementManager.grindSafePoint(region, region.pointAt(mobPos.x));
     }
 
     static Point resolveNoGrindTargetPosition(BotEntry entry, Point botPos) {
@@ -3367,8 +3393,7 @@ public class BotManager {
         // Roam within region
         Point wander = entry.patrolWanderTarget;
         if (wander == null || isNear(botPos, wander, BotMovementManager.cfg.STOP_DIST)) {
-            int x = ThreadLocalRandom.current().nextInt(region.minX, region.maxX + 1);
-            wander = region.pointAt(x);
+            wander = randomGrindWanderPoint(region);
             entry.patrolWanderTarget = wander;
         }
         return wander;
