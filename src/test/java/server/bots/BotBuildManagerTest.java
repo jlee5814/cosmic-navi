@@ -351,46 +351,35 @@ class BotBuildManagerTest {
     }
 
     @Test
-    void bishopBuildHoldsSpUntilGenesisIsUnlocked() {
+    void bishopBuildSkipsLockedSkillsAndSpendsOnUnlockedOnes() {
+        // Genesis, Maple Warrior and the rest sit at master level 0 until a book or the instructor unlocks
+        // them; the SP goes to the next unlocked step (Big Bang) instead of waiting forever.
         Character bot = mock(Character.class);
         BotEntry entry = new BotEntry(bot, mock(Character.class), mock(ScheduledFuture.class));
         int bishopBook = GameConstants.getSkillBook(Bishop.GENESIS / 10000);
         int[] remainingSps = new int[5];
         remainingSps[bishopBook] = 5;
-        Map<Integer, Integer> maxLevels = new HashMap<>();
-
-        maxLevels.put(Bishop.GENESIS, 30);
-        maxLevels.put(Bishop.MAPLE_WARRIOR, 30);
-        maxLevels.put(Bishop.RESURRECTION, 10);
-        maxLevels.put(Bishop.ANGEL_RAY, 30);
-        maxLevels.put(Bishop.BAHAMUT, 30);
-        maxLevels.put(Bishop.BIG_BANG, 30);
-        maxLevels.put(Bishop.HOLY_SHIELD, 20);
-        maxLevels.put(Bishop.INFINITY, 30);
-        maxLevels.put(Bishop.MANA_REFLECTION, 20);
-        maxLevels.put(Bishop.HEROS_WILL, 5);
+        Map<Integer, Integer> skillLevels = new HashMap<>();
+        Map<Integer, Integer> masterLevels = Map.of(
+                Bishop.BIG_BANG, 10, Bishop.HOLY_SHIELD, 10, Bishop.MANA_REFLECTION, 10);
 
         when(bot.getJob()).thenReturn(Job.BISHOP);
-        when(bot.getRemainingSps()).thenReturn(remainingSps);
-        when(bot.getSkillLevel(any(Skill.class))).thenReturn((byte) 0);
+        stubSkillState(bot, remainingSps, skillLevels);
         when(bot.getMasterLevel(any(Skill.class))).thenAnswer(invocation -> {
             Skill skill = invocation.getArgument(0);
-            return skill.getId() == Bishop.GENESIS ? 0 : maxLevels.getOrDefault(skill.getId(), 10);
+            return masterLevels.getOrDefault(skill.getId(), 0);
         });
-        when(bot.getSkillExpiration(any(Skill.class))).thenReturn(0L);
 
         try (MockedStatic<SkillFactory> skillFactory = mockStatic(SkillFactory.class)) {
-            skillFactory.when(() -> SkillFactory.getSkill(anyInt())).thenAnswer(invocation -> {
-                int skillId = invocation.getArgument(0);
-                return mockSkill(skillId, maxLevels.getOrDefault(skillId, 30), true);
-            });
+            skillFactory.when(() -> SkillFactory.getSkill(anyInt()))
+                    .thenAnswer(invocation -> mockSkill(invocation.getArgument(0), 30, true));
 
             BotBuildManager.autoAssignSp(entry, bot);
         }
 
-        assertEquals(5, remainingSps[bishopBook]);
-        verify(bot, never()).gainSp(anyInt(), anyInt(), anyBoolean());
-        verify(bot, never()).changeSkillLevel(any(Skill.class), anyByte(), anyInt(), anyLong());
+        assertEquals(0, remainingSps[bishopBook]);
+        assertEquals(5, skillLevels.get(Bishop.BIG_BANG));
+        assertNull(skillLevels.get(Bishop.GENESIS));
     }
 
     @Test

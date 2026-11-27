@@ -142,6 +142,7 @@ class BotBuildManager {
             bot.resetStats();
         }
 
+        BotFourthJobSkills.grant(bot); // the instructor's skill unlocks a player gets by talking to it
         autoAssignSp(entry, bot);
         maybeRecomputeAutonomousApBuild(entry, bot);
         autoAssignAp(entry, bot);
@@ -683,7 +684,7 @@ class BotBuildManager {
             while (bot.getRemainingSps()[book] > 0) {
                 int currentLevel = bot.getSkillLevel(skill);
                 if (currentLevel >= step.targetLevel()) break;
-                if (!canLevelSkill(bot, skill, currentLevel)) return;
+                if (!canLevelSkill(bot, skill, currentLevel)) break; // locked (master level 0 until a book): next step
 
                 bot.gainSp(-1, book, false);
                 bot.changeSkillLevel(
@@ -857,6 +858,7 @@ class BotBuildManager {
             // spawned already past a milestone (e.g. a lv50 Fighter) doesn't get re-prompted or
             // re-advanced and doesn't fire checkBotStatus on every level-up. Beginners stay at 0.
             entry.jobPromptSent = Math.max(entry.jobPromptSent, passedMilestoneForJob(bot.getJob()));
+            BotFourthJobSkills.grant(bot); // backfills a 4th job bot that advanced before the unlock existed
             autoAssignSp(entry, bot);
             maybeRecomputeAutonomousApBuild(entry, bot);
             autoAssignAp(entry, bot);
